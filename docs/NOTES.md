@@ -908,3 +908,27 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   the percent of max MP a full HP bar lost gives at the most copies the ability can have (140811083 + id*0x1e:
   5 for Attack Haste), 25 by default; n copies give n/5 of it.  Kept with its fraction (g_mp is a float), so small
   hits are not lost the way KH2's truncation loses them.
+
+## Command cancel (2026-10-12; speed.c cc_*, `[CommandCancel]`)
+* Asked for: deck commands only (attack / magic) can be cut short at the end of their animation into anything
+  (another command, the same one, Attack, guard, dodge, jump, shotlock); nothing pressed = the animation plays out;
+  finishers, base combo, items, team attacks and everything else untouched; repeated-press commands only once no
+  press can continue them; a press shortly before is remembered; per-command delays in the ini (frames, >= 0).
+* "Over" = the last hit window (body and weapon controllers, all windows' off frames, also the ones not closed yet;
+  a window "on to the end" = only at the animation's end) + FollowThrough, and past frMoveEnd / frMarkEnd /
+  triggers; spells without body windows: t1 + FollowThrough, at least frChangeEnable; a spell already in its idle
+  pose (the 40 / 120-tick lock) is over.  Then + the command's delay.  BufferFrames (8) before that: presses held.
+* Judged only on frames where the game itself waits for the command's last animation: the end-test hooks
+  2246c0 / 224476 (deck attacks), 2253ff (dashes, surges, Aerial Slam), 26825f / 26828a (magic recovery, sub-state 4)
+  call cc_seen.  Covered: 5b 5c 5f 60 6a-6d 6f 71-74 76-78 81 and the spells that end in the shared recovery
+  (all but 9f-a1, a6-a8, aa, ab, ae-b0).  Not covered (own end code): 5d 5e 61-69 6e 70 75 79-80 82 and those spells.
+* Mechanics: 220b1d (after the state function) sets pl+0x318 bit 0x40 on those frames, so the command object makes a
+  request of any button (deck needs exactly 0x40 [233d0a]); 2206f8 (call 21f9f0, the input intake) is wrapped: right
+  after it, a request on an "over" frame ends the action with 21c510(pl, -1, 0) - a request taken this frame
+  (pl+0x31c bit 0x8000000) survives it [21c510 tail] - and the idle (219200) / fall (263030) state that runs next in
+  the same update dispatches it through 2176b0.  Early presses: the request bits are taken out of pl+0x31c and held,
+  0x8000000 kept set every frame (so a natural end keeps pl+0x34c), and put back once over (or once the action has
+  ended by itself; dropped if the player is hit meanwhile).  Requests the action's own 21c140 window would take
+  (its accept bits that frame: 0x40 all, 0x80 Attack / square) are left to the game; a vanilla-queued command
+  (pl+0x320 & 0x80) wins.  Jump in the air is left alone.
+* Test: `t_cancel` (fake player and controllers, the end call stubbed).  Not seen in the game by me.

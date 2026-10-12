@@ -228,9 +228,275 @@ static int leave(u8 *pl, int kind) {
     return 1;
 }
 
+/* ---- command cancel ([CommandCancel]) ----
+   A deck command (attack or magic, ids 5b..bb) can be cut short once it is over: its last hit window has closed
+   (+ FollowThrough), plus a per-command delay from the ini.  Whatever is pressed then - another command, Attack,
+   guard, dodge, jump, shotlock ... - starts at once; nothing pressed, and the animation plays to its end.
+   "Over" is only judged where the game itself waits for the command's last animation to finish (the end tests
+   hooked above: deck attacks 2246c0 / 224476, dashes and surges 2253ff, magic recovery 26825f / 26828a), so a
+   multi-part command is never cut between its parts; commands that run their own end code are not covered yet.
+   Commands that are pressed again (Blitz, Ars Arcanum ...) are left alone while another press could continue them.
+   How: on such a frame the player's accept bit 0x40 (pl+0x318) is set after the state function (220b1d), so the
+   command panel takes any button as a request [233d0a, 236e53, 232df0]; the next update, right after the request
+   reached pl+0x31c (21f9f0, called at 2206f8), the action is ended with the game's own 21c510 - which keeps a
+   request taken that frame (pl+0x31c bit 0x8000000) - and the idle / fall state that follows starts it through
+   2176b0, the dispatcher those states call every frame.  A press up to BufferFrames before the moment is held
+   and released then.  Requests the action's own window already takes (21c140) are left to the game. */
+static int   c_cc = 1;
+static float c_cc_buf = 8.0f;                   /* frames (1/30 s) a press may come early */
+static float g_cc_off[CMD_IDS];                 /* frames later than "over", per command (>= 0) */
+static const struct { u16 id; const char *name; } cc_names[] = {
+    { 0x5b, "Quick Blitz" },
+    { 0x5c, "Blitz" },
+    { 0x5d, "Magic Hour" },
+    { 0x5e, "Meteor Crash" },
+    { 0x5f, "Sliding Dash" },
+    { 0x60, "Fire Dash" },
+    { 0x61, "Dark Haze" },
+    { 0x62, "Sonic Blade" },
+    { 0x63, "Chaos Blade" },
+    { 0x64, "Zantetsuken" },
+    { 0x65, "Strike Raid" },
+    { 0x66, "Freeze Raid" },
+    { 0x67, "Treasure Raid" },
+    { 0x68, "Spark Raid" },
+    { 0x69, "Wind Raid" },
+    { 0x6a, "Fire Surge" },
+    { 0x6b, "Barrier Surge" },
+    { 0x6c, "Thunder Surge" },
+    { 0x6d, "Aerial Slam" },
+    { 0x6e, "Ars Solum" },
+    { 0x6f, "Ars Arcanum" },
+    { 0x70, "Time Splicer" },
+    { 0x71, "Poison Edge" },
+    { 0x72, "Wishing Edge" },
+    { 0x73, "Blizzard Edge" },
+    { 0x74, "Stun Edge" },
+    { 0x75, "Slot Edge" },
+    { 0x76, "Fire Strike" },
+    { 0x77, "Confusion Strike" },
+    { 0x78, "Binding Strike" },
+    { 0x79, "Tornado Strike" },
+    { 0x7a, "Brutal Blast" },
+    { 0x7b, "Magnet Spiral" },
+    { 0x7c, "Salvation" },
+    { 0x7d, "Windcutter" },
+    { 0x7e, "Limit Storm" },
+    { 0x7f, "Collision Magnet" },
+    { 0x80, "Geo Impact" },
+    { 0x81, "Sacrifice" },
+    { 0x82, "Break Time" },
+    { 0x83, "Fire" },
+    { 0x84, "Fira" },
+    { 0x85, "Firaga" },
+    { 0x86, "Dark Firaga" },
+    { 0x87, "Fission Firaga" },
+    { 0x88, "Triple Firaga" },
+    { 0x89, "Crawling Fire" },
+    { 0x8a, "Blizzard" },
+    { 0x8b, "Blizzara" },
+    { 0x8c, "Blizzaga" },
+    { 0x8d, "Triple Blizzaga" },
+    { 0x8e, "Thunder" },
+    { 0x8f, "Thundara" },
+    { 0x90, "Thundaga" },
+    { 0x91, "Thundaga Shot" },
+    { 0x92, "Cure" },
+    { 0x93, "Cura" },
+    { 0x94, "Curaga" },
+    { 0x95, "Esuna" },
+    { 0x96, "Mine Shield" },
+    { 0x97, "Mine Square" },
+    { 0x98, "Seeker Mine" },
+    { 0x99, "Zero Gravity" },
+    { 0x9a, "Zero Gravira" },
+    { 0x9b, "Zero Graviga" },
+    { 0x9c, "Magnet" },
+    { 0x9d, "Magnera" },
+    { 0x9e, "Magnega" },
+    { 0x9f, "Munny Magnet" },
+    { 0xa0, "Energy Magnet" },
+    { 0xa1, "D-Link Magnet" },
+    { 0xa2, "Aero" },
+    { 0xa3, "Aerora" },
+    { 0xa4, "Aeroga" },
+    { 0xa5, "Warp" },
+    { 0xa6, "Faith" },
+    { 0xa7, "Deep Freeze" },
+    { 0xa8, "Glacier" },
+    { 0xa9, "Ice Barrage" },
+    { 0xaa, "Firaga Burst" },
+    { 0xab, "Raging Storm" },
+    { 0xac, "Mega Flare" },
+    { 0xad, "Quake" },
+    { 0xae, "Tornado" },
+    { 0xaf, "Meteor" },
+    { 0xb0, "Transcendence" },
+    { 0xb1, "Mini" },
+    { 0xb2, "Blackout" },
+    { 0xb3, "Ignite" },
+    { 0xb4, "Confuse" },
+    { 0xb5, "Bind" },
+    { 0xb6, "Poison" },
+    { 0xb7, "Slow" },
+    { 0xb8, "Stop" },
+    { 0xb9, "Stopra" },
+    { 0xba, "Stopga" },
+    { 0xbb, "Sleep" },
+};
+/* commands that end through their own code (multi-part or own handlers): not covered */
+static int cc_covered(u16 id) {
+    if (id >= 0x83 && id <= 0xbb)                               /* magic: those that end in the shared recovery */
+        return !((id >= 0x9f && id <= 0xa1) || id == 0xa6 || id == 0xa7 || id == 0xa8 || id == 0xaa || id == 0xab || (id >= 0xae && id <= 0xb0));
+    switch (id) {
+    case 0x5b: case 0x5c: case 0x5f: case 0x60: case 0x6a: case 0x6b: case 0x6c: case 0x6d: case 0x6f:
+    case 0x71: case 0x72: case 0x73: case 0x74: case 0x76: case 0x77: case 0x78: case 0x81: return 1;
+    }
+    return 0;
+}
+static int cc_repress(u16 id) { return id == 0x5c || id == 0x62 || id == 0x63 || id == 0x6d || id == 0x6e || id == 0x6f || id == 0x75; }
+#define CC_REQ (0x1u | 0x4u | 0x8u | 0x10u | 0x20u | 0x40u | 0x100u | 0x200u | 0x200000u | 0x800000u)
+enum { CCS_NONE, CCS_ZONE, CCS_READY };
+static struct {
+    unsigned seen;                  /* tick in which an end test of the command was reached */
+    int kind, state, logged;
+    const u8 *rec; u16 id; u8 vacc; /* the action's own accept bits on that frame */
+    u32 stash;                      /* requests held for the moment */
+} g_cc;
+static unsigned g_tick;
+static void (MSABI *g_cc_end)(u8 *pl, int air, int moving);     /* 21c510 (the tests put their own here) */
+
+static void cc_seen(u8 *pl, int kind) {
+    if (!c_cc || pl != local_player()) return;
+    g_cc.seen = g_tick; g_cc.kind = kind;
+}
+/* the deck command this action is, or 0 */
+static u16 cc_command(u8 *pl) {
+    u32 st = *(u32*)(pl + 0x304); u16 id = *(u16*)(pl + 0x312); s16 part = *(s16*)(pl + 0x310);
+    if (id < 0x5b || id > 0xbb || !cc_covered(id)) return 0;
+    if (G(u8, 0x814900 + (u32)id * 0x18) != 2) return 0;                         /* a deck command */
+    u8 cat = G(u8, 0x814901 + (u32)id * 0x18);
+    if (st == 0x10) return cat == 1 && (part == 3 || part == 4) ? id : 0;
+    if (st == 0x11) return cat == 2 && part == 4 ? id : 0;
+    return 0;
+}
+/* the frame the command is over from: its last hit window closes (+ FollowThrough), its own movement and triggers
+   are past; -1 = only when the animation ends (a window that stays on to the end) */
+static float cc_over(u8 *pl, const u8 *rec, int magic) {
+    float last = -1.0f; int n = 0, to_end = 0;
+    u8 *ents[2] = { pl, *(u8**)(pl + 0x378) };
+    for (int k = 0; k < 2; k++) {
+        u8 *ctl = ents[k] ? *(u8**)(ents[k] + 0x88) : NULL; if (!ctl) continue;
+        int cnt = *(s32*)(ctl + 0x20); u8 *e = *(u8**)(ctl + 0x28);
+        if (!e || cnt <= 0 || cnt > 64) continue;
+        for (int i = 0; i < cnt; i++, e += 0x90) {
+            u8 *d = *(u8**)(e + 0x48); if (!d) continue;
+            for (int j = 0; j < 2; j++) {
+                if (j && *(s16*)(d + 0x30) < 0) break;
+                n++;
+                if (*(s16*)(e + 0x28 + 2 * j) == 2) to_end = 1;
+                float off = *(s16*)(d + (j ? 0x32 : 0x26));
+                if (off > last) last = off;
+            }
+        }
+    }
+    if (to_end) return -1.0f;
+    float busy = 0.0f;
+    if (rec[0x1f] > busy) busy = rec[0x1f];
+    if (rec[0x1d] > busy) busy = rec[0x1d];
+    for (int i = 0x14; i <= 0x17; i++) if (rec[i] && rec[i] + 1.0f > busy) busy = rec[i] + 1.0f;
+    float d;
+    if (n) d = last + c_margin;
+    else if (magic) d = rec[0x14] + c_margin;                    /* the spell went off at t1 */
+    else if (rec[0x0d]) d = rec[0x0d];
+    else return -1.0f;
+    if (magic && rec[0x0d] > d) d = rec[0x0d];
+    return d > busy + 1.0f ? d : busy + 1.0f;
+}
+/* after this frame's state function (220b1d): is the command over, or nearly? then any button makes a request */
+static void cc_after(u8 *pl) {
+    g_cc.state = CCS_NONE;
+    if (!c_cc || pl != local_player() || g_cc.seen != g_tick) return;
+    u16 id = cc_command(pl); const u8 *rec = *(u8**)(pl + 0x5b8);
+    if (!id || !rec || !*(u8**)(pl + 0x78)) return;
+    if (*(u32*)(pl + 0x320) & 0x80) return;                      /* the game has queued the next command */
+    if (*(u32*)(pl + 0x31c) & 0x2000) return;                    /* controls locked */
+    float fr = frame_of(pl);
+    if (cc_repress(id)) {
+        u8 *cmd = *(u8**)(pl + 0x390);
+        if (cmd && (*(u32*)(cmd + 0x60) & 0x1000)) return;      /* another press can still continue it */
+        if (can_follow(pl, rec, K_DECK, fr)) return;
+    }
+    int magic = *(u32*)(pl + 0x304) == 0x11;
+    u16 mo = *(u16*)(pl + 0x422);
+    int anim_over = finished(pl) || (magic && (mo == 10 || mo == *(u16*)(pl + 0x428)));   /* spell: idle pose while its lock runs */
+    float r = -1.0f;
+    if (!anim_over) { r = cc_over(pl, rec, magic); if (r >= 0.0f) r += g_cc_off[id]; }
+    int st = anim_over || (r >= 0.0f && fr >= r) ? CCS_READY : (r >= 0.0f && fr >= r - c_cc_buf ? CCS_ZONE : CCS_NONE);
+    if (st == CCS_NONE) return;
+    g_cc.state = st; g_cc.rec = rec; g_cc.id = id;
+    g_cc.vacc = (u8)(*(u32*)(pl + 0x318) & 0xc0);
+    *(u32*)(pl + 0x318) |= 0x40;
+    if (g_debug && g_cc.logged != st) LOG("cancel: command %x %s at frame %.1f (over from %.1f)", id, st == CCS_READY ? "can be cancelled" : "takes early presses", fr, r);
+    g_cc.logged = st;
+}
+/* right after the input reached the player (2206f8, before the state function) */
+static void cc_before(u8 *pl) {
+    if (!c_cc || pl != local_player()) return;
+    u32 *rq = (u32*)(pl + 0x31c), req = *rq & CC_REQ;
+    u32 st = *(u32*)(pl + 0x304);
+    int same = (st == 0x10 || st == 0x11) && *(const u8**)(pl + 0x5b8) == g_cc.rec && *(u16*)(pl + 0x312) == g_cc.id;
+    if (g_cc.stash) {
+        if (req) g_cc.stash = req;                               /* a later press replaces it */
+        if (same && g_cc.state != CCS_READY) { *rq &= ~req; *rq |= 0x8000000; return; }   /* (keeps the taken command through an end) */
+        if (same && g_cc.state == CCS_READY) {
+            *rq |= g_cc.stash | 0x8000000;
+            if (g_debug) LOG("cancel: command %x cut short for a held press (%x)", g_cc.id, g_cc.stash);
+            g_cc.stash = 0; g_cc.logged = 0;
+            g_cc_end(pl, -1, 0);
+            return;
+        }
+        if (st >= 1 && st <= 5) { *rq |= g_cc.stash | 0x8000000; if (g_debug) LOG("cancel: held press (%x) after the command's own end", g_cc.stash); }
+        else if (g_debug) LOG("cancel: held press (%x) dropped (state %x)", g_cc.stash, st);
+        g_cc.stash = 0;
+        return;
+    }
+    if (!req || !same || g_cc.state == CCS_NONE) return;
+    if (g_cc.vacc & 0x40) return;                                /* the action's own window takes everything */
+    if ((g_cc.vacc & 0x80) && !(req & ~(0x4u | 0x8u | 0x100u | 0x200u))) return;      /* ... or this */
+    if (req == 0x1 && (*(u32*)(pl + 0x318) & 0x400000)) return; /* jump in the air: nothing to do */
+    if (g_cc.state == CCS_ZONE) { g_cc.stash = req; *rq &= ~req; *rq |= 0x8000000; return; }
+    if (g_debug) LOG("cancel: command %x cut short (%x)", g_cc.id, req);
+    g_cc.logged = 0;
+    g_cc_end(pl, -1, 0);
+}
+static void cc_config(void) {
+    char b[64];
+    GetPrivateProfileStringA("CommandCancel", "Enabled", "1", b, sizeof b, g_ini); c_cc = atoi(b);
+    char def[32]; snprintf(def, sizeof def, "%g", c_cc_buf);
+    GetPrivateProfileStringA("CommandCancel", "BufferFrames", def, b, sizeof b, g_ini); c_cc_buf = (float)atof(b);
+    if (!(c_cc_buf >= 0.0f && c_cc_buf <= 30.0f)) c_cc_buf = 8.0f;
+    int n = 0;
+    for (unsigned i = 0; i < sizeof cc_names / sizeof *cc_names; i++) {
+        u16 id = cc_names[i].id; char hex[8]; b[0] = 0;
+        GetPrivateProfileStringA("CommandCancel", cc_names[i].name, "", b, sizeof b, g_ini);
+        if (!b[0]) { snprintf(hex, sizeof hex, "%x", id); GetPrivateProfileStringA("CommandCancel", hex, "", b, sizeof b, g_ini); }
+        float v = b[0] ? (float)atof(b) : 0.0f;
+        if (!(v >= 0.0f)) v = 0.0f;                              /* no earlier than "over" (for now) */
+        if (v > 120.0f) v = 120.0f;
+        g_cc_off[id] = v;
+        if (v > 0.0f) n++;
+    }
+    if (n) LOG("cancel: %d commands with a delay of their own", n);
+}
+static void MSABI input_hook(u8 *pl) {
+    FN(void, 0x21f9f0, u8*)(pl);
+    if (c_on) cc_before(pl);
+}
+
 static u64 MSABI h_attack(Ctx *c) { return leave((u8*)c->rbx, K_NORMAL) ? (u64)(g_base + 0x2291cd) : 0; }
-static u64 MSABI h_deck(Ctx *c)   { return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x2264d3) : 0; }
-static u64 MSABI h_dash(Ctx *c)   { return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x22540d) : 0; }
+static u64 MSABI h_deck(Ctx *c)   { cc_seen((u8*)c->rdi, K_DECK); return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x2264d3) : 0; }
+static u64 MSABI h_dash(Ctx *c)   { cc_seen((u8*)c->rdi, K_DECK); return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x22540d) : 0; }
 static u64 MSABI h_item(Ctx *c)   { return leave((u8*)c->rbx, K_ITEM) ? (u64)(g_base + 0x262064) : 0; }
 static u64 MSABI h_friend(Ctx *c) { return leave((u8*)c->rbx, K_FRIEND) ? (u64)(g_base + 0x2599b9) : 0; }
 static u64 MSABI h_finish(Ctx *c) { return leave((u8*)c->rbx, K_FINISH) ? (u64)(g_base + 0x2562c6) : 0; }
@@ -252,12 +518,14 @@ static int plain_spell(u8 *pl) {            /* an ordinary cast: magic command, 
    (or hang in the fall loop) until it is out */
 static u64 MSABI h_mag_anim(Ctx *c) {
     u8 *pl = (u8*)c->rbx;
+    cc_seen(pl, K_MAGIC);
     if (!c_walk || !plain_spell(pl) || *(float*)(pl + 0x1a0) > 40.0f) return 0;
     return (u64)(g_base + 0x26829a);
 }
 /* 26828a: every frame of the recovery in which nothing is queued, just before "lock <= 0 ?" */
 static u64 MSABI h_mag_lock(Ctx *c) {
     u8 *pl = (u8*)c->rbx; const u8 *rec = *(u8**)(pl + 0x5b8);
+    cc_seen(pl, K_MAGIC);
     float t = *(float*)(pl + 0x1a0);
     if (!rec || !plain_spell(pl) || t > 40.0f || t <= 0.0f) return 0;
     float fr = frame_of(pl);
@@ -443,6 +711,8 @@ static void air_log(u8 *pl) {
         rec ? (int)patk_index(rec) : -1, frame_of(pl), vy, g_air_y, *(float*)(pl + 0x508), (*(u32*)(pl + 0x318) & 0x800000) ? " aerial" : "");
 }
 static void MSABI tick_hook(u8 *pl) {
+    if (c_on) cc_after(pl);
+    if (pl == local_player()) g_tick++;
     if (c_on) speed_frame(pl);
     if (c_on) { hop_frame(pl); air_log(pl); }
     g_fall = NULL;
@@ -461,6 +731,7 @@ static const Steal *const sites[] = { &S_atk_end, &S_mag_anim, &S_mag_lock, &S_d
                                       &S_friend_end, &S_fin_end, &S_fall_hover, &S_gravity, &S_launch };
 int speed_check(void) {
     c_on = (int)ini_f("Enabled", 1);
+    cc_config();
     c_walk = (int)ini_f("WalkOut", 1); c_air = (int)ini_f("AirWeight", 1); c_lunge = (int)ini_f("LungeFix", 1);
     c_actions = ini_f("Actions", c_actions); c_margin = ini_f("FollowThrough", c_margin); c_airlock = ini_f("AirLock", c_airlock);
     c_rel_fire = ini_f("FireRelease", c_rel_fire); c_rel_blizzard = ini_f("BlizzardRelease", c_rel_blizzard);
@@ -506,6 +777,8 @@ int speed_check(void) {
     u8 *p = g_base + 0x220b1d; s32 d; memcpy(&d, p + 1, 4);
     if (p[0] != 0xE8 || (u32)(0x220b1d + 5 + d) != 0x23b3a0) { LOG("speed: call site 220b1d does not match"); bad++; }
     if (G(u32, 0x26407b) != 0x41f00000) { LOG("speed: 26407b does not match"); bad++; }
+    p = g_base + 0x2206f8; memcpy(&d, p + 1, 4);
+    if (c_cc && (p[0] != 0xE8 || (u32)(0x2206f8 + 5 + d) != 0x21f9f0)) { LOG("speed: call site 2206f8 does not match"); bad++; }
     static const u8 lunge[] = { 0x41, 0x0f, 0x28, 0xf2, 0xf3, 0x0f, 0x5e, 0x35 };
     if (memcmp(g_base + 0x21cf4e, lunge, sizeof lunge)) { LOG("speed: 21cf4e does not match"); bad++; }
     return bad == 0;
@@ -526,17 +799,30 @@ void speed_apply(void) {
     hook_ctx(&S_fall_hover, h_hover, "fall hover");
     if (c_launch) hook_ctx(&S_launch, h_launch, "launch height");
     hook_call(0x220b1d, 0x23b3a0, tick_hook, "player tick");
+    g_cc_end = (void (MSABI *)(u8*, int, int))(g_base + 0x21c510);
+    if (c_cc) hook_call(0x2206f8, 0x21f9f0, input_hook, "player input (command cancel)");
     if (c_air && c_airlock != 30.0f) { u32 v; memcpy(&v, &c_airlock, 4); patch_u32(0x26407b, 0x41f00000, v, "air lock"); }
     if (c_lunge) {
         g_lunge_div = near_alloc(4);
         if (g_lunge_div) { *g_lunge_div = 60.0f; patch_riprel(0x21cf56, 0, 0x6ec5a4, g_lunge_div, "lunge speed"); }
     }
-    LOG("speed: actions x%.2f, walk-out %d, air %d (lock %.0f), release fire %.2f blizzard %.2f thunder %.2f cure %.2f, big spells x%.2f",
-        c_actions, c_walk, c_air, c_airlock, c_rel_fire, c_rel_blizzard, c_rel_thunder, c_rel_cure, c_big);
+    LOG("speed: actions x%.2f, walk-out %d, air %d (lock %.0f), release fire %.2f blizzard %.2f thunder %.2f cure %.2f, big spells x%.2f, command cancel %d (buffer %.0f)",
+        c_actions, c_walk, c_air, c_airlock, c_rel_fire, c_rel_blizzard, c_rel_thunder, c_rel_cure, c_big, c_cc, c_cc_buf);
 }
 
 #ifndef _WIN32      /* offline test access */
 float test_speed_wanted(u8 *pl) { return wanted(pl); }
+void  test_cc_after(u8 *pl) { cc_after(pl); }
+void  test_cc_before(u8 *pl) { cc_before(pl); }
+void  test_cc_seen(u8 *pl, int magic) { cc_seen(pl, magic ? K_MAGIC : K_DECK); }
+void  test_cc_tick(void) { g_tick++; }
+int   test_cc_state(void) { return g_cc.state; }
+u32   test_cc_stash(void) { return g_cc.stash; }
+void  test_cc_reset(void) { memset(&g_cc, 0, sizeof g_cc); g_cc.seen = (unsigned)-1; }
+float *test_cc_off(void) { return g_cc_off; }
+int   *test_cc_on(void) { return &c_cc; }
+void  test_cc_end(void (MSABI *f)(u8*, int, int)) { g_cc_end = f; }
+void  test_cc_config(void) { cc_config(); }
 float *test_cmd_speed(void) { return g_cmd_speed; }
 void  test_hop_frame(u8 *pl) { hop_frame(pl); }
 int   test_hop_hit(u8 *pl) { return hop_hit(pl); }

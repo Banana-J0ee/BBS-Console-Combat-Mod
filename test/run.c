@@ -1007,6 +1007,101 @@ extern u64 test_h_gravity(Ctx *c); extern u64 test_h_mag_lock(Ctx *c); extern u6
 void enter2(u8 *pl, void *site);
 __asm__(".text\n enter2: mov %rdi,%rbx\n mov %rsi,%rax\n mov $1,%esi\n jmp *%rax\n");      /* rbx = rdi = player, esi = 1 */
 static int site2(u8 *p, u32 rva) { g_land = 0; if (!setjmp(g_jb)) enter2(p, RVA(rva)); return g_land; }
+/* Command cancel: a deck command can be cut short once its last hit window is over (+ FollowThrough + its own
+   delay); a press up to 8 frames early is held.  The end call (21c510) is the test's own here. */
+extern void test_cc_after(u8 *pl), test_cc_before(u8 *pl), test_cc_seen(u8 *pl, int magic), test_cc_tick(void), test_cc_reset(void);
+extern int test_cc_state(void); extern u32 test_cc_stash(void); extern float *test_cc_off(void); extern int *test_cc_on(void);
+extern void test_cc_end(void (MSABI *f)(u8*, int, int));
+static int g_cc_ends, g_cc_air;
+static void MSABI cc_end_stub(u8 *pl, int air, int moving) { (void)pl; (void)moving; g_cc_ends++; g_cc_air = air; }
+static void t_cancel(void) {
+    u8 *p = memalign(16, 0x800), *mot = calloc(1, 0xb0), *wp = calloc(1, 0x200), *cmd = calloc(1, 0x360);
+    u8 *ctl = calloc(1, 0x60), *ent = calloc(1, 0x90), *desc = calloc(1, 0x34);
+    static u8 patk[900 * 0x28];
+    memset(p, 0, 0x800);
+    u8 *pmgr = calloc(1, 0x200); G(u8*, 0x10f9ee40) = pmgr; *(u8**)(pmgr + 0x128) = patk; *(u8**)(pmgr + 0x118) = p;
+    *(u8**)(p + 0x78) = mot; *(u8**)(p + 0x378) = wp; *(u8**)(wp + 0x88) = ctl; *(u8**)(p + 0x390) = cmd;
+    *(s32*)(ctl + 0x20) = 1; *(u8**)(ctl + 0x28) = ent; *(u8**)(ent + 0x48) = desc;
+    *(s16*)(desc + 0x24) = 12; *(s16*)(desc + 0x26) = 20; *(s16*)(desc + 0x30) = -1;
+    u8 *rec = patk + 500 * 0x28; rec[0x0c] = 26; rec[0x0d] = 24; rec[0x1f] = 10; rec[0x1d] = 9;
+    test_cc_end(cc_end_stub);
+    CHECK(*test_cc_on() == 1, "on by default");
+    #define CMDSET(st, part, id) (*(u32*)(p + 0x304) = (st), *(s16*)(p + 0x310) = (part), *(u16*)(p + 0x312) = (id), *(u8**)(p + 0x5b8) = rec)
+    u32 vac = 0;     /* accept bits the action's own window sets */
+    #define FRAME(f) (*(u32*)(p + 0x318) = (*(u32*)(p + 0x318) & ~0xc0u) | vac, *(float*)(mot + 0x3c) = (f), test_cc_seen(p, *(u32*)(p + 0x304) == 0x11), test_cc_after(p), test_cc_tick())
+    #define PRESS(bits) (*(u32*)(p + 0x318) &= ~0xc0u, *(u32*)(p + 0x31c) = (bits), test_cc_before(p))     /* (21f9f0 clears the accept bits) */
+    /* Fire Surge (6a): weapon window 12..20 -> over at 23, early presses from 15 */
+    test_cc_reset(); g_cc_ends = 0; CMDSET(0x10, 3, 0x6a); mot[8] = 0;
+    *(s16*)(ent + 0x28) = 1; *(u32*)(p + 0x318) = 0;
+    FRAME(14); CHECK(test_cc_state() == 0 && !(*(u32*)(p + 0x318) & 0x40), "hit window on, frame 14: nothing yet");
+    PRESS(0x10); CHECK(g_cc_ends == 0 && *(u32*)(p + 0x31c) == 0x10, "a press then is the game's business");
+    FRAME(15); CHECK(test_cc_state() == 1 && (*(u32*)(p + 0x318) & 0x40), "frame 15: presses are taken early (accept bit set)");
+    PRESS(0x10 | 0x8000000);
+    CHECK(test_cc_stash() == 0x10 && !(*(u32*)(p + 0x31c) & 0x10) && (*(u32*)(p + 0x31c) & 0x8000000) && g_cc_ends == 0, "early deck press held, not passed on");
+    *(s16*)(ent + 0x28) = 3;
+    FRAME(20); PRESS(0); CHECK(g_cc_ends == 0 && test_cc_stash() == 0x10, "still held at 20 (follow-through)");
+    FRAME(23); CHECK(test_cc_state() == 2, "frame 23: over");
+    PRESS(0); CHECK(g_cc_ends == 1 && g_cc_air == -1 && (*(u32*)(p + 0x31c) & 0x8000010) == 0x8000010 && !test_cc_stash(), "the held press goes out: command ended, request kept");
+    /* a press right in the window */
+    test_cc_reset(); g_cc_ends = 0; *(u32*)(p + 0x318) = 0;
+    FRAME(24); PRESS(0x4 | 0x8000000); CHECK(g_cc_ends == 1, "Attack after it: cut short at once");
+    test_cc_reset(); g_cc_ends = 0; FRAME(24); PRESS(0x100 | 0x8000000); CHECK(g_cc_ends == 1, "guard after it");
+    test_cc_reset(); g_cc_ends = 0; FRAME(24); PRESS(0x1); CHECK(g_cc_ends == 1, "jump after it (on the ground)");
+    test_cc_reset(); g_cc_ends = 0; *(u32*)(p + 0x318) = 0x400000; FRAME(24); PRESS(0x1); CHECK(g_cc_ends == 0, "jump in the air: left alone");
+    *(u32*)(p + 0x318) = 0;
+    test_cc_reset(); g_cc_ends = 0; FRAME(24); PRESS(0); FRAME(25); PRESS(0); mot[8] = 1; FRAME(40); PRESS(0);
+    CHECK(g_cc_ends == 0, "nothing pressed: the animation plays out");
+    mot[8] = 0;
+    /* its own delay */
+    test_cc_off()[0x6a] = 6; test_cc_reset(); g_cc_ends = 0;
+    FRAME(24); CHECK(test_cc_state() == 1, "with Fire Surge=6: frame 24 only takes early presses");
+    FRAME(29); CHECK(test_cc_state() == 2, "... and it is over at 29");
+    test_cc_off()[0x6a] = 0;
+    /* the action's own window takes it */
+    test_cc_reset(); g_cc_ends = 0; vac = 0x80; FRAME(24); PRESS(0x4 | 0x8000000);
+    CHECK(g_cc_ends == 0, "Attack while the game's own window is open: the game's");
+    FRAME(25); PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 1, "a deck command it would not take: ours");
+    vac = 0;
+    /* not ours */
+    struct { u32 st; s16 part; u16 id; const char *what; } no[] = {
+        { 0x10, 5, 0x01, "the base combo" }, { 0x12, 4, 0xc2, "an item" }, { 0x14, 3, 0x11, "a finisher" }, { 0x13, 4, 0xd0, "a friend command" },
+        { 0x10, 3, 0x62, "Sonic Blade (own end code: not covered yet)" }, { 0x16, 3, 0x6a, "guard" }, { 0x11, 6, 0x83, "a spell before it goes off" } };
+    for (unsigned i = 0; i < sizeof no / sizeof *no; i++) {
+        test_cc_reset(); g_cc_ends = 0; CMDSET(no[i].st, no[i].part, no[i].id);
+        FRAME(30); PRESS(0x10 | 0x8000000);
+        CHECK(test_cc_state() == 0 && g_cc_ends == 0, "%s: untouched", no[i].what);
+    }
+    /* pressed again: Blitz while its follow-up window is open, or before its combo frame */
+    test_cc_reset(); g_cc_ends = 0; CMDSET(0x10, 3, 0x5c); *(u32*)(cmd + 0x60) = 0x1000;
+    FRAME(30); PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 0, "Blitz with a press still possible: untouched");
+    *(u32*)(cmd + 0x60) = 0; FRAME(25); CHECK(test_cc_state() == 0, "Blitz before its combo frame (26): untouched");
+    FRAME(27); PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 1, "Blitz once it cannot go on: cut short");
+    /* queued by the game */
+    test_cc_reset(); g_cc_ends = 0; CMDSET(0x10, 3, 0x6a); *(u32*)(p + 0x320) = 0x80; FRAME(30); CHECK(test_cc_state() == 0, "a command the game has queued wins");
+    *(u32*)(p + 0x320) = 0;
+    /* a held press when the command ends on its own, or is interrupted */
+    test_cc_reset(); g_cc_ends = 0; *(u16*)(desc + 0x26) = 30; *(s16*)(ent + 0x28) = 1;
+    FRAME(26); PRESS(0x10 | 0x8000000); CHECK(test_cc_stash() == 0x10, "held");
+    *(u32*)(p + 0x304) = 1; PRESS(0); CHECK(g_cc_ends == 0 && (*(u32*)(p + 0x31c) & 0x8000010) == 0x8000010 && !test_cc_stash(), "the command ended by itself: the press goes to the idle state");
+    CMDSET(0x10, 3, 0x6a); test_cc_reset(); FRAME(26); PRESS(0x10 | 0x8000000);
+    *(u32*)(p + 0x304) = 0xc; PRESS(0); CHECK(!test_cc_stash() && !(*(u32*)(p + 0x31c) & 0x10), "knocked down meanwhile: dropped");
+    *(u16*)(desc + 0x26) = 20; *(s16*)(ent + 0x28) = 3;
+    /* magic: Mega Flare (ac) in its recovery, no hit windows of the body: over at max(t1 + 3, frChangeEnable) */
+    *(s32*)(ctl + 0x20) = 0; rec[0x14] = 20; rec[0x0d] = 30; *(u16*)(p + 0x428) = 0x30; *(u16*)(p + 0x422) = 0x70;
+    test_cc_reset(); g_cc_ends = 0; CMDSET(0x11, 4, 0xac);
+    FRAME(25); CHECK(test_cc_state() == 1, "Mega Flare at 25: early presses");
+    FRAME(30); PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 1, "Mega Flare at 30: cut short into the next command");
+    test_cc_reset(); g_cc_ends = 0; *(u16*)(p + 0x422) = 0x30; FRAME(2); CHECK(test_cc_state() == 2, "in its idle pose while the lock runs: over");
+    *(s32*)(ctl + 0x20) = 1; rec[0x14] = 0; rec[0x0d] = 24;
+    *test_cc_on() = 0; test_cc_reset(); g_cc_ends = 0; CMDSET(0x10, 3, 0x6a); *(u16*)(p + 0x422) = 0;
+    FRAME(30); PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 0 && test_cc_state() == 0, "Enabled = 0: off");
+    *test_cc_on() = 1; test_cc_reset();
+    G(u8*, 0x10f9ee40) = NULL;
+    #undef CMDSET
+    #undef FRAME
+    #undef PRESS
+    printf("t_cancel done\n");
+}
 static void t_speed(void) {
     u8 *p = memalign(16, 0x800), *mot = calloc(1, 0xb0), *phys = memalign(16, 0x200), *wp = calloc(1, 0x200);
     u8 *ctl = calloc(1, 0x60), *ent = calloc(2, 0x90), *desc = calloc(2, 0x34);
@@ -2761,6 +2856,7 @@ int main(int argc, char **argv) {
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
+    bad |= run("t_cancel", t_cancel);
     bad |= run("t_berserk", t_berserk);
     bad |= run("t_bar", t_bar);
     bad |= run("t_tex", t_tex);
