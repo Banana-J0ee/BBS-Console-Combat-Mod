@@ -355,44 +355,48 @@ static void t_haste(void) {
       u8 *o4 = calloc(1, 0x100); *(u8**)(o4 + 0x70) = hp2; ready(o4);
       CHECK(!strcmp(NAME(0x1cf), "Attack Haste") && !strcmp(NAME(0x1d0), "MP Haste"), "MPRage = 0: it stays Attack Haste (%s)", NAME(0x1cf));
       CHECK(!strncmp(ctd_find(hp2, 0x32020c), "Shortens the reload time for all attack", 39) && !strncmp(ctd_find(hp2, 0x32020d), "Makes MP", 8), "... with its own description");
-      *test_rage() = 75.0f; }
+      *test_rage() = 25.0f; }
     CHECK(*(u32*)(o2 + 0xb0) == 0x320000 && *(u32*)(o1 + 0xb0) == 0xfa0000, "the game's own set-up ran");
     /* the game's lookup of an ability's description gives the new text: 1401b3d80 walks the loaded files */
     printf("t_haste done\n");
 }
-/* MP Rage: Attack Haste renamed; HP lost gives (int)(lost / max HP x 75 x copies) MP, never during the MP charge */
+/* MP Rage: Attack Haste renamed; HP lost gives lost / max HP x max MP x 25% x copies / 5, never during the MP charge */
 static void t_rage(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
     world(3, ids);
     *test_fresh() = 0;
-    CHECK(*test_rage() == 75.0f, "75 MP per full HP bar a copy, KH2 FM's (%g)", *test_rage());
+    CHECK(*test_rage() == 25.0f && G(u8, 0x811083 + 0x1cf * 0x1e) == 5, "a quarter of the MP bar per full HP bar at the full stack of 5 (%g)", *test_rage());
     u8 slot = G(u8, 0x814900 + 0x1cf * 0x18 + 7);
+    float mx = *test_mpmax();
     #define HP(v) (*(s16*)(pl + 0x4a0) = (s16)(v))
+    #define NEAR(a, b) ((a) > (b) - 0.01f && (a) < (b) + 0.01f)
     *(s16*)(pl + 0x4a2) = 200; HP(200);
-    pl[0x4a3 + slot] = 1; *test_burn() = 0; *test_mp() = 10;
-    test_tick(gauge);                                   /* first look at the HP */
-    float m0 = *test_mp();
-    HP(160); test_tick(gauge);                          /* 40 of 200: 0.2 x 75 = 15 */
-    CHECK(*test_mp() == m0 + 15, "40 of 200 HP lost, one copy: +15 MP (%.0f -> %.0f)", m0, *test_mp());
-    HP(157); test_tick(gauge);                          /* 3 / 200 x 75 = 1.125 -> 1 */
-    CHECK(*test_mp() == m0 + 16, "a small hit: +1 (%.0f)", *test_mp());
-    HP(156); test_tick(gauge);                          /* 0.375 -> 0, as KH2 drops the fraction */
-    CHECK(*test_mp() == m0 + 16, "a tiny hit gives nothing (%.0f)", *test_mp());
-    HP(190); test_tick(gauge);
-    CHECK(*test_mp() == m0 + 16, "healing gives nothing (%.0f)", *test_mp());
-    pl[0x4a3 + slot] = 3; HP(150); test_tick(gauge);    /* 40 / 200 x 75 x 3 = 45 */
-    CHECK(*test_mp() == m0 + 61, "three copies: +45 (%.0f)", *test_mp());
-    *test_mp() = *test_mpmax() - 5; HP(100); test_tick(gauge);
-    CHECK(*test_mp() == *test_mpmax(), "capped at the maximum (%.0f / %.0f)", *test_mp(), *test_mpmax());
-    *test_mp() = 0; *test_burn() = 1; *test_charge() = 0; HP(60); test_tick(gauge);
-    CHECK(*test_mp() == 0 && *test_burn() == 1, "during the MP charge: nothing, as in KH2 (%.0f)", *test_mp());
+    pl[0x4a3 + slot] = 5; *test_burn() = 0; *test_mp() = 0.5f;
+    test_tick(gauge);
+    HP(0); test_tick(gauge);                            /* a full bar lost, 5 copies */
+    CHECK(NEAR(*test_mp(), 0.5f + mx * 0.25f), "full stack, all HP lost: a quarter of the bar (%.2f of %.0f)", *test_mp(), mx);
+    HP(200); test_tick(gauge); *test_mp() = 0.5f;
+    pl[0x4a3 + slot] = 1; HP(100); test_tick(gauge);    /* half a bar, one copy: 0.5 x 0.05 */
+    CHECK(NEAR(*test_mp(), 0.5f + mx * 0.025f), "one copy, half the HP lost: 2.5%% of the bar (%.2f)", *test_mp());
+    float m1 = *test_mp();
+    for (int i = 0; i < 10; i++) { HP(99 - i); test_tick(gauge); }   /* ten 1-HP hits add up */
+    CHECK(NEAR(*test_mp(), m1 + mx * 0.05f * 10.0f / 200.0f), "small hits add up (%.3f)", *test_mp());
+    m1 = *test_mp();
+    HP(150); test_tick(gauge);
+    CHECK(*test_mp() == m1, "healing gives nothing (%.2f)", *test_mp());
+    *test_mp() = mx - 0.1f; pl[0x4a3 + slot] = 5; HP(0); test_tick(gauge);
+    CHECK(*test_mp() == mx, "capped at the maximum (%.2f / %.0f)", *test_mp(), mx);
+    HP(200); test_tick(gauge);
+    *test_mp() = 0; *test_burn() = 1; *test_charge() = 0; HP(50); test_tick(gauge);
+    CHECK(*test_mp() == 0 && *test_burn() == 1, "during the MP charge: nothing, as in KH2 (%.2f)", *test_mp());
     *test_burn() = 0; *test_mp() = 10;
     pl[0x4a3 + slot] = 0; HP(20); test_tick(gauge);
-    CHECK(*test_mp() == 10, "without the ability: nothing (%.0f)", *test_mp());
+    CHECK(*test_mp() == 10, "without the ability: nothing (%.2f)", *test_mp());
     pl[0x4a3 + slot] = 1; *test_rage() = 0; HP(0); test_tick(gauge);
-    CHECK(*test_mp() == 10, "MPRage = 0: off (%.0f)", *test_mp());
-    *test_rage() = 75.0f; pl[0x4a3 + slot] = 0; HP(200); test_tick(gauge);
+    CHECK(*test_mp() == 10, "MPRage = 0: off (%.2f)", *test_mp());
+    *test_rage() = 25.0f; pl[0x4a3 + slot] = 0; HP(200); test_tick(gauge);
     #undef HP
+    #undef NEAR
     printf("t_rage done\n");
 }
 /* Berserker: Reload Boost renamed; what the player deals during the MP charge is 5 % higher, and nothing else.

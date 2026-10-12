@@ -47,8 +47,10 @@ static int   c_haste_rename = 1;       /* it is shown as MP Haste, with a descri
 static char  c_haste_name[48], c_haste_help[256];
 static int   c_haste_name_set, c_haste_help_set;   /* given in the ini: used whatever the game's language */
 /* Attack Haste is this mod's MP Rage (KH2): damage taken gives MP back, outside the MP charge.
-   KH2 FM (1403d5600): MP += (int)(damage / max HP x DamageAspir), DamageAspir being 75 a copy (03system pref sstm). */
-static float c_rage = 75.0f;           /* MP restored by losing a full HP bar, per copy (0 = off) */
+   KH2 FM (1403d5600): MP += (int)(damage / max HP x DamageAspir), DamageAspir being 75 a copy (03system pref sstm).
+   Weaker here, on request: losing a full HP bar gives back this percent of the MP bar with every copy the ability
+   can have installed (5), a share of it with fewer. */
+static float c_rage = 25.0f;           /* percent of max MP for a full HP bar lost, at the full stack (0 = off) */
 static int   c_rage_rename = 1;
 static char  c_rage_name[48], c_rage_help[256];
 static int   c_rage_name_set, c_rage_help_set;
@@ -126,7 +128,7 @@ static void load_ini(void) {
     c_haste_help_set = ini_s("MP", "MPHasteHelp", c_haste_help, sizeof c_haste_help);
     if (!c_haste_name_set) snprintf(c_haste_name, sizeof c_haste_name, "MP Haste");
     c_rage = ini_f("MP", "MPRage", c_rage);
-    if (!(c_rage >= 0 && c_rage <= 1000)) c_rage = 75.0f;
+    if (!(c_rage >= 0 && c_rage <= 400)) c_rage = 25.0f;
     c_rage_rename = (int)ini_f("MP", "MPRageRename", (float)c_rage_rename);
     c_rage_name_set = ini_s("MP", "MPRageName", c_rage_name, sizeof c_rage_name);
     c_rage_help_set = ini_s("MP", "MPRageHelp", c_rage_help, sizeof c_rage_help);
@@ -781,7 +783,9 @@ static u64 MSABI ctd_ready_hook(u8 *self, u64 a, u64 b, u64 c) {
 }
 /* MP Rage (Attack Haste).  The player's HP: s16 at +0x4a0, the maximum at +0x4a2 (vtable slots 0x78 / 0x80,
    140219e80 / 140219e90, the getters behind Lua's Player.GetPlayerHP / GetPlayerHPMax).  HP lost since the last
-   frame gives MP as KH2 does per hit: (int)(lost / max HP x MPRage x copies), never during the MP charge. */
+   frame gives lost / max HP x max MP x MPRage% x copies / the most copies (140811083 + id * 0x1e: 5), never during
+   the MP charge.  Kept with its fraction (the bar is a float), so small hits add up. */
+#define AB_MAX_COPIES(id) G(u8, 0x811083 + (u32)(id) * 0x1e)
 #define PL_HP    0x4a0
 #define PL_HPMAX 0x4a2
 static u8 *g_rage_pl; static int g_rage_hp = -1;
@@ -789,11 +793,13 @@ static void rage(u8 *pl) {
     if (!pl) { g_rage_pl = NULL; return; }
     int hp = *(s16*)(pl + PL_HP), max = *(s16*)(pl + PL_HPMAX);
     if (pl == g_rage_pl && g_rage_hp > hp && max > 0 && !g_burn && c_rage > 0 && g_mp < g_mpmax) {
-        int n = FN(u8, HAS_ABILITY, u8*, u16)(pl, AB_ATTACK_HASTE);
-        int gain = n ? (int)((float)(g_rage_hp - hp) / (float)max * c_rage * (float)n) : 0;
+        int n = FN(u8, HAS_ABILITY, u8*, u16)(pl, AB_ATTACK_HASTE), most = AB_MAX_COPIES(AB_ATTACK_HASTE);
+        if (most < 1) most = 5;
+        if (n > most) n = most;
+        float gain = (float)(g_rage_hp - hp) / (float)max * g_mpmax * c_rage * 0.01f * (float)n / (float)most;
         if (gain > 0) {
-            g_mp += (float)gain; if (g_mp > g_mpmax) g_mp = g_mpmax;
-            if (g_debug) LOG("mp: MP Rage +%d (HP %d -> %d of %d, %d copies)", gain, g_rage_hp, hp, max, n);
+            g_mp += gain; if (g_mp > g_mpmax) g_mp = g_mpmax;
+            if (g_debug) LOG("mp: MP Rage +%.2f (HP %d -> %d of %d, %d of %d copies)", gain, g_rage_hp, hp, max, n, most);
         }
     }
     g_rage_pl = pl; g_rage_hp = hp;

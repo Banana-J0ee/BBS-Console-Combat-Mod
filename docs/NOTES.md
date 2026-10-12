@@ -904,3 +904,7 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   Hits landing in the same frame count together (a fraction more generous than KH2's per hit).  Any HP loss
   counts, Poison ticks included (KH2's hook is its damage path, which may differ there).
 * Test: `t_rage`, and the texts in `t_haste`.  Not seen in the game by me.
+* Weakened on request ("a full stack gives a quarter of your MP back if you took 100% of damage"): `MPRage` is now
+  the percent of max MP a full HP bar lost gives at the most copies the ability can have (140811083 + id*0x1e:
+  5 for Attack Haste), 25 by default; n copies give n/5 of it.  Kept with its fraction (g_mp is a float), so small
+  hits are not lost the way KH2's truncation loses them.
