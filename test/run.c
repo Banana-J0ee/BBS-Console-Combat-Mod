@@ -272,9 +272,9 @@ static void t_ether(void) {
       CHECK(*test_burn() == 1, "away from the save point the charge takes its normal time (%.1f)", *test_charge()); }
     printf("t_ether done\n");
 }
-/* MP Haste: the MP charge takes 25 s / (1 + 0.05 x Magic Haste installed); the ability's name and description
+/* MP Haste: the MP charge takes 25 s / (1 + 0.10 x Magic Haste installed); the ability's name and description
    (needs BBS_MSG_NAMES / BBS_MSG_HELP = message/en/system/CT00500.ctd / CT00100.ctd for the texts) */
-extern float *test_charge_seconds(void), *test_haste_bonus(int atk); extern const char *test_haste_help(int atk);
+extern float *test_charge_seconds(void), *test_haste_bonus(void), *test_rage(void); extern const char *test_haste_help(int atk);
 extern int *test_fresh(void);
 extern const char *test_berserk_help(void);
 static u8 *slurp(const char *fn, size_t *n);
@@ -295,22 +295,21 @@ static void t_haste(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
     world(3, ids);
     *test_fresh() = 0;
-    CHECK(*test_charge_seconds() == 25.0f && *test_haste_bonus(0) == 0.05f, "25 s, 0.05 a copy (%g, %g)", *test_charge_seconds(), *test_haste_bonus(0));
+    CHECK(*test_charge_seconds() == 25.0f && *test_haste_bonus() == 0.10f, "25 s, 0.10 a copy (%g, %g)", *test_charge_seconds(), *test_haste_bonus());
     CHECK(G(u8, 0x814900 + 0x1d0 * 0x18 + 7) == 13 && G(u8, 0x814900 + 0x1cf * 0x18 + 7) == 12, "the two abilities' slots");
     CHECK(FN(u8, 0x221900, u8*, u16)(pl, 0x1d0) == 0, "none installed");
     int base = charge_ticks(0, 0);
     printf("  MP charge in seconds:");
     for (int k = 0; k <= 5; k++) {
-        int n = charge_ticks(k, 0); float want = 1500.0f / (1.0f + 0.05f * (float)k);
+        int n = charge_ticks(k, 0); float want = 1500.0f / (1.0f + 0.10f * (float)k);
         printf(" %d x MP Haste %.1f", k, (float)n / 60.0f);
         CHECK(FN(u8, 0x221900, u8*, u16)(pl, 0x1d0) == k, "%d installed", k);
         CHECK((float)n >= want && (float)n < want + 2.0f, "%d copies: %d ticks, want %.1f", k, n, want);
     }
     printf("\n");
     CHECK(base >= 1500 && base <= 1501, "no ability: 25 s (%d ticks)", base);
-    { int n = charge_ticks(0, 2); CHECK(n >= 1363 && n <= 1365, "Attack Haste keeps 0.05 a copy: two -> %d ticks", n); }
-    { int n = charge_ticks(3, 2); CHECK(n >= 1200 && n <= 1201, "both add up: 1.25 -> %d ticks", n); }
-    *test_haste_bonus(1) = 0; { int n = charge_ticks(0, 5); CHECK(n == base, "AttackHasteBonus = 0: no effect (%d)", n); } *test_haste_bonus(1) = 0.05f;
+    { int n = charge_ticks(0, 5); CHECK(n == base, "Attack Haste (MP Rage now) does not speed the charge (%d)", n); }
+    { int n = charge_ticks(2, 3); CHECK(n >= 1250 && n <= 1251, "two MP Haste with Attack Haste beside them: 1.2 -> %d ticks", n); }
     charge_ticks(0, 0);
 
     /* the texts: the game's "file is in memory" call (CRsrcCTD vtable slot 1), on the real files */
@@ -325,20 +324,23 @@ static void t_haste(void) {
     #define NAME(id) G(const char*, 0x814908 + (u32)(id) * 0x18)
     CHECK(NAME(0x1d0) && !strcmp(NAME(0x1d0), "MP Haste"), "name: %s", NAME(0x1d0) ? NAME(0x1d0) : "-");
     CHECK(NAME(0x1d0) == was, "written in the file itself");
-    CHECK(NAME(0x1cf) && !strcmp(NAME(0x1cf), "MP Haste") && NAME(0x1cf) != NAME(0x1d0), "Attack Haste has the same name: %s", NAME(0x1cf) ? NAME(0x1cf) : "-");
+    CHECK(NAME(0x1cf) && !strcmp(NAME(0x1cf), "MP Rage") && NAME(0x1cf) == ctd_find(names, 0xfa01cf), "Attack Haste is MP Rage: %s", NAME(0x1cf) ? NAME(0x1cf) : "-");
     CHECK(NAME(0x1d9) && !strcmp(NAME(0x1d9), "Berserker") && !strcmp(NAME(0x1d8), "Dark Screen") && !strcmp(NAME(0x1da), "Defender"), "Reload Boost is Berserker: %s", NAME(0x1d9) ? NAME(0x1d9) : "-");
     CHECK(!strcmp(NAME(0x1ce), ctd_find(names, 0xfa01ce)) && !strcmp(NAME(0x1d1), "Combo F Boost") && !strcmp(NAME(0x92), "Cure") && !strcmp(NAME(0x1f1), ctd_find(names, 0xfa01f1)),
           "the names around them are the game's (%s / %s)", NAME(0x1ce), NAME(0x1d1));
     ready(o1);
-    CHECK(!strcmp(NAME(0x1d0), "MP Haste") && !strcmp(NAME(0x1cf), "MP Haste"), "a second call changes nothing");
+    CHECK(!strcmp(NAME(0x1d0), "MP Haste") && !strcmp(NAME(0x1cf), "MP Rage"), "a second call changes nothing");
     const char *h0 = ctd_find(help, 0x32020d), *h1 = ctd_find(help, 0x32020c), *ha = ctd_find(help, 0x32020b), *hb = ctd_find(help, 0x32020e);
     CHECK(h0 && !strncmp(h0, "Shortens the reload time for all magic commands", 47), "the game's description");
     CHECK(h1 && !strncmp(h1, "Shortens the reload time for all attack commands", 48), "the game's description of Attack Haste");
     size_t room = h0 ? strlen(h0) : 0, room1 = h1 ? strlen(h1) : 0; char *a0 = strdup(ha), *b0 = strdup(hb);
     u8 *o2 = calloc(1, 0x100); *(u8**)(o2 + 0x70) = help; ready(o2);
     printf("  description: %s\n", h0);
-    CHECK(!strcmp(h0, test_haste_help(0)) && strlen(h0) <= room && strstr(h0, "5% faster"), "description replaced (%u of %u bytes)", (unsigned)strlen(h0), (unsigned)room);
-    CHECK(!strcmp(h1, test_haste_help(1)) && strlen(h1) <= room1 && !strcmp(h1, h0), "Attack Haste: the same description (%u of %u bytes)", (unsigned)strlen(h1), (unsigned)room1);
+    printf("  MP Rage: %s\n", h1);
+    CHECK(!strcmp(h0, test_haste_help(0)) && strlen(h0) <= room && strstr(h0, "10% faster"), "description replaced (%u of %u bytes)", (unsigned)strlen(h0), (unsigned)room);
+    CHECK(!strcmp(h1, test_haste_help(1)) && strlen(h1) <= room1 && strstr(h1, "take damage"), "MP Rage's description (%u of %u bytes)", (unsigned)strlen(h1), (unsigned)room1);
+    { int w = 0, m = 0, lines = 1; for (const char *c = h1; *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
+      CHECK(lines <= 3 && m <= 58, "MP Rage's fits the help box: %d lines, longest %d", lines, m); }
     { int w = 0, m = 0, lines = 1; for (const char *c = h0; *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
       CHECK(lines <= 3 && m <= 58, "it fits the help box: %d lines, longest %d", lines, m); }
     CHECK(!strcmp(ha, a0) && !strcmp(hb, b0), "the descriptions around them are the game's");
@@ -348,15 +350,50 @@ static void t_haste(void) {
       CHECK(!strncmp(ctd_find(help, 0x320215), "Increases your resistance to darkness", 37) && !strncmp(ctd_find(help, 0x320217), "Increases your Defense", 22), "its neighbours are the game's"); }
     /* an ability whose bonus is 0 keeps the game's texts */
     { size_t n2, h2; u8 *nm2 = slurp(nf, &n2), *hp2 = slurp(hf, &h2);
-      *test_haste_bonus(1) = 0;
+      *test_rage() = 0;
       u8 *o3 = calloc(1, 0x100); *(u8**)(o3 + 0x70) = nm2; ready(o3);
       u8 *o4 = calloc(1, 0x100); *(u8**)(o4 + 0x70) = hp2; ready(o4);
-      CHECK(!strcmp(NAME(0x1cf), "Attack Haste") && !strcmp(NAME(0x1d0), "MP Haste"), "AttackHasteBonus = 0: it stays Attack Haste (%s)", NAME(0x1cf));
+      CHECK(!strcmp(NAME(0x1cf), "Attack Haste") && !strcmp(NAME(0x1d0), "MP Haste"), "MPRage = 0: it stays Attack Haste (%s)", NAME(0x1cf));
       CHECK(!strncmp(ctd_find(hp2, 0x32020c), "Shortens the reload time for all attack", 39) && !strncmp(ctd_find(hp2, 0x32020d), "Makes MP", 8), "... with its own description");
-      *test_haste_bonus(1) = 0.05f; }
+      *test_rage() = 75.0f; }
     CHECK(*(u32*)(o2 + 0xb0) == 0x320000 && *(u32*)(o1 + 0xb0) == 0xfa0000, "the game's own set-up ran");
     /* the game's lookup of an ability's description gives the new text: 1401b3d80 walks the loaded files */
     printf("t_haste done\n");
+}
+/* MP Rage: Attack Haste renamed; HP lost gives (int)(lost / max HP x 75 x copies) MP, never during the MP charge */
+static void t_rage(void) {
+    static const u16 ids[] = { 0x5b, 0x83, 0x92 };
+    world(3, ids);
+    *test_fresh() = 0;
+    CHECK(*test_rage() == 75.0f, "75 MP per full HP bar a copy, KH2 FM's (%g)", *test_rage());
+    u8 slot = G(u8, 0x814900 + 0x1cf * 0x18 + 7);
+    #define HP(v) (*(s16*)(pl + 0x4a0) = (s16)(v))
+    *(s16*)(pl + 0x4a2) = 200; HP(200);
+    pl[0x4a3 + slot] = 1; *test_burn() = 0; *test_mp() = 10;
+    test_tick(gauge);                                   /* first look at the HP */
+    float m0 = *test_mp();
+    HP(160); test_tick(gauge);                          /* 40 of 200: 0.2 x 75 = 15 */
+    CHECK(*test_mp() == m0 + 15, "40 of 200 HP lost, one copy: +15 MP (%.0f -> %.0f)", m0, *test_mp());
+    HP(157); test_tick(gauge);                          /* 3 / 200 x 75 = 1.125 -> 1 */
+    CHECK(*test_mp() == m0 + 16, "a small hit: +1 (%.0f)", *test_mp());
+    HP(156); test_tick(gauge);                          /* 0.375 -> 0, as KH2 drops the fraction */
+    CHECK(*test_mp() == m0 + 16, "a tiny hit gives nothing (%.0f)", *test_mp());
+    HP(190); test_tick(gauge);
+    CHECK(*test_mp() == m0 + 16, "healing gives nothing (%.0f)", *test_mp());
+    pl[0x4a3 + slot] = 3; HP(150); test_tick(gauge);    /* 40 / 200 x 75 x 3 = 45 */
+    CHECK(*test_mp() == m0 + 61, "three copies: +45 (%.0f)", *test_mp());
+    *test_mp() = *test_mpmax() - 5; HP(100); test_tick(gauge);
+    CHECK(*test_mp() == *test_mpmax(), "capped at the maximum (%.0f / %.0f)", *test_mp(), *test_mpmax());
+    *test_mp() = 0; *test_burn() = 1; *test_charge() = 0; HP(60); test_tick(gauge);
+    CHECK(*test_mp() == 0 && *test_burn() == 1, "during the MP charge: nothing, as in KH2 (%.0f)", *test_mp());
+    *test_burn() = 0; *test_mp() = 10;
+    pl[0x4a3 + slot] = 0; HP(20); test_tick(gauge);
+    CHECK(*test_mp() == 10, "without the ability: nothing (%.0f)", *test_mp());
+    pl[0x4a3 + slot] = 1; *test_rage() = 0; HP(0); test_tick(gauge);
+    CHECK(*test_mp() == 10, "MPRage = 0: off (%.0f)", *test_mp());
+    *test_rage() = 75.0f; pl[0x4a3 + slot] = 0; HP(200); test_tick(gauge);
+    #undef HP
+    printf("t_rage done\n");
 }
 /* Berserker: Reload Boost renamed; what the player deals during the MP charge is 5 % higher, and nothing else.
    On the game's own damage function, through the mod's hook of its one call. */
@@ -2719,6 +2756,7 @@ int main(int argc, char **argv) {
     bad |= run("t_use", t_use);
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
+    bad |= run("t_rage", t_rage);
     bad |= run("t_berserk", t_berserk);
     bad |= run("t_bar", t_bar);
     bad |= run("t_tex", t_tex);

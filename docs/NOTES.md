@@ -888,3 +888,19 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   clears the stack and goes to Idling with idlingTimer 0: his Idling decides by range (close: SelectAttack, mid:
   Step, far: PresentBombLarge).  The other paced walks either come after the attack (Vanitas, Eraqus' Wander) or
   re-decide on time-out already (Zack's Approache -> Move, wielders' Move -> BattleIdling).
+
+## MP Rage (2026-10-12; mp.c rage(), `[MP] MPRage`, `MPRageRename`) and MP Haste doubled
+* Asked for: the second "MP Haste" (the game's Attack Haste, 0x1cf, slot 12) becomes KH2's MP Rage; the first (Magic
+  Haste) doubled: `MPHasteBonus` 0.05 -> 0.10 a copy.  `AttackHasteBonus` is gone (Attack Haste no longer speeds
+  the charge).
+* KH2 FM, verified in its exe and data: abilities are summed into a stats block by 140401730 (MP Rage 0x19c adds
+  sstm+0x150 to block+0x5c; sstm is 03system.bin pref/sstm, "Damage Aspir" = 75.0 at offset 336 in the PC
+  files; MP Haste / Hastera / Hastega 0.25 / 0.5 / 0.75 at 288..296).  On damage, 1403d5600 / 1403d5e50:
+  unless the MP charge runs (status+0x1c0 > 0, 1403c1d10), MP += (int)(damage / max HP (status+4) x that sum),
+  through 1403d3cf0 (capped at max MP).  The "100 in the original KH2" is the Ultimania's figure (not checked).
+* BBS: the player's HP is s16 player+0x4a0, max +0x4a2 (the vtable getters 140219e80 / 140219e90 behind
+  Player.GetPlayerHP / GetPlayerHPMax, slots 0x78 / 0x80 of every CPlayer* vtable).  The mod watches it once a
+  frame in tick(): HP lost since the last frame, with no MP charge, gives (int)(lost / max x MPRage x copies).
+  Hits landing in the same frame count together (a fraction more generous than KH2's per hit).  Any HP loss
+  counts, Poison ticks included (KH2's hook is its damage path, which may differ there).
+* Test: `t_rage`, and the texts in `t_haste`.  Not seen in the game by me.

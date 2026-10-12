@@ -42,11 +42,16 @@ static float c_max_per_level = 0.0f;   /* extra MP per level above 1 */
 static float c_cost_scale = 1.0f;      /* MP cost = command's reload seconds x this */
 static int   c_cure_all = 1;           /* Cure/Cura/Curaga use all remaining MP (KH2 rule) */
 static float c_charge_seconds = 25.0f; /* MP charge: seconds to recharge from empty (KH2: 50) */
-static float c_haste_bonus = 0.05f;    /* ... divided by 1 + this for every Magic Haste ("MP Haste") installed */
-static float c_atk_haste_bonus = 0.05f;/* ... and this for every Attack Haste */
-static int   c_haste_rename = 1;       /* both are shown as MP Haste, with a description of what they do here */
-static char  c_haste_name[48], c_haste_help[2][256];    /* description: [0] Magic Haste's, [1] Attack Haste's */
+static float c_haste_bonus = 0.10f;    /* ... divided by 1 + this for every Magic Haste ("MP Haste") installed */
+static int   c_haste_rename = 1;       /* it is shown as MP Haste, with a description of what it does here */
+static char  c_haste_name[48], c_haste_help[256];
 static int   c_haste_name_set, c_haste_help_set;   /* given in the ini: used whatever the game's language */
+/* Attack Haste is this mod's MP Rage (KH2): damage taken gives MP back, outside the MP charge.
+   KH2 FM (1403d5600): MP += (int)(damage / max HP x DamageAspir), DamageAspir being 75 a copy (03system pref sstm). */
+static float c_rage = 75.0f;           /* MP restored by losing a full HP bar, per copy (0 = off) */
+static int   c_rage_rename = 1;
+static char  c_rage_name[48], c_rage_help[256];
+static int   c_rage_name_set, c_rage_help_set;
 static float c_berserk_pct = 5.0f;     /* Reload Boost ("Berserker"): percent more damage dealt during MP charge (0 = off) */
 static int   c_berserk_rename = 1;
 static char  c_berserk_name[48], c_berserk_help[256];
@@ -116,15 +121,21 @@ static void load_ini(void) {
     c_cure_all = (int)ini_f("MP", "CureUsesAllMP", (float)c_cure_all);
     c_charge_seconds = ini_f("MP", "ChargeSeconds", c_charge_seconds);
     c_haste_bonus = ini_f("MP", "MPHasteBonus", c_haste_bonus);
-    c_atk_haste_bonus = ini_f("MP", "AttackHasteBonus", c_atk_haste_bonus);
     c_haste_rename = (int)ini_f("MP", "MPHasteRename", (float)c_haste_rename);
     c_haste_name_set = ini_s("MP", "MPHasteName", c_haste_name, sizeof c_haste_name);
-    c_haste_help_set = ini_s("MP", "MPHasteHelp", c_haste_help[0], sizeof c_haste_help[0]);
+    c_haste_help_set = ini_s("MP", "MPHasteHelp", c_haste_help, sizeof c_haste_help);
     if (!c_haste_name_set) snprintf(c_haste_name, sizeof c_haste_name, "MP Haste");
-    if (c_haste_help_set) memcpy(c_haste_help[1], c_haste_help[0], sizeof c_haste_help[1]);
-    else for (int i = 0; i < 2; i++) {
-        char pc[16]; snprintf(pc, sizeof pc, "%g", (i ? c_atk_haste_bonus : c_haste_bonus) * 100.0f);
-        snprintf(c_haste_help[i], sizeof c_haste_help[i], "Makes MP recharge %s%% faster once you have run out.\n"
+    c_rage = ini_f("MP", "MPRage", c_rage);
+    if (!(c_rage >= 0 && c_rage <= 1000)) c_rage = 75.0f;
+    c_rage_rename = (int)ini_f("MP", "MPRageRename", (float)c_rage_rename);
+    c_rage_name_set = ini_s("MP", "MPRageName", c_rage_name, sizeof c_rage_name);
+    c_rage_help_set = ini_s("MP", "MPRageHelp", c_rage_help, sizeof c_rage_help);
+    if (!c_rage_name_set) snprintf(c_rage_name, sizeof c_rage_name, "MP Rage");
+    if (!c_rage_help_set) snprintf(c_rage_help, sizeof c_rage_help,
+        "Restores some MP whenever you take damage, except\nduring an MP charge. Multi-install the ability to\nrestore even more.");
+    if (!c_haste_help_set) {
+        char pc[16]; snprintf(pc, sizeof pc, "%g", c_haste_bonus * 100.0f);
+        snprintf(c_haste_help, sizeof c_haste_help, "Makes MP recharge %s%% faster once you have run out.\n"
                  "Multi-install the ability for an even quicker recharge.", pc);
     }
     c_berserk_pct = ini_f("MP", "BerserkerDamage", c_berserk_pct);
@@ -653,9 +664,9 @@ static int at_save_point(u8 *cmd) {
 }
 /* ---------------- MP Haste ----------------
    KH2: the MP charge takes 50 s / (1 + bonus), MP Haste being 0.25 of bonus.  Here it is 25 s / (1 + bonus) and the
-   game's own Magic Haste and Attack Haste (abilities 0x1d0 and 0x1cf, which can be installed several times;
-   140221900 gives the number in effect) are that ability: 0.05 a copy each.  Neither has anything of its own left
-   to shorten, they do the same thing, and so both are shown under the one name.
+   game's own Magic Haste (ability 0x1d0, which can be installed several times; 140221900 gives the number in
+   effect) is that ability: 0.10 a copy.  Attack Haste (0x1cf), which has nothing of its own left to shorten
+   either, is KH2's MP Rage (see rage()).
 
    Its texts.  A message file (CRsrcCTD) is: +0xe u16 number of messages, +0x10 offset of the message records
    (u32 id, u32 text offset, u32 layout), texts as plain bytes.  Once a file is in memory the game calls slot 1 of
@@ -712,8 +723,7 @@ static u32 MSABI damage_hook(u8 *atk, u8 *hit) {
 #define MSG_ABILITY_HELP 0x32003du
 static float charge_speed(u8 *pl) {
     float s = 1.0f;
-    if (pl) s += c_haste_bonus * (float)FN(u8, HAS_ABILITY, u8*, u16)(pl, AB_MAGIC_HASTE)
-               + c_atk_haste_bonus * (float)FN(u8, HAS_ABILITY, u8*, u16)(pl, AB_ATTACK_HASTE);
+    if (pl) s += c_haste_bonus * (float)FN(u8, HAS_ABILITY, u8*, u16)(pl, AB_MAGIC_HASTE);
     return s < 0.05f ? 0.05f : s;
 }
 static char *ctd_text(u8 *self, u32 id) {
@@ -737,9 +747,9 @@ static void haste_texts(u8 *self) {
     /* the game's English texts, and what they become */
     const struct { u32 id; const char *name, *help; int on, name_set, help_set; const char *new_name, *new_help; } ab[3] = {
         { AB_MAGIC_HASTE,  "Magic Haste",  "Shortens the reload time for all magic commands",
-          c_haste_rename && c_haste_bonus > 0, c_haste_name_set, c_haste_help_set, c_haste_name, c_haste_help[0] },
+          c_haste_rename && c_haste_bonus > 0, c_haste_name_set, c_haste_help_set, c_haste_name, c_haste_help },
         { AB_ATTACK_HASTE, "Attack Haste", "Shortens the reload time for all attack commands",
-          c_haste_rename && c_atk_haste_bonus > 0, c_haste_name_set, c_haste_help_set, c_haste_name, c_haste_help[1] },
+          c_rage_rename && c_rage > 0, c_rage_name_set, c_rage_help_set, c_rage_name, c_rage_help },
         { AB_RELOAD_BOOST, "Reload Boost", "Shortens the reload time for all commands installed",
           c_berserk_rename && c_berserk_pct > 0, c_berserk_name_set, c_berserk_help_set, c_berserk_name, c_berserk_help } };
     u32 first = *(u32*)(self + 0xb0);
@@ -769,6 +779,25 @@ static u64 MSABI ctd_ready_hook(u8 *self, u64 a, u64 b, u64 c) {
     combomaster_texts(self);
     return r;
 }
+/* MP Rage (Attack Haste).  The player's HP: s16 at +0x4a0, the maximum at +0x4a2 (vtable slots 0x78 / 0x80,
+   140219e80 / 140219e90, the getters behind Lua's Player.GetPlayerHP / GetPlayerHPMax).  HP lost since the last
+   frame gives MP as KH2 does per hit: (int)(lost / max HP x MPRage x copies), never during the MP charge. */
+#define PL_HP    0x4a0
+#define PL_HPMAX 0x4a2
+static u8 *g_rage_pl; static int g_rage_hp = -1;
+static void rage(u8 *pl) {
+    if (!pl) { g_rage_pl = NULL; return; }
+    int hp = *(s16*)(pl + PL_HP), max = *(s16*)(pl + PL_HPMAX);
+    if (pl == g_rage_pl && g_rage_hp > hp && max > 0 && !g_burn && c_rage > 0 && g_mp < g_mpmax) {
+        int n = FN(u8, HAS_ABILITY, u8*, u16)(pl, AB_ATTACK_HASTE);
+        int gain = n ? (int)((float)(g_rage_hp - hp) / (float)max * c_rage * (float)n) : 0;
+        if (gain > 0) {
+            g_mp += (float)gain; if (g_mp > g_mpmax) g_mp = g_mpmax;
+            if (g_debug) LOG("mp: MP Rage +%d (HP %d -> %d of %d, %d copies)", gain, g_rage_hp, hp, max, n);
+        }
+    }
+    g_rage_pl = pl; g_rage_hp = hp;
+}
 /* ---------------- per frame (the player gauge's update, 209f20) ---------------- */
 static void tick(u8 *g) {
     float dt = *(float*)(g + 0x20);
@@ -778,6 +807,7 @@ static void tick(u8 *g) {
     if (g_fresh) { g_fresh = 0; g_mp = g_mpmax; g_burn = 0; g_charge = 0; }
     if (g_mp > g_mpmax) g_mp = g_mpmax;
     u8 *cmd = CMD, *pl = player();
+    rage(pl);
     if (g_burn) {
         g_charge += dt * 100.0f / (c_charge_seconds * 60.0f) * charge_speed(pl);
         if (g_charge >= 100.0f) burn_end();
@@ -919,8 +949,9 @@ float *test_charge(void) { return &g_charge; }
 int *test_bar(void) { return &g_bar; }
 void test_tick(u8 *g) { tick(g); }
 float *test_charge_seconds(void) { return &c_charge_seconds; }
-float *test_haste_bonus(int atk) { return atk ? &c_atk_haste_bonus : &c_haste_bonus; }
-const char *test_haste_help(int atk) { return c_haste_help[atk ? 1 : 0]; }
+float *test_haste_bonus(void) { return &c_haste_bonus; }
+const char *test_haste_help(int atk) { return atk ? c_rage_help : c_haste_help; }
+float *test_rage(void) { return &c_rage; }
 const char *test_berserk_help(void) { return c_berserk_help; }
 float *test_berserk_pct(void) { return &c_berserk_pct; }
 u32 test_damage(u8 *atk, u8 *hit) { return damage_hook(atk, hit); }
