@@ -346,6 +346,7 @@ static const struct { u16 id; const char *name; } cc_names[] = {
 };
 /* commands that end through their own code (multi-part or own handlers): not covered */
 static int cc_covered(u16 id) {
+    if (id >= 0x92 && id <= 0x94) return 0;                     /* Cure, Cura, Curaga: never (asked for) */
     if (id >= 0x83 && id <= 0xbb)                               /* magic: those that end in the shared recovery */
         return !((id >= 0x9f && id <= 0xa1) || id == 0xa6 || id == 0xa7 || id == 0xa8 || id == 0xaa || id == 0xab || (id >= 0xae && id <= 0xb0));
     switch (id) {

@@ -932,3 +932,4 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   (its accept bits that frame: 0x40 all, 0x80 Attack / square) are left to the game; a vanilla-queued command
   (pl+0x320 & 0x80) wins.  Jump in the air is left alone.
 * Test: `t_cancel` (fake player and controllers, the end call stubbed).  Not seen in the game by me.
+* Cure, Cura and Curaga (92-94) taken out on request: they are never cut short.

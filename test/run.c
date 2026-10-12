@@ -1065,7 +1065,8 @@ static void t_cancel(void) {
     /* not ours */
     struct { u32 st; s16 part; u16 id; const char *what; } no[] = {
         { 0x10, 5, 0x01, "the base combo" }, { 0x12, 4, 0xc2, "an item" }, { 0x14, 3, 0x11, "a finisher" }, { 0x13, 4, 0xd0, "a friend command" },
-        { 0x10, 3, 0x62, "Sonic Blade (own end code: not covered yet)" }, { 0x16, 3, 0x6a, "guard" }, { 0x11, 6, 0x83, "a spell before it goes off" } };
+        { 0x10, 3, 0x62, "Sonic Blade (own end code: not covered yet)" }, { 0x16, 3, 0x6a, "guard" }, { 0x11, 6, 0x83, "a spell before it goes off" },
+        { 0x11, 4, 0x92, "Cure" }, { 0x11, 4, 0x93, "Cura" }, { 0x11, 4, 0x94, "Curaga" } };
     for (unsigned i = 0; i < sizeof no / sizeof *no; i++) {
         test_cc_reset(); g_cc_ends = 0; CMDSET(no[i].st, no[i].part, no[i].id);
         FRAME(30); PRESS(0x10 | 0x8000000);
