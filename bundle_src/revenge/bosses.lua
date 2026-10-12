@@ -28,6 +28,7 @@
 --            shortens its idle waits and caps its walks (revenge.lua, "Boss pace")
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
+--   setup    function(ent) run once when the boss is created (changes to its own states)
 --   haste    < 1 shortens the idle times the script reads through entity methods
 --            (hasteFns, default GetIdlingChangeTime); timers baked in as constants stay
 -- Large bosses are deliberately absent: they keep their vanilla behaviour.
@@ -196,9 +197,36 @@ cfg.b01ex00 = {
 -- Captain Hook: guard / evade roll on every hit (his own recovery already
 -- counter-attacks, so no recover is needed).  The counter is his own escape -
 -- guard or evade, then his jump-cut counter - for hits his rolls do not cover.
+-- He picks his attack first and walks to its range after (TargetMove), and the attack
+-- comes out when the walk ends - in range or not.  With the walk capped (boss pace) he
+-- would swing from afar, so a walk that runs out of time short of the range drops the
+-- planned attack and decides again at once (his Idling: close -> melee, mid -> step in,
+-- far -> big bomb), as Zack and the keyblade wielders do.
+local function hookSetup(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.TargetMove) ~= "table" then return end
+  local own = {}
+  for k, v in pairs(states) do own[k] = v end
+  local tm, tmUpdate = {}, states.TargetMove.OnUpdate
+  for k, v in pairs(states.TargetMove) do tm[k] = v end
+  if type(tmUpdate) ~= "function" then return end
+  tm.OnUpdate = function(self)
+    if Entity.IsTimeOver(self.myHandle) and type(self.nearDist) == "number" and self.stack ~= nil
+       and Entity.CalcDistanceXZSq(self.myHandle, self.targetHandle) > self.nearDist then
+      self.stack:clear()
+      self.idlingTimer = 0
+      self:GotoState("Idling")
+      return
+    end
+    return tmUpdate(self)
+  end
+  own.TargetMove = tm
+  rawset(ent, "states", own)
+end
 cfg.b01pp00 = {
   limit = 10,
   iframes = 40,
+  setup = hookSetup,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()

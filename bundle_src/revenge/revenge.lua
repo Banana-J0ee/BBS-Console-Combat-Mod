@@ -398,6 +398,9 @@ local function attach(ent, name, handle)
     end
   end
 
+  -- per-boss changes to the script's own states (the instance gets its own states table)
+  if c.setup ~= nil then pcall(c.setup, ent) end
+
   rawset(ent, "OnDamageBefore", function(self, kind, cat, attr, x)
     if not active(self) then
       if odb == nil then return 0 end

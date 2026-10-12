@@ -206,6 +206,26 @@ do
   e4.friendFlag = 1
   pcall(e4.GotoState, e4, "Move")
   check(log[h4] ~= 120 and log[h4] > 120, "the same script as an ally keeps its own pace (" .. tostring(log[h4]) .. ")")
+  -- Hook: a walk that runs out of time short of his attack's range decides again
+  M.script("b01pp00")
+  local e5, h5 = M.create("b01pp00")
+  rawset(e5, "Update", function() end); rawset(e5, "Debug", function() end)
+  local function walk(dist, over)
+    pcall(e5.GotoState, e5, "Idling")
+    e5.stack:clear(); e5.stack:push("Idling"); e5.stack:push("DisturbStab"); e5.nearDist = 4
+    pcall(e5.GotoState, e5, "TargetMove")
+    M.num["Entity.CalcDistanceXZSq"] = dist; M.num["Entity.IsTimeOver"] = over
+    pcall(e5.states.TargetMove.OnUpdate, e5)
+    M.num["Entity.CalcDistanceXZSq"] = nil; M.num["Entity.IsTimeOver"] = false
+    return e5:GetState()
+  end
+  local s1 = walk(100, true)
+  check(s1 == "Idling" and log[h5] == 0, "Hook: time out 10 m away -> no stab, decides again at once (" .. s1 .. ", timer " .. tostring(log[h5]) .. ")")
+  local s2 = walk(3, false)
+  check(s2 == "DisturbStab", "Hook: in range -> his planned stab (" .. s2 .. ")")
+  local s3 = walk(100, false)
+  check(s3 == "TargetMove", "Hook: still walking while the time lasts (" .. s3 .. ")")
+  check(log[h5] == 120, "Hook TargetMove capped at 120 (" .. tostring(log[h5]) .. ")")
   M.num["Entity.SetTimer"] = nil
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))

@@ -883,3 +883,8 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   sets 20 s while AttackFlag is 0, tied to the IceTianHandle helper).  Terra-Xehanort's own AI (b52ex00) has no SetTimer idles.
 - [Bosses] Aggression / WalkCap: the Lua carries markers 9001.5 / 9002.5 as float constants; bundle.c copies
   rv_factory into rv_buf and writes the ini values over them (each must be found exactly once).
+- Hook (b01pp00) picks his attack first and walks to its range after (TargetMove pops the attack in range or on
+  time-out).  cfg.setup gives his instance its own states table with a TargetMove whose time-out short of nearDist
+  clears the stack and goes to Idling with idlingTimer 0: his Idling decides by range (close: SelectAttack, mid:
+  Step, far: PresentBombLarge).  The other paced walks either come after the attack (Vanitas, Eraqus' Wander) or
+  re-decide on time-out already (Zack's Approache -> Move, wielders' Move -> BattleIdling).
