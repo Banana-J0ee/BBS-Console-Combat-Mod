@@ -250,15 +250,40 @@ static void hide_old_parts(u8 *cmd) {
         if (off[i] != 0xb4) L2D_Show(h, 0);
     }
 }
+/* Debug trace (bbskh2_debug.txt): around special / team commands and context prompts, one line whenever anything of
+   the input path changes - the player's state, the special command offer (pl+0x318 bit 0x400, pl+0x6f4), the prompt
+   flags of the command object, the prompt plate and the Attack plate, the menu's cursor and the buttons pressed. */
+static void trace_prompt(u8 *cmd, const char *when) {
+    static char last[256]; static int tail;
+    if (!g_debug || !cmd) return;
+    u8 *pl = *(u8**)(cmd + 0x70); if (!pl) return;
+    u32 f60 = *(u32*)(cmd + 0x60), s318 = *(u32*)(pl + 0x318);
+    u16 sp = *(u16*)(pl + 0x6f4); u32 st = *(u32*)(pl + 0x304);
+    int hot = (s318 & 0x400) || sp || st == 0x1d || (f60 & 0x44000);
+    if (hot) tail = 600; else if (tail > 0) tail--; else return;
+    u8 *P = *(u8**)(cmd + 0x298), *A = *(u8**)(cmd + 0x1b0);
+    u16 *pk = P ? *(u16**)(P + 0x58) : NULL;
+    u32 btn = G(u32, 0x8f64930) & G(u32, 0x8f64934) & 0xf000;
+    char b[256];
+    snprintf(b, sizeof b, "st %x/%d/%d sp %x t %.0f 318 %x 31c %x | cmd60 %x 64 %x 80 %x 78 %x | prompt %x st %d | atk st %d lv %d | menu %d/%d sw %d",
+             st, *(s16*)(pl + 0x310), *(s16*)(pl + 0x314), sp, *(float*)(pl + 0x704), s318 & 0x4c0, *(u32*)(pl + 0x31c) & 0xa00b3d,
+             f60 & 0x7d000, *(u32*)(cmd + 0x64) & 0x80, *(u16*)(cmd + 0x80), *(u16*)(cmd + 0x78),
+             pk ? pk[0] : 0, P ? P[0x31] : -1, A ? A[0x31] : -1, *(int*)(cmd + 0x1a8), g_state, g_cur, g_swallow);
+    if (strcmp(b, last) || btn) { LOG("trace %s: %s%s%s%s%s", when, b, btn & 0x1000 ? " [triangle]" : "", btn & 0x2000 ? " [circle]" : "", btn & 0x4000 ? " [cross]" : "", btn & 0x8000 ? " [square]" : ""); strcpy(last, b); }
+}
+static void uncover_attack(u8 *cmd);
 static void (MSABI *o_cmd_update)(u8 *cmd);
 static void MSABI cmd_update_hook(u8 *cmd) {
     fix_table();
     if (g_cmd_seen != cmd) { g_cmd_seen = cmd; g_state = S_MAIN; g_cur = E_ATTACK; g_link_was_open = 0; }   /* new room */
     *(float*)(cmd + 0x124) = head_y();      /* where new gauge windows (style changes) are put */
+    trace_prompt(cmd, "pre ");
     g_in_cmd = 1;
     g_swallow = swallow(cmd);
     o_cmd_update(cmd);
     g_in_cmd = 0;
+    uncover_attack(cmd);
+    trace_prompt(cmd, "post");
     if (c_menu) hide_old_parts(cmd);
     int open = link_open(cmd);
     if (!open) g_link_close = 0;
@@ -280,6 +305,32 @@ static int MSABI prompt_pad(u8 *pad) {
     u8 *cmd = CMD;
     if (cmd && react_prompt(cmd)) return FN(int, 0x272c20, u8*)(pad);
     return FN(int, 0x272860, u8*)(pad);
+}
+/* Special commands (team attacks and the like: Burst of Faith, Dual Limit, Astro Shot ...).  A partner's script
+   offers one (1402790f0: pl+0x6f4 the command, pl+0x318 bit 0x400, a timer at pl+0x704) with an icon over the
+   player whose button picture is the fourth of 140214040's table (f566, square); the input intake takes it with
+   140273030(pad, 3) - square - at 2738c9 [1402737e0].  As KH2's reaction commands, and the context prompts here, they
+   go on triangle (index 0, f567) with ReactionButton.  The presses inside the command (mashing Burst of Faith ...)
+   are the confirm button and keep their own prompt. */
+static int MSABI special_pad(u8 *pad, int n, int strict) {
+    if (c_react && n == 3) n = 0;
+    return FN(int, 0x273030, u8*, int, int)(pad, n, strict);
+}
+static void MSABI special_icon(u64 obj, int h, int kind) {
+    if (c_react && kind == 3) kind = 0;
+    FN(void, 0x214040, u64, int, int)(obj, h, kind);
+}
+/* A prompt covers the Attack plate (1402376b0: state 2) and its close (140237090) uncovers it - unless a finisher
+   is available (cmd+0x60 bit 0x20000), when the game expects the finisher plate to take the Attack button.  Here the
+   finisher is a prompt of its own (style.c) and the Attack button attacks, so after a team attack that ended with a
+   finisher ready the plate stayed covered and Attack did nothing until the finisher offer ran out.  So: with no
+   prompt up, a covered Attack plate (level 0) is uncovered as the game's own close does (140205890). */
+static void uncover_attack(u8 *cmd) {
+    if (!c_menu || (*(u32*)(cmd + 0x60) & 0x40000) || *(int*)(cmd + 0x1a8) != 0) return;
+    u8 *A = *(u8**)(cmd + 0x1b0);
+    if (!A || A[0x30] != 1 || A[0x31] != 2) return;
+    FN(void, 0x205890, u8*)(A);
+    if (g_debug) LOG("menu: Attack plate uncovered after a prompt");
 }
 /* While a prompt is up the game does not run the Attack part of its update (the prompt has taken Attack's place and
    button).  With the prompt on triangle the attack button attacks again: what that part does [236d9e..236e8e] -
@@ -1159,6 +1210,7 @@ int menu_check(void) {
     if (G(u64, VT_PLATE_UPDATE) != (u64)(g_base + 0x204880) || G(u64, VT_CMD_UPDATE) != (u64)(g_base + 0x2363d0)) { LOG("menu: vtable slots do not match"); bad++; }
     if (!call_ok(0x238902, 0x272cd0) || !call_ok(0x2333f1, 0x272c20) || !call_ok(0x2332fe, 0x272c20) || !call_ok(0x236c92, 0x272c20)) { LOG("menu: D-Link pad call sites do not match"); bad++; }
     if (!call_ok(0x236b97, 0x272860)) { LOG("menu: prompt pad call site does not match"); bad++; }
+    if (c_react && (!call_ok(0x2738c9, 0x273030) || !call_ok(0x213f55, 0x214040) || !call_ok(0x214a40, 0x214040))) { LOG("menu: special command sites do not match"); bad++; }
     if (!call_ok(0x21fb99, 0x272f10) || !call_ok(0x2337e9, 0x272d30)) { LOG("menu: jump / list close pad call sites do not match"); bad++; }
     if (!call_ok(0x2332a1, 0x205cf0) || !call_ok(0x233491, 0x205cf0)) { LOG("menu: D-Link list move call sites do not match"); bad++; }
     /* placement table rows 2..7: the Attack plate and what stacks on it, y 247 / 249 */
@@ -1178,6 +1230,11 @@ void menu_apply(void) {
     hook_call(0x2332fe, 0x272c20, link_confirm_pad, "link end pad");
     hook_call(0x236c92, 0x272c20, followup_pad, "follow-up pad");
     hook_call(0x236b97, 0x272860, prompt_pad, "prompt pad");
+    if (c_react) {
+        hook_call(0x2738c9, 0x273030, special_pad, "special command pad (triangle)");
+        hook_call(0x213f55, 0x214040, special_icon, "special command icon");
+        hook_call(0x214a40, 0x214040, special_icon, "special command icon 2");
+    }
     hook_call(0x21fb99, 0x272f10, jump_pad, "jump pad");
     hook_call(0x2337e9, 0x272d30, link_close_pad, "link close pad");
     hook_call(0x2332a1, 0x205cf0, link_scroll, "link list move");
@@ -1237,6 +1294,7 @@ int test_menu_step(u8 *cmd) {       /* what the command update does around the d
     g_in_cmd = 1; g_swallow = swallow(cmd);
     int r = menu_input(cmd); g_in_cmd = 0; return r;
 }
+void test_uncover_attack(u8 *cmd) { uncover_attack(cmd); }
 int test_confirm(u8 *pad, u8 *cmd) { g_in_cmd = 1; g_swallow = swallow(cmd); int r = FN(int, 0x272860, u8*)(pad); g_in_cmd = 0; return r; }
 void test_plate_update(u8 *P) { plate_update_hook(P); }
 void test_row_colours(int h, int kind) { row_body(h); row_colours(h, kind, 0); }

@@ -1751,6 +1751,34 @@ static void pad(u32 held, u32 edge) {       /* what the game's pad update leaves
     G(u32, 0x8f64930) = held; G(u32, 0x8f64934) = edge; G(u32, 0x8f64938) = edge; G(u32, 0x8f6493c) = edge; G(u32, 0x8f6499c) = 0;
     test_sc_pad_frame();
 }
+/* Special commands (Burst of Faith ...): taken with triangle instead of square, and their icon shows triangle; a covered
+   Attack plate is uncovered once no prompt is up (a team attack that ended with a finisher ready) */
+extern void test_uncover_attack(u8 *cmd);
+static int g_icon_kind;
+static void MSABI icon_stub(u64 obj, int h, int kind) { (void)obj; (void)h; g_icon_kind = kind; }
+static void t_special(void) {
+    u8 *pd = calloc(1, 0x100); *(u32*)(pd + 0xa0) = 1;
+    int (MSABI *sp)(u8*, int, int) = (void*)call_target(0x2738c9);
+    CHECK(sp != (void*)RVA(0x273030), "the activation test is hooked");
+    G(u32, 0x8f64930) = 0x8000; G(u32, 0x8f64934) = 0x8000; G(u32, 0x8f6493c) = 0x8000;
+    int sq = sp(pd, 3, 0);
+    G(u32, 0x8f64930) = 0x1000; G(u32, 0x8f64934) = 0x1000; G(u32, 0x8f6493c) = 0x1000;
+    int tri = sp(pd, 3, 0);
+    G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f6493c) = 0;
+    int none = sp(pd, 3, 0);
+    CHECK(sq < 1 && tri == 1 && none == 0, "square no longer starts it, triangle does (%d %d %d)", sq, tri, none);
+    CHECK(call_target(0x213f55) != RVA(0x214040) && call_target(0x214a40) != RVA(0x214040), "its icon is hooked (both places)");
+    u8 *cm = calloc(1, 0x360), *A = calloc(1, 0x70);
+    *(u8**)(cm + 0x1b0) = A; A[0x30] = 1; A[0x31] = 2; *(int*)(A + 0x4c) = 0;
+    u8 keep[3]; memcpy(keep, RVA(0x1a7520), 3); memcpy(RVA(0x1a7520), "\x31\xc0\xc3", 3);   /* L2D SetControl: none here */
+    *(u32*)(cm + 0x60) = 0x60000; test_uncover_attack(cm);
+    CHECK(A[0x31] == 2, "prompt still up: the Attack plate stays covered");
+    *(u32*)(cm + 0x60) = 0x20000; test_uncover_attack(cm);
+    CHECK(A[0x31] == 0, "prompt closed with a finisher ready: the Attack plate is uncovered (%d)", A[0x31]);
+    A[0x31] = 1; test_uncover_attack(cm); CHECK(A[0x31] == 1, "a plate that is not covered is left alone");
+    memcpy(RVA(0x1a7520), keep, 3);
+    printf("t_special done\n");
+}
 static void t_shortcut(void) {
     static const u16 ids[] = { 0x83 /*Fire*/, 0x65 /*Strike Raid*/, 0xbc /*Potion*/, 0x92 /*Cure*/, 0xac /*Mega Flare*/ };
     world(5, ids);
@@ -2883,6 +2911,7 @@ int main(int argc, char **argv) {
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);
     bad |= run("t_cancel", t_cancel);
+    bad |= run("t_special", t_special);
     bad |= run("t_berserk", t_berserk);
     bad |= run("t_bar", t_bar);
     bad |= run("t_tex", t_tex);

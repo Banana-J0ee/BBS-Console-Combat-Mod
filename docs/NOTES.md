@@ -945,3 +945,19 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   [28ac09 revert / run out / forced, 28ae3d D-Link finisher] are wrapped: if a D-Link was active (flag 0x200, not an
   illusion 0x8000), after the game's own end the gauge is set with 20ac70 (SetDLink, also the HUD state) to at most
   DLinkGaugeAfter percent (0).  Test: `t_link_end`.  Not seen in the game by me.
+
+## Special commands (team attacks) and the Attack lockout after them (2026-10-12; menu.c special_pad / special_icon / uncover_attack)
+* Reported: Burst of Faith (with Mickey) "shows an X prompt"; after it, Attack does nothing until the cursor moves.
+  Traced in the game (menu.c trace_prompt, debug only): the offer (1402790f0: pl+0x6f4, pl+0x318 bit 0x400, timer
+  pl+0x704) is taken at 2738c9 by 140273030(pad, 3) = square (index 0 triangle, 1 cross, 2 circle, 3 square), its icon
+  over the player (bc01_00 seq 0x771/0x772/0x76c via 140213e50) gets its button text from 140214040's table at
+  646a5c (f567, f564, f565, f566 by kind; 3 = f566 square).  The press made state 0x1d; Burst of Faith (274f40)
+  shows the prompt plate with 0x141 (cmd+0x60 0x40000, f564) for its mashing, which is the confirm button [27506c].
+* With ReactionButton the offer is taken with triangle (n 3 -> 0 at 2738c9) and its icon shows triangle (kind 3 -> 0
+  at both calls of 140214040, 213f55 / 214a40).  The mashing stays on confirm.
+* Lockout: the plate's close (140237090(cmd, 0)) uncovers the Attack plate (1402376b0 had put it in state 2) only
+  when no finisher is available (cmd+0x60 bit 0x20000) - the game's finisher plate would take the Attack button.
+  Here the finisher is style.c's own prompt, so the Attack plate stayed covered (type 1 is "stable" only in state
+  < 2, 1402047f0) and the game's Attack part did nothing until the finisher offer ran out ("finisher: not taken";
+  moving the cursor only happened to take that long).  After every command update with no prompt up, a covered
+  level-0 Attack plate is uncovered with 140205890.  Test: `t_special`.
