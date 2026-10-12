@@ -62,6 +62,7 @@ static int   c_cursor_advance = 0;     /* 1 = cursor moves to the next command a
 static int   c_ether = 1;              /* Ether-type items restore MP */
 static int   c_tiered = 1;             /* magic costs spread out by tier (see base_cost) */
 static int   c_link_refill = 1;        /* starting a D-Link fills the MP bar and ends an MP charge, as a Drive Form does in KH2 */
+static float c_link_keep = 0.0f;       /* percent of a full D-Link gauge that can be left once a D-Link has ended (KH2: 0) */
 static int   c_link_in_burn = 1;       /* a D-Link can be started during MP charge (0 = not until the bar is back) */
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
@@ -156,6 +157,8 @@ static void load_ini(void) {
     c_dlink_cost = (int)ini_f("MP", "DLinkCostByClass", (float)c_dlink_cost);
     c_link_in_burn = (int)ini_f("MP", "DLinkDuringCharge", (float)c_link_in_burn);
     c_link_refill = (int)ini_f("MP", "DLinkRefillsMP", (float)c_link_refill);
+    c_link_keep = ini_f("MP", "DLinkGaugeAfter", c_link_keep);
+    if (!(c_link_keep >= 0.0f && c_link_keep <= 100.0f)) c_link_keep = 0.0f;
     c_floor = (int)ini_f("Combat", "DamageFloor", (float)c_floor);
     c_desc_cost = (int)ini_f("Menu", "DescriptionCost", (float)c_desc_cost);
     for (int id = 0x5b; id < 0x1a0; id++) {             /* the deck commands */
@@ -423,6 +426,31 @@ static u8 *MSABI dlink_pick_hook(u8 *P) {
     return c;
 }
 u8 *test_dlink_pick(u8 *P) { return dlink_pick_hook(P); }
+
+/* A D-Link ends.  The player's style change back to normal (28a950) ends the gauge's "linked" mode with 208390(gauge,
+   now) at two places [28ac09: the revert, by the D-Link list's "end link", by the gauge running out, or a forced
+   end; 28ae3d: a D-Link finisher].  In the game the time left stays on the gauge, so a link ended early is most of a
+   full gauge again: a hit or two and the next D-Link (full HP, and here full MP) is ready.  KH2's Drive Forms spend
+   their cost when they start (1403c2780: the bars are taken away, and the partial bar too when the gauge was full)
+   and keep the form's time on a gauge of its own, which a revert simply throws away.  The same here: once a link
+   has ended the gauge holds at most DLinkGaugeAfter percent (0).  Illusions (gauge flag 0x8000) are not D-Links. */
+#define LINK_END_A 0x28ac09u
+#define LINK_END_B 0x28ae3du
+#define LINK_END   0x208390u
+static void (MSABI *g_link_set)(u8 *g, float v);           /* 20ac70 = set the D-Link gauge (and its HUD state) */
+static void MSABI link_end_hook(u8 *g, int now) {
+    u32 fl = g ? *(u32*)(g + 0x84) : 0;
+    int linked = (fl & 0x200) && !(fl & 0x8000);
+    float v = linked ? *(float*)(g + 0x60) : 0.0f;
+    FN(void, LINK_END, u8*, int)(g, now);
+    if (linked && v > c_link_keep) {
+        g_link_set(g, c_link_keep);
+        if (g_debug) LOG("mp: D-Link over with %.0f left on the gauge: down to %.0f", v, c_link_keep);
+    }
+}
+void test_link_end(u8 *g, int now) { link_end_hook(g, now); }
+void test_link_set(void (MSABI *f)(u8*, float)) { g_link_set = f; }
+float *test_link_keep(void) { return &c_link_keep; }
 int *test_link_refill(void) { return &c_link_refill; }
 
 /* 2624e0: an item takes effect. Items that restore Focus (Ether, Mega-Ether, Elixir, Megalixir) restore MP too. */
@@ -862,6 +890,7 @@ int mod_install(void) {
     if (c_floor && !call_ok(FLOOR_CALL, HAS_ABILITY)) { LOG("damage floor site does not match"); bad++; }
     if (G(u64, VT_CTD_READY) != (u64)(g_base + FN_CTD_READY)) { LOG("message file vtable does not match"); bad++; }
     if (c_berserk_pct > 0 && !call_ok(DMG_CALL, DMG_FN)) { LOG("damage site does not match"); bad++; }
+    if (c_link_keep < 100.0f && (!call_ok(LINK_END_A, LINK_END) || !call_ok(LINK_END_B, LINK_END))) { LOG("D-Link end sites do not match"); bad++; }
     if (!bundle_check()) bad++;
     if (!menu_check()) bad++;
     if (!tex_check()) bad++;
@@ -879,6 +908,11 @@ int mod_install(void) {
         LOG("combat: EXP Zero's minimum damage applies without the ability %s", c_floor >= 2 ? "on every difficulty" : "on Critical");
     }
     if (c_berserk_pct > 0) hook_call(DMG_CALL, DMG_FN, damage_hook, "damage (Berserker)");
+    g_link_set = (void (MSABI *)(u8*, float))(g_base + 0x20ac70);
+    if (c_link_keep < 100.0f) {
+        hook_call(LINK_END_A, LINK_END, link_end_hook, "D-Link end (revert)");
+        hook_call(LINK_END_B, LINK_END, link_end_hook, "D-Link end (finisher)");
+    }
     {   /* always: MP Haste / Berserker texts and the Combo Master name come through here */
         u64 old = (u64)(g_base + FN_CTD_READY), f = (u64)ctd_ready_hook;
         o_ctd_ready = (void*)old;

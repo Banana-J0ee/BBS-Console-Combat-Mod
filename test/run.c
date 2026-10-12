@@ -360,6 +360,30 @@ static void t_haste(void) {
     /* the game's lookup of an ability's description gives the new text: 1401b3d80 walks the loaded files */
     printf("t_haste done\n");
 }
+/* D-Link end: the gauge keeps at most DLinkGaugeAfter (0) once a link has ended; the game's 208390 runs first */
+extern void test_link_end(u8 *g, int now); extern void test_link_set(void (MSABI *f)(u8*, float)); extern float *test_link_keep(void);
+static float g_set_v; static int g_set_n;
+static void MSABI link_set_stub(u8 *g, float v) { g_set_n++; g_set_v = v; *(float*)(g + 0x60) = v; *(u32*)(g + 0x84) &= ~0x300u; }
+static void t_link_end(void) {
+    u8 *g = calloc(1, 0x100);
+    test_link_set(link_set_stub);
+    CHECK(*test_link_keep() == 0.0f, "nothing left by default (KH2)");
+    *(float*)(g + 0x60) = 85; *(u32*)(g + 0x84) = 0x300; g_set_n = 0;
+    test_link_end(g, 0);
+    CHECK(g_set_n == 1 && g_set_v == 0 && !(*(u32*)(g + 0x84) & 0x200), "reverted with 85 left: gauge emptied, the game's end ran (%d, %.0f)", g_set_n, g_set_v);
+    *(float*)(g + 0x60) = 0; *(u32*)(g + 0x84) = 0x200; g_set_n = 0; test_link_end(g, 0);
+    CHECK(g_set_n == 0, "ran out by itself: nothing to do");
+    *(float*)(g + 0x60) = 60; *(u32*)(g + 0x84) = 0x100; g_set_n = 0; test_link_end(g, 1);
+    CHECK(g_set_n == 0 && *(float*)(g + 0x60) == 60, "no link active (a style reverting): the gauge is not touched");
+    *(float*)(g + 0x60) = 60; *(u32*)(g + 0x84) = 0x8200; g_set_n = 0; test_link_end(g, 1);
+    CHECK(g_set_n == 0, "an illusion: not touched");
+    *test_link_keep() = 25; *(float*)(g + 0x60) = 85; *(u32*)(g + 0x84) = 0x200; g_set_n = 0; test_link_end(g, 0);
+    CHECK(g_set_n == 1 && g_set_v == 25, "DLinkGaugeAfter = 25: 85 -> 25");
+    *(float*)(g + 0x60) = 10; *(u32*)(g + 0x84) = 0x200; g_set_n = 0; test_link_end(g, 0);
+    CHECK(g_set_n == 0, "... 10 left stays 10");
+    *test_link_keep() = 0;
+    printf("t_link_end done\n");
+}
 /* MP Rage: Attack Haste renamed; HP lost gives lost / max HP x max MP x 25% x copies / 5, never during the MP charge */
 static void t_rage(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
@@ -1525,7 +1549,7 @@ static void t_bundle(void) {
             for (u32 k = 0; k < rs; k++) if (g_base[va + k] != d[ro + k]) diff++;
         }
         printf("  code bytes differing from the original exe: %ld (our own hooks)\n", diff);
-        CHECK(diff > 0 && diff < 320, "only our hook sites differ");
+        CHECK(diff > 0 && diff < 400, "only our hook sites differ");
         CHECK(!memcmp(RVA(0x62f080), d + 0x400 + 0x62e080, 349), "the old Combo Flow routines are not installed (speed.c has the walk-out)");
         CHECK(*(u8*)RVA(0x2291bf) == 0xe9 && *(u8*)RVA(0x26825f) == 0xe9 && *(u8*)RVA(0x26828a) == 0xe9, "its three sites carry our hooks");
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
@@ -2857,6 +2881,7 @@ int main(int argc, char **argv) {
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
+    bad |= run("t_link_end", t_link_end);
     bad |= run("t_cancel", t_cancel);
     bad |= run("t_berserk", t_berserk);
     bad |= run("t_bar", t_bar);

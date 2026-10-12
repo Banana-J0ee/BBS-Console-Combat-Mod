@@ -933,3 +933,15 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   (pl+0x320 & 0x80) wins.  Jump in the air is left alone.
 * Test: `t_cancel` (fake player and controllers, the end call stubbed).  Not seen in the game by me.
 * Cure, Cura and Curaga (92-94) taken out on request: they are never cut short.
+
+## D-Link gauge after a link (2026-10-12; mp.c link_end_hook, `[MP] DLinkGaugeAfter`)
+* Reported: D-Link for full HP / MP, revert, one hit, D-Link again.  The BBS gauge (gauge+0x60, 0..100) is both the
+  "ready" meter (a link needs 100) and the link's time (it drains while linked); ending early leaves the time on it.
+* KH2 (exe): status+0x1b1 drive bars (+0x1b0 the partial bar 0..100, +0x1b2 the maximum); entering a form
+  (1403c17c0) refills HP and MP and puts the form's own time on +0x1b4 / +0x1b8 ((level + 3) x sstm Drive Time);
+  the cost is taken from the bars by 1403c2780 (bars - cost; the partial bar is emptied too when the gauge was full
+  or short).  A revert throws the form time away; the bars stay spent.
+* Here: both calls of 208390 (end of the gauge's linked mode) in the style change back to normal 28a950
+  [28ac09 revert / run out / forced, 28ae3d D-Link finisher] are wrapped: if a D-Link was active (flag 0x200, not an
+  illusion 0x8000), after the game's own end the gauge is set with 20ac70 (SetDLink, also the HUD state) to at most
+  DLinkGaugeAfter percent (0).  Test: `t_link_end`.  Not seen in the game by me.
