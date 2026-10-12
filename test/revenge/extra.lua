@@ -158,5 +158,55 @@ do
   BBS_REVENGE.vary = 0
   check(lo >= 9 and hi <= 11 and hi > lo, string.format("the limit re-rolls in 10 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
 end
+-- boss pace: idle waits shortened, walks capped, attacks / superbosses / allies left alone
+do
+  local log = {}
+  M.num["Entity.SetTimer"] = function(h, v) log[h] = v end
+  local RVs = BBS_REVENGE
+  check(RVs.aggr == 0.4 and RVs.walkCap == 2 and RVs.idleFloor == 45, "pace defaults: idle x0.4 (floor 0.75 s), walks capped at 2 s")
+  M.script("b10ex00")
+  local e, h = M.create("b10ex00")
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  check(log[h] == 48, "Vanitas Idling: 120 -> 48 frames (" .. tostring(log[h]) .. ")")
+  pcall(e.GotoState, e, "TargetMove")
+  check(log[h] == 120, "Vanitas TargetMove: 300 -> 120 frames (" .. tostring(log[h]) .. ")")
+  pcall(e.GotoState, e, "KeyBladeRush")
+  check(log[h] == 180, "Vanitas KeyBladeRush keeps its 180 (" .. tostring(log[h]) .. ")")
+  pcall(e.GotoState, e, "Warp1")
+  check(log[h] == 30, "Vanitas Warp1 keeps its 30")
+  -- a short idle stays as it is
+  check(RVs.paceValue("idle", 40) == 40 and RVs.paceValue("idle", 60) == 45 and RVs.paceValue("walk", 90) == 90,
+        "waits under 0.75 s and walks under 2 s are not changed; 1 s idle -> 0.75 s")
+  -- the same handle handed to another entity: no pace for it
+  M.names[h] = "x"
+  pcall(EntityFactory.Create, EntityFactory, "b01cd00", h)
+  Entity.SetTimer(h, 300)
+  check(log[h] == 300, "a handle given to another entity is not paced (" .. tostring(log[h]) .. ")")
+  -- superboss
+  M.script("b12ex00")
+  local e2, h2 = M.create("b12ex00")
+  rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
+  pcall(e2.GotoState, e2, "TargetMove")
+  check(log[h2] == 600, "Vanitas Remnant (superboss) keeps his 600 (" .. tostring(log[h2]) .. ")")
+  -- Braig: his wait is a field
+  M.script("b30ex00")
+  local e3, h3 = M.create("b30ex00")
+  rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
+  M.num["Script.RandomInRange"] = function(a, b) return 90 end
+  pcall(e3.GotoState, e3, "WaitIdling")
+  M.num["Script.RandomInRange"] = nil
+  check(e3.timer == 45, "Braig WaitIdling: 90 -> 45 frames (" .. tostring(e3.timer) .. ")")
+  -- keyblade wielder as an ally: untouched
+  M.script("b60")
+  local e4, h4 = M.create("b60ex00")
+  rawset(e4, "Update", function() end); rawset(e4, "Debug", function() end)
+  pcall(e4.GotoState, e4, "Move")
+  check(log[h4] == 120, "wielder boss Move capped at 120 (" .. tostring(log[h4]) .. ")")
+  e4.friendFlag = 1
+  pcall(e4.GotoState, e4, "Move")
+  check(log[h4] ~= 120 and log[h4] > 120, "the same script as an ally keeps its own pace (" .. tostring(log[h4]) .. ")")
+  M.num["Entity.SetTimer"] = nil
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

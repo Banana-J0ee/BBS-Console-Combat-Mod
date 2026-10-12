@@ -62,6 +62,16 @@ RV.vary     = 1.0    -- next limit = boss's limit +- up to this, re-rolled per r
 RV.watchdog = 12     -- 0.2 s at the limit without a break-out before `counter` is forced from the update
 RV.iframes  = 0      -- armour frames after a forced break-out (0 = none; per boss: cfg.iframes)
 
+-- Boss pace ([Bosses] in bbskh2.ini).  KH2 bosses wait 0.25 .. 0.75 s between decisions and
+-- walk at most 1 .. 2 s before attacking (their AI files: idle_time 15..45 frames, move_target
+-- 60..120); BBS's humanoid bosses idle 1.5 .. 2 s and walk up to 5 .. 12 s.  The two numbers
+-- below are markers the DLL overwrites with the ini values; left as they are, the defaults apply.
+RV.aggr      = 9001.5  -- idle waits x this (1 = vanilla); never cut below RV.idleFloor
+RV.walkCap   = 9002.5  -- walk / approach / wander timers capped at this many seconds (0 = no cap)
+if RV.aggr > 100 or RV.aggr <= 0 then RV.aggr = 0.4 end
+if RV.walkCap > 100 or RV.walkCap < 0 then RV.walkCap = 2.0 end
+RV.idleFloor = 45      -- 0.75 s, KH2's longest wait between decisions: shorter waits stay as they are
+
 -- ---------------------------------------------------------------------
 -- Controlled dice.  While one of our wrapped callbacks runs, the boss
 -- script sees the values we choose instead of real random numbers.
@@ -174,6 +184,63 @@ local function shielded(h)
   return false
 end
 
+-- ---------------------------------------------------------------------
+-- Boss pace.  The boss scripts start their waits with Entity.SetTimer(h, frames) when they
+-- enter a state (Idling 120, TargetMove 300, ...) and leave the state once IsTimeOver says so.
+-- The engine function is wrapped once; for a paced boss the value is changed by the state the
+-- boss is entering or in: idle states shortened, walk states capped.  Attacks, wind-ups and
+-- reactions use their timers in other states and keep them.
+-- ---------------------------------------------------------------------
+local P = __BBS_PACE
+if type(P) ~= "table" then
+  P = { real = nil, hook = nil, by = {} }
+  __BBS_PACE = P
+end
+
+local function paceKind(s)
+  if type(s) ~= "string" then return nil end
+  if s:find("Idling") or s:find("Waiting") or s == "Hovering" then return "idle" end
+  if s:find("Move$") or s:find("Walk$") or s:find("^Wander") or s:find("^Approach") then return "walk" end
+  return nil
+end
+RV.paceKind = paceKind
+
+local function paceIdle(v)
+  if RV.aggr >= 1 or v <= RV.idleFloor then return v end
+  local n = v * RV.aggr
+  if n < RV.idleFloor then n = RV.idleFloor end
+  return n
+end
+
+local function paceValue(kind, v)
+  if kind == "idle" then return paceIdle(v) end
+  if kind == "walk" then
+    local cap = RV.walkCap * 60
+    if cap > 0 and v > cap then return cap end
+  end
+  return v
+end
+RV.paceValue = paceValue
+
+local function pacedTimer(h, v, a, b)
+  local st = P.by[h]
+  if st ~= nil and type(v) == "number" then
+    local ok, nv = pcall(st.pace, h, v)
+    if ok and type(nv) == "number" then v = nv end
+  end
+  return P.real(h, v, a, b)
+end
+
+local function installPace()
+  if Entity == nil or type(Entity.SetTimer) ~= "function" then return false end
+  if Entity.SetTimer ~= P.hook then
+    P.real = Entity.SetTimer          -- the engine's own (or whatever wraps it now)
+    P.hook = pacedTimer
+    Entity.SetTimer = pacedTimer
+  end
+  return true
+end
+
 local function attach(ent, name, handle)
   local c = RV.cfg[name]
   if c == nil or type(ent) ~= "table" then return end
@@ -185,6 +252,7 @@ local function attach(ent, name, handle)
   if st ~= nil then                         -- same object re-used: just clear
     st.rv, st.idle, st.firing, st.fireT, st.armor = 0, 0, false, 0, 0
     st.limit = c.limit
+    if st.pace ~= nil and handle ~= nil then P.by[handle] = st end
     return
   end
   st = { rv = 0, idle = 0, firing = false, fireT = 0, armor = 0, count = 0, fcount = 0,
@@ -296,6 +364,37 @@ local function attach(ent, name, handle)
           return v
         end)
       end
+    end
+  end
+
+  -- boss pace: the state being entered / run decides what a SetTimer means
+  if c.pace ~= false and installPace() then
+    local pf = c.paceFields
+    st.pace = function(h, v)
+      local mh = rawget(ent, "myHandle")
+      if mh ~= nil and mh ~= h then return v end        -- a stale entry: another object owns h now
+      if not active(ent) then return v end
+      return paceValue(paceKind(st.state), v)
+    end
+    if h0 ~= nil then P.by[h0] = st end
+    local gss = ent.GotoStateSub
+    if type(gss) == "function" then
+      rawset(ent, "GotoStateSub", function(self, s, a, b)
+        local prev = st.state
+        st.state = s
+        local r = gss(self, s, a, b)
+        -- the FSM sets current_state after OnBeginState, so a state change made from inside
+        -- OnBeginState ends with this state current: mirror that
+        if type(self.states) == "table" and self.states[s] ~= nil then st.state = s else st.state = prev end
+        local mh = rawget(self, "myHandle")
+        if mh ~= nil then P.by[mh] = st end
+        -- scripts that count an idle down in a field of their own (frames) instead of SetTimer
+        if pf ~= nil and pf[s] ~= nil and active(self) then
+          local f = pf[s]
+          if type(self[f]) == "number" then self[f] = paceIdle(self[f]) end
+        end
+        return r
+      end)
     end
   end
 
@@ -440,6 +539,7 @@ RV.attach = attach
 -- time a configured boss is created.
 local factoryCreate = EntityFactory.Create
 EntityFactory.Create = function(self, name, handle)
+  if handle ~= nil then P.by[handle] = nil end    -- a handle handed out again: no stale pace entry
   local rec = self[name]
   if type(rec) == "table" and RV.cfg[name] ~= nil and not rec.__rv then
     local make = rec.Create

@@ -869,3 +869,17 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   Unchanged for now; with the gauge kept he breaks out again after a few hits when you go straight back in.
 - Grace back to 60 frames (1 s, KH2's pace) on request (2026-10-12); the bosses' long idles are to be handled on the
   boss side instead (see the KH2 AI comparison: KH2 bosses wait 0.25-0.75 s between decisions, BBS's 1.5-2 s).
+
+## Boss pace (2026-10-12)
+- KH2 boss AI (BDX in obj/B_*.mdlx, read from the PC install): the engine runs the act "idle_time" between decisions -
+  random 15..45 frames in nearly every boss (Org XIII, Data versions, Barbossa, Shan Yu...; Xigbar 30..45, Hades
+  60..120); walks (move_target) 60..120.  BBS humanoid bosses: Idling 90..120 (Wielders 180+), TargetMove 300..600.
+- revenge.lua wraps Entity.SetTimer once (global __BBS_PACE, handle -> boss state) and each paced boss's
+  GotoStateSub (to know the state being entered: the FSM sets current_state only after OnBeginState).  Idle states
+  (name has Idling / Waiting, or Hovering): v * aggr, floor 45, values <= 45 untouched.  Walk states (Move$ / Walk$ /
+  ^Wander / ^Approach): capped at walkCap s.  Allies (wielders with friendFlag 1) are skipped; a handle handed out
+  again clears its entry in EntityFactory.Create.  Braig counts his WaitIdling in self.timer: cfg.paceFields.
+- pace = false: b01ex00, b81vs00, b85vs00, b12ex00 (superbosses, on request) and Hades (b01he00 / b80vs00: his Move
+  sets 20 s while AttackFlag is 0, tied to the IceTianHandle helper).  Terra-Xehanort's own AI (b52ex00) has no SetTimer idles.
+- [Bosses] Aggression / WalkCap: the Lua carries markers 9001.5 / 9002.5 as float constants; bundle.c copies
+  rv_factory into rv_buf and writes the ini values over them (each must be found exactly once).

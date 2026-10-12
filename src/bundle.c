@@ -93,11 +93,36 @@ static u64 MSABI rsrc_loaded(u8 *r) {
     return 0;
 }
 
+/* [Bosses]: boss pace, carried by the Revenge Value script.  Its two settings are float constants in the
+   compiled Lua (type byte 3 + the float) with marker values that are replaced by the ini's here. */
+static float c_aggr = 0.4f, c_walkcap = 2.0f;
+static u8 rv_buf[sizeof rv_factory];
+static int pace_patch(float marker, float value, const char *what) {
+    u8 pat[5] = {3}; memcpy(pat + 1, &marker, 4);
+    int n = 0; size_t at = 0;
+    for (size_t i = 0; i + 5 <= sizeof rv_buf; i++) if (!memcmp(rv_buf + i, pat, 5)) { n++; at = i; }
+    if (n != 1) { LOG("bundle: boss pace %s marker found %d times: default kept", what, n); return 0; }
+    memcpy(rv_buf + at + 1, &value, 4);
+    return 1;
+}
+static void pace_config(void) {
+    char b[32], d[32];
+    snprintf(d, sizeof d, "%g", c_aggr);
+    GetPrivateProfileStringA("Bosses", "Aggression", d, b, sizeof b, g_ini); c_aggr = (float)atof(b);
+    snprintf(d, sizeof d, "%g", c_walkcap);
+    GetPrivateProfileStringA("Bosses", "WalkCap", d, b, sizeof b, g_ini); c_walkcap = (float)atof(b);
+    if (!(c_aggr >= 0.1f && c_aggr <= 1.0f)) c_aggr = 0.4f;
+    if (!(c_walkcap >= 0.0f && c_walkcap <= 30.0f)) c_walkcap = 2.0f;
+    memcpy(rv_buf, rv_factory, sizeof rv_buf);
+    pace_patch(9001.5f, c_aggr, "Aggression");
+    pace_patch(9002.5f, c_walkcap, "WalkCap");
+}
+
 /* luaL_loadbuffer(L, buf, size, name) at the game's script loader */
 static int MSABI lua_load_hook(void *L, const char *buf, size_t n, const char *name) {
     if (c_revenge && is_factory(buf, n)) {
-        if (g_debug) LOG("bundle: Factory.lub replaced (%d bytes)", (int)sizeof rv_factory);
-        buf = (const char*)rv_factory; n = sizeof rv_factory;
+        if (g_debug) LOG("bundle: Factory.lub replaced (%d bytes)", (int)sizeof rv_buf);
+        buf = (const char*)rv_buf; n = sizeof rv_buf;
     }
     return FN(int, LUA_LOAD, void*, const char*, size_t, const char*)(L, buf, n, name);
 }
@@ -148,6 +173,7 @@ void bundle_restore_sites(void) {
 int bundle_check(void) {
     c_combo = ini_i("ComboFlow", 1); c_camera = ini_i("Camera", 1); c_revenge = ini_i("RevengeValue", 1);
     cam_config();
+    pace_config();
     int bad = 0;
     crc32_((const u8*)"", 0);                    /* build the table now: the hooks run on several threads */
     if (G(u64, VT_SLOT) != (u64)(g_base + VT_STUB)) { LOG("bundle: resource vtable slot does not match"); bad++; }
@@ -172,16 +198,18 @@ void bundle_apply(void) {
     }
     if (c_revenge) hook_call(LUA_CALL, LUA_LOAD, lua_load_hook, "lua load");
     if (c_camera) cam_pitch_apply();
-    LOG("bundle: combo flow %d, camera %d (distance %.2f, pitch %.0f..%.0f), revenge value %d",
-        c_combo, c_camera, c_camera ? c_cam_dist : 1.0f, c_pitch_min, c_pitch_max, c_revenge);
+    LOG("bundle: combo flow %d, camera %d (distance %.2f, pitch %.0f..%.0f), revenge value %d (boss pace: idle x%.2f, walks %.1f s)",
+        c_combo, c_camera, c_camera ? c_cam_dist : 1.0f, c_pitch_min, c_pitch_max, c_revenge, c_aggr, c_walkcap);
 }
 
 #ifndef _WIN32
 u64 test_rsrc_loaded(u8 *r) { return rsrc_loaded(r); }
 int test_lua_swap(const char **buf, size_t *n) {      /* the decision of lua_load_hook, without calling Lua */
-    if (c_revenge && is_factory(*buf, *n)) { *buf = (const char*)rv_factory; *n = sizeof rv_factory; return 1; }
+    if (c_revenge && is_factory(*buf, *n)) { *buf = (const char*)rv_buf; *n = sizeof rv_buf; return 1; }
     return 0;
 }
+void test_pace(float aggr, float walk) { c_aggr = aggr; c_walkcap = walk; memcpy(rv_buf, rv_factory, sizeof rv_buf);
+    pace_patch(9001.5f, c_aggr, "Aggression"); pace_patch(9002.5f, c_walkcap, "WalkCap"); }
 u32 test_crc(const u8 *p, size_t n) { return crc32_(p, n); }
 void test_cam_dist(float d) { c_cam_dist = d; memset(cam_scaled_crc, 0, sizeof cam_scaled_crc); }
 #endif

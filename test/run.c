@@ -1368,7 +1368,7 @@ static void t_cm(void) {
     printf("t_cm done\n");
 }
 /* the three bundled mods: code equals the old exe patch, data files end up as the old mods' payloads */
-extern void test_cam_dist(float d); extern u32 test_crc(const u8 *p, size_t n); extern int test_lua_swap(const char **buf, size_t *n);
+extern void test_cam_dist(float d); extern u32 test_crc(const u8 *p, size_t n); extern int test_lua_swap(const char **buf, size_t *n); extern void test_pace(float aggr, float walk);
 static u8 *slurp(const char *fn, size_t *n) { FILE *f = fopen(fn, "rb"); if (!f) return NULL; fseek(f, 0, SEEK_END); *n = ftell(f); fseek(f, 0, SEEK_SET); u8 *d = malloc(*n); fread(d, 1, *n, f); fclose(f); return d; }
 static u8 *arc_inner(u8 *arc, const char *name, u32 *len) {
     int cnt = *(s16*)(arc + 6);
@@ -1434,6 +1434,21 @@ static void t_bundle(void) {
         const char *b2 = b; size_t n3 = n2; CHECK(test_lua_swap(&b2, &n3) == 0, "other chunks are not swapped");
         { const char *of = getenv("BBS_FACTORY_RV1"); size_t on; u8 *o = of ? slurp(of, &on) : NULL;
           if (o) { const char *b3 = (const char*)o; size_t n4 = on; CHECK(test_lua_swap(&b3, &n4) == 1 && n4 == n2, "the first Revenge Value build is replaced by the current one"); } }
+        { /* boss pace: the ini values replace the two marker constants, once each */
+          float d1 = 0.4f, d2 = 2.0f, m1 = 9001.5f, m2 = 9002.5f; u8 p1[5] = {3}, p2[5] = {3}, q1[5] = {3}, q2[5] = {3};
+          memcpy(p1 + 1, &d1, 4); memcpy(p2 + 1, &d2, 4); memcpy(q1 + 1, &m1, 4); memcpy(q2 + 1, &m2, 4);
+          int f1 = 0, f2 = 0, g = 0;
+          for (size_t i = 0; i + 5 <= n2; i++) { if (!memcmp(b + i, p1, 5)) f1++; if (!memcmp(b + i, p2, 5)) f2++; if (!memcmp(b + i, q1, 5) || !memcmp(b + i, q2, 5)) g++; }
+          CHECK(f2 >= 1 && g == 0, "boss pace: markers replaced by the defaults (%d %d, %d markers left)", f1, f2, g);
+          u8 *before = malloc(n2); memcpy(before, b, n2);
+          test_pace(0.7f, 3.0f); float e1 = 0.7f, e2 = 3.0f; int nd = 0, ok7 = 0, ok3 = 0;
+          for (size_t i = 0; i < n2; i++) if (before[i] != (u8)b[i]) nd++;
+          for (size_t i = 0; i + 5 <= n2; i++) if (memcmp(before + i, b + i, 5)) {
+              if (!memcmp(before + i, p1, 5) && !memcmp(b + i + 1, &e1, 4)) ok7 = 1;
+              if (!memcmp(before + i, p2, 5) && !memcmp(b + i + 1, &e2, 4)) ok3 = 1; }
+          free(before);
+          CHECK(ok7 && ok3 && nd <= 8, "boss pace: ini values 0.7 / 3 s written in place of the defaults (%d bytes changed)", nd);
+          test_pace(0.4f, 2.0f); }
         u8 *site = RVA(0x2c5962); CHECK(site[0] == 0xE8 && (u32)(0x2c5962 + 5 + *(s32*)(site + 1)) != 0x5bb9f0, "Lua call redirected");
     } else printf("  (Factory.lub skipped: BBS_FACTORY_LUB not set)\n");
     printf("t_bundle done\n");

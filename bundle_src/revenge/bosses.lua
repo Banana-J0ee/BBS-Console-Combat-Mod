@@ -24,6 +24,10 @@
 --            back at you, several BBS scripts just stand up into idling
 --   clear    true: the gauge is cleared after a break-out and when the boss recovers (default:
 --            KH2's rule - it is kept and drains while the boss acts)
+--   pace     false: the boss keeps its own pace (superbosses, Hades).  Otherwise [Bosses] in the ini
+--            shortens its idle waits and caps its walks (revenge.lua, "Boss pace")
+--   paceFields { State = "field" }: an idle the script counts down in a field of its own
+--            (frames) instead of Entity.SetTimer, shortened when the state starts
 --   haste    < 1 shortens the idle times the script reads through entity methods
 --            (hasteFns, default GetIdlingChangeTime); timers baked in as constants stay
 -- Large bosses are deliberately absent: they keep their vanilla behaviour.
@@ -86,6 +90,7 @@ cfg.b11ex00 = { limit = 10, pre = dmgCountPre, counter = vanitasCounter }
 -- (his answer to shotlocks is unconditional and keeps its own dice)
 cfg.b12ex00 = {
   limit = 8,
+  pace = false,                 -- Final Mix superboss: already hard enough
   fireSeq = { 0, "coin" },
   pre = dmgCountPre,
   vanilla = function(self, kind, cat) return cat == COMMAND_CATEGORY_SHOOTLOCK end,
@@ -126,6 +131,7 @@ cfg.b20ex00 = {
 -- 30% chance to flinch at all while he copies Ventus / Terra / Aqua.
 local armor = {
   limit = 9,
+  pace = false,                 -- Final Mix superboss
   quiet = function(self) if self.style == 2 then return 0.999 end return 0 end,
   fire  = function(self) if self.style == 2 then return 0 end return 0.5 end,
   counter = function(self)
@@ -142,6 +148,7 @@ cfg.b81vs00 = armor
 -- Braig: 30% escape on every hit.
 local braig = {
   limit = 9,
+  paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
     local s = self:GetState()
@@ -159,6 +166,7 @@ cfg.b32ex00 = braig
 -- Mysterious Figure: guard / warp counter / time-slip rolls on every hit.
 cfg.b01ex00 = {
   limit = 9,
+  pace = false,                 -- Final Mix superboss
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
     local s = self:GetState()
@@ -410,6 +418,7 @@ local function hadesCounter(self)
 end
 local hades = {
   limit = 9,
+  pace = false,                 -- his slow pace is the fight: he walks while he burns, as KH2's Hades
   fire = "real",
   iframes = 40,
   counter = hadesCounter,
@@ -446,6 +455,7 @@ cfg.b40ex00 = {
 -- he answers with his burst.  Here the burst comes when the revenge value is reached.
 cfg.b85vs00 = {
   limit = 14,
+  pace = false,                 -- Final Mix superboss
   grace = 120, drain = 0.03,    -- vanilla forgets a string of hits over ~10 s
   clear = true,                 -- his gauge stands in for that timer: a burst starts it over
   armored = true,
