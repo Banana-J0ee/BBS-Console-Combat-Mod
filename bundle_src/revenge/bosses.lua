@@ -29,9 +29,6 @@
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
 --   setup    function(ent) run once when the boss is created (changes to its own states)
---   rush     true: recover into action - after a flinch the boss's next idle wait (or aimless
---            wander) lasts at most [Bosses] RecoverWait, so it picks its next move at once, as KH2
---            bosses do; function(self): the boss's own way to act at once.  Mid / late story bosses only.
 --   haste    < 1 shortens the idle times the script reads through entity methods
 --            (hasteFns, default GetIdlingChangeTime); timers baked in as constants stay
 -- Large bosses are deliberately absent: they keep their vanilla behaviour.
@@ -74,11 +71,10 @@ end
 local vanitas = { limit = 10, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = { limit = 10, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, rush = true }   -- the late one
+cfg.b10ex02 = vanitas
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
   limit = 10,
-  rush = true,
   pre = dmgCountPre,
   counter = vanitasCounter,
   fire = function(self)
@@ -89,7 +85,7 @@ cfg.b63ex00 = {
 }
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
-cfg.b11ex00 = { limit = 10, pre = dmgCountPre, counter = vanitasCounter, rush = true }
+cfg.b11ex00 = { limit = 10, pre = dmgCountPre, counter = vanitasCounter }
 
 -- Vanitas Remnant: growing chance of Dark Splicer / warp attack per hit.
 -- (his answer to shotlocks is unconditional and keeps its own dice)
@@ -118,7 +114,6 @@ cfg.b12ex00 = {
 -- Master Eraqus: guard (+ counter) chance on every hit.
 cfg.b20ex00 = {
   limit = 12,
-  rush = true,                  -- up from a flinch: his Idling / Wander end at once, SelectAttack picks
   pre = dmgCountPre,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -154,7 +149,6 @@ cfg.b81vs00 = armor
 -- Braig: 30% escape on every hit.
 local braig = {
   limit = 9,
-  rush = true,
   paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -282,7 +276,6 @@ cfg.b20pp00 = {
 -- Experiment 221: growing chance to flee per hit.
 cfg.b20ls00 = {
   limit = 8,
-  rush = true,
   fireSeq = { 0, "coin" },
   pre = dmgCountPre,
   counter = function(self)
@@ -362,7 +355,7 @@ local wielders = { "b60ex00", "b62ex00", "b68ex00", "b69ex00", "b70ex00", "b72ex
 for i = 1, #wielders do
   cfg[wielders[i]] = wielder
 end
-local xehanort = { limit = 8, rush = true, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter }
+local xehanort = { limit = 8, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter }
 cfg.b50ex00 = xehanort
 cfg.b51ex00 = xehanort
 
@@ -371,17 +364,6 @@ cfg.b51ex00 = xehanort
 local function ownAI(self) return self.SetDmgCount ~= nil end
 cfg.b52ex00 = {
   limit = 8,
-  -- up from a flinch his script only circles at his distance (MoveIdling) until his attack
-  -- timer runs out: here the timer is out and he picks his attack by distance at once
-  rush = function(self)
-    if type(self.thinkAttack) ~= "function" or type(self.GetTargetHandle) ~= "function" then return end
-    self:GetTargetHandle(false)
-    if self.targetHandle == nil or self.targetHandle == NULL_HANDLE then return end
-    local d = Entity.CalcDistanceXZ(self.myHandle, self.targetHandle)
-    if type(d) ~= "number" then return end
-    self.AttackTimer = 0
-    self:thinkAttack(d)
-  end,
   active = wielderActive,
   counter = wielderCounter,     -- the shared-AI form only; his own AI has no EvasionAction and is covered by pre()
   fire = function(self) if ownAI(self) then return "real" end return 0 end,
@@ -486,7 +468,6 @@ cfg.b80vs00 = hades
 -- of OnDamageBefore.  At the limit he uses it.
 cfg.b40ex00 = {
   limit = 9,
-  rush = true,
   counter = function(self)
     if type(self.QuickWarpStart) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
