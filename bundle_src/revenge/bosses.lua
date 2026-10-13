@@ -169,7 +169,10 @@ cfg.b81vs00 = armor
 
 -- Braig: 30% escape on every hit.
 local braig = {
-  limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
+  limit = 7,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
+  -- vanilla he escapes on 30 % of all hits, which is his whole fight; held back completely he was
+  -- easy to combo.  Half of the hits keep his own roll (about 15 % a hit), the limit caps the rest.
+  quiet = function(self) if RV.coin() == 0 then return "real" end return 0.999 end,
   armorStates = { WarpShoot = true, WarpCenter = true, RoundShoot = true },
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
   paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
@@ -191,7 +194,7 @@ local braig = {
 cfg.b32ex00 = braig
 local braigLate = {}
 for k, v in pairs(braig) do braigLate[k] = v end
-braigLate.limit = 7
+braigLate.limit = 6
 cfg.b30ex00 = braigLate
 
 -- Mysterious Figure: guard / warp counter / time-slip rolls on every hit.

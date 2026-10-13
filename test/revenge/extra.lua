@@ -278,6 +278,19 @@ do
   local e3, h3 = M.create("b30ex00")
   local st3 = BBS_REVENGE.ents.b30ex00
   rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
+  -- his own escape on some hits below the limit
+  local early, n = 0, 0
+  for k = 1, 40 do
+    pcall(e3.GotoState, e3, "Idling")
+    st3.rv, st3.firing, st3.armor = 0, false, 0
+    local c0 = st3.fcount
+    for i = 1, 10 do if hit(h3) ~= nil then break end end
+    if st3.fcount == c0 then early = early + 1 end
+    n = n + 1
+  end
+  check(early >= 6 and early <= 34, "Braig keeps some of his own escapes before the limit (" .. early .. " of " .. n .. ")")
+  local q = st3.cfg.quiet
+  st3.cfg.quiet = nil
   local shots = 0
   for k = 1, 20 do
     pcall(e3.GotoState, e3, "Idling")
@@ -287,7 +300,8 @@ do
     if e3:GetState() == "Escape" and (top == "DashShoot" or top == "RoundShoot") then shots = shots + 1 end
   end
   check(shots >= 10, "Braig: escape then his own shots in " .. shots .. " of 20 break-outs")
-  check(st3.limit >= 6 and st3.limit <= 8, "Braig in the Keyblade Graveyard: limit 7 +- 1 (" .. st3.limit .. ")")
+  st3.cfg.quiet = q
+  check(st3.limit >= 5 and st3.limit <= 7, "Braig in the Keyblade Graveyard: limit 6 +- 1 (" .. st3.limit .. ")")
   -- superboss: no armour added
   M.script("b12ex00")
   local e4, h4 = M.create("b12ex00")

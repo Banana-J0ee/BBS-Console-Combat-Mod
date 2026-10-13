@@ -1006,3 +1006,6 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 * `armorStates` (bosses.lua) adds the missing ones; the GotoStateSub wrapper sets no damage reaction after the
   state's OnBeginState and clears it before the next state starts (unless revenge armour runs); a number = only the
   first frames (OnUpdate counts down).  b63ex00 SuccessionAttack2 24 frames.  Test in extra.lua.
+* Braig: vanilla escapes (Escape) on 30 % of all hits outside his armoured shots - held back completely by the quiet
+  dice he was easier to combo than in the original.  Now half of the hits keep his own roll (quiet = "real" on a
+  coin, ~15 % a hit), limits 7 (Radiant Garden) / 6 (Keyblade Graveyard).
