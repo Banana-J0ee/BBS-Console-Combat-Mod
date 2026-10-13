@@ -230,6 +230,9 @@ void style_frame(u8 *cmd, int hud, float x, float y) {
     else hud_timer_bar(&g_bar, 0, 0, 0, 0, -1, 0, 0, 0);
 }
 
+/* for the debug log: 1 = a Command Style offer is up, 2 = a finisher offer is up */
+int style_offers_up(void) { return (g_active ? 1 : 0) | (g_fin ? 2 : 0); }
+
 /* 28ac22 in 28a950, the start of state 0x19 (style change; also finisher-type and D-Link changes): rax = 264a10,
    "in the air", rdi = player.  In the air the game sets pl+0x318 bit 0x80000 and plays the fall loop; the update
    (286380) then falls with gravity until landing and only there plays the change (motion 0x87).  For a Command

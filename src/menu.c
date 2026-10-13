@@ -297,7 +297,11 @@ static int MSABI link_open_pad(u8 *pad) { (void)pad; int r = g_link_req; g_link_
 static int MSABI link_confirm_pad(u8 *pad) { return o_confirm(pad); }
 /* 236c92: the pad test for the extra presses of multi-press commands (Ars Arcanum, Sonic Blade ...: triangle in the
    game).  The command was cast with the confirm button here, so that button continues it too. */
-static int MSABI followup_pad(u8 *pad) { return FN(int, 0x272c20, u8*)(pad) || o_confirm(pad); }
+static int MSABI followup_pad(u8 *pad) {
+    int t = FN(int, 0x272c20, u8*)(pad), c = t ? 0 : o_confirm(pad);
+    if (g_debug && (t || c)) LOG("follow-up press (multi-press command / QTE): %s", t ? "triangle" : "confirm");
+    return t || c;
+}
 
 /* 236b97: the pad test that answers a context prompt (the confirm button in the game).  Talk, Open, Save and the
    like are answered with triangle (140272c20), as KH2's reaction commands; counter prompts as in the game. */
