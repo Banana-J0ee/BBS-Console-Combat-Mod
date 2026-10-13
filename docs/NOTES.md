@@ -1006,6 +1006,7 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 * `armorStates` (bosses.lua) adds the missing ones; the GotoStateSub wrapper sets no damage reaction after the
   state's OnBeginState and clears it before the next state starts (unless revenge armour runs); a number = only the
   first frames (OnUpdate counts down).  b63ex00 SuccessionAttack2 24 frames.  Test in extra.lua.
-* Braig: vanilla escapes (Escape) on 30 % of all hits outside his armoured shots - held back completely by the quiet
-  dice he was easier to combo than in the original.  Now half of the hits keep his own roll (quiet = "real" on a
-  coin, ~15 % a hit), limits 7 (Radiant Garden) / 6 (Keyblade Graveyard).
+* Braig (instead of the reverted escape-roll change): his Escape warps with WarpToTarget(2, 3.5) - a random
+  offset of 2-3.5 m on each axis from the player, i.e. right next to you (DashShoot the same, WarpShoot 4-6).
+  setup() wraps WarpToTarget: during Escape at least 8-11 m (his own loop clamps to the arena's MaxDist).
+  DashShoot added to his armorStates (his last flinchable attack).

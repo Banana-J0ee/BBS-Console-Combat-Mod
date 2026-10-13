@@ -278,19 +278,6 @@ do
   local e3, h3 = M.create("b30ex00")
   local st3 = BBS_REVENGE.ents.b30ex00
   rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
-  -- his own escape on some hits below the limit
-  local early, n = 0, 0
-  for k = 1, 40 do
-    pcall(e3.GotoState, e3, "Idling")
-    st3.rv, st3.firing, st3.armor = 0, false, 0
-    local c0 = st3.fcount
-    for i = 1, 10 do if hit(h3) ~= nil then break end end
-    if st3.fcount == c0 then early = early + 1 end
-    n = n + 1
-  end
-  check(early >= 6 and early <= 34, "Braig keeps some of his own escapes before the limit (" .. early .. " of " .. n .. ")")
-  local q = st3.cfg.quiet
-  st3.cfg.quiet = nil
   local shots = 0
   for k = 1, 20 do
     pcall(e3.GotoState, e3, "Idling")
@@ -300,8 +287,27 @@ do
     if e3:GetState() == "Escape" and (top == "DashShoot" or top == "RoundShoot") then shots = shots + 1 end
   end
   check(shots >= 10, "Braig: escape then his own shots in " .. shots .. " of 20 break-outs")
-  st3.cfg.quiet = q
-  check(st3.limit >= 5 and st3.limit <= 7, "Braig in the Keyblade Graveyard: limit 6 +- 1 (" .. st3.limit .. ")")
+  check(st3.limit >= 6 and st3.limit <= 8, "Braig in the Keyblade Graveyard: limit 7 +- 1 (" .. st3.limit .. ")")
+  -- his escape warp goes far, his other warps keep their range
+  local got
+  rawset(e3, "__wt", nil)
+  local mt = getmetatable(e3)
+  local cls = mt and mt.__index
+  local orig = type(cls) == "table" and rawget(cls, "WarpToTarget") or nil
+  if orig ~= nil then
+    rawset(cls, "WarpToTarget", function(self, a, b) got = { a, b } end)
+    local e5 = M.create("b30ex00")
+    rawset(e5, "Update", function() end); rawset(e5, "Debug", function() end)
+    pcall(e5.GotoState, e5, "Escape")
+    e5:WarpToTarget(4, 6)
+    local far = got and got[1] == 8 and got[2] == 11
+    pcall(e5.GotoState, e5, "Idling")
+    e5:WarpToTarget(4, 6)
+    check(far and got[1] == 4 and got[2] == 6, "Braig: escape warp 8-11 m, other warps unchanged")
+    rawset(cls, "WarpToTarget", orig)
+  else
+    check(false, "Braig's WarpToTarget found")
+  end
   -- superboss: no armour added
   M.script("b12ex00")
   local e4, h4 = M.create("b12ex00")
