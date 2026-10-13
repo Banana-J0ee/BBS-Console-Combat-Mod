@@ -1029,3 +1029,6 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   (rideSetup / rideHit, his config only): hits taken in a ride state count (once a frame, `vanilla` hook); when they
   reach his revenge limit, his RideMode update ends the ride his own way (EndRideMode, StyleChange pushed,
   BackhandsSpringJump - what it does when the ride runs out).  RideWaiting resets the count.  Test in extra.lua.
+* Finisher prompt name (style.c finisher_name): the game's plate rule prefers the stored name at PlayerData+0x1b0,
+  which is the normal finisher's.  In a Command Style (cmd+0x1a8 > 0) the finisher is the style's own, so the prompt
+  now shows that command's name (reported: Spellweaver's finisher showed "Gold Rush").  Test in t_style.

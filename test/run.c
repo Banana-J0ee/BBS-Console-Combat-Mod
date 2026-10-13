@@ -963,6 +963,18 @@ static void t_style(void) {
       *(u8**)(cmd + 0x1b0) = atkP; *(u8**)(cmd + 0x1d0) = finP;
       *(u32*)(pl + 0x318) = 0x40;
       *(u32*)(cmd + 0x60) = 0x20000; *(u32*)(cmd + 0x64) = 0; *(float*)(cmd + 0x130) = *(float*)(cmd + 0x138) = 100.0f;
+      { extern const char *test_finisher_name(u8 *cmd);
+        char keep[16]; memcpy(keep, PD + 0x1b0, 16); strcpy((char*)PD + 0x1b0, "Gold Rush");
+        static u64 sw_fin = 0x5b;  u64 *was = *(u64**)(finP + 0x58); int lv = *(int*)(cmd + 0x1a8);
+        const char *gname = G(const char*, 0x814908 + 0x5b * 0x18);
+        *(u64**)(finP + 0x58) = &sw_fin;
+        *(int*)(cmd + 0x1a8) = 0;
+        const char *n0 = test_finisher_name(cmd);
+        *(int*)(cmd + 0x1a8) = 1;
+        const char *n1 = test_finisher_name(cmd);
+        const char *want = (gname && gname[0]) ? gname : "Finish";      /* names are filled in at run time */
+        CHECK(!strcmp(n0, "Gold Rush") && n1 && !strcmp(n1, want), "finisher name: normal style '%s', in a Command Style the command's own '%s'", n0, n1 ? n1 : "-");
+        *(u64**)(finP + 0x58) = was; *(int*)(cmd + 0x1a8) = lv; memcpy(PD + 0x1b0, keep, 16); }
       test_finisher_hook(cmd);
       CHECK(*test_fin_active() && *test_fin_left() == 360.0f && atkP[0x31] == 0 && !(*(u32*)(atkP + 0x60) & 0x2000), "finisher offered, Attack plate ready again (state %d)", atkP[0x31]);
       G(u32, 0x8f64930) = 0x4000; G(u32, 0x8f64934) = 0x4000; G(u32, 0x8f6493c) = 0x4000;

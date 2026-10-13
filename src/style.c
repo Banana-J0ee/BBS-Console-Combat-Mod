@@ -149,13 +149,16 @@ static void MSABI finisher_hook(u8 *cmd) {
 }
 
 /* what the game writes on its finisher plate [206400]: the player's own name for the finisher (PlayerData+0x1b0) if
-   there is one and the command is not 0x11, else the command's name */
+   there is one and the command is not 0x11, else the command's name.  That stored name is the normal finisher's: in a
+   Command Style (style level cmd+0x1a8 > 0) the finisher is the style's own, so it gets the command's name (reported:
+   Spellweaver's finisher showed "Gold Rush"). */
 static const char *finisher_name(u8 *cmd) {
     u8 *P = *(u8**)(cmd + 0x1d0);
     u16 *k = P ? *(u16**)(P + 0x58) : NULL;
     int id = k ? k[0] : 0;
     const char *own = (const char*)(g_base + 0x10f9eeb0 + 0x1b0);
-    if (own[0] && id != 0x11 && !(P && (*(u32*)(P + 0x60) & 0x400))) return own;
+    int in_style = *(int*)(cmd + 0x1a8) > 0;
+    if (own[0] && id != 0x11 && !in_style && !(P && (*(u32*)(P + 0x60) & 0x400))) return own;
     const char *g = (id > 0 && id < 0x23a) ? G(const char*, 0x814908 + (u32)id * 0x18) : NULL;
     return (g && g[0]) ? g : "Finish";
 }
@@ -281,6 +284,7 @@ float *test_style_left(void) { return &g_left; }
 int *test_fin_active(void) { return &g_fin; }
 float *test_fin_left(void) { return &g_fin_left; }
 void test_finisher_hook(u8 *cmd) { finisher_hook(cmd); }
+const char *test_finisher_name(u8 *cmd) { return finisher_name(cmd); }
 int *test_style_keep(void) { return &c_keep; }
 int *test_style_air(void) { return &c_air_change; }
 u64 test_h_style_air(Ctx *c) { return h_style_air(c); }
