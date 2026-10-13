@@ -371,5 +371,31 @@ do
   for i = 1, 30 do pcall(e.OnUpdate, e) end
   check(e:GetState() == "Cartwheel", "... and breaks out as soon as he is back on his feet (" .. tostring(e:GetState()) .. ")")
 end
+-- Vanitas (Ventus's final), last phase: while the Vanitas D-Link runs the mod leaves him alone
+do
+  M.script("b11ex00")
+  local e, h = M.create("b11ex00")
+  local st = BBS_REVENGE.ents.b11ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  COMMAND_KIND_DLink17 = COMMAND_KIND_DLink17 or 9917
+  local dl = false
+  M.num["Player.GetCommandKind"] = function() if dl then return COMMAND_KIND_DLink17 end return 0 end
+  e.airBattle = true
+  pcall(e.GotoState, e, "Hovering")
+  st.rv, st.firing, st.fireT, st.armor = 0, false, 0, 0
+  local r
+  for i = 1, 12 do r = hit(h) if r ~= nil then break end end
+  check(r ~= nil and st.count >= 1, "air phase without the D-Link: revenge works as usual")
+  pcall(e.GotoState, e, "Hovering")
+  st.rv, st.firing, st.fireT, st.armor = st.limit + 1, true, 0, 30
+  dl = true
+  local n0 = st.count
+  for i = 1, 12 do hit(h) end
+  for i = 1, 30 do pcall(e.OnUpdate, e) end
+  check(st.count == n0 and e:GetState() ~= "Cartwheel" and st.armor == 0 and st.firing == false,
+        "Vanitas D-Link running: no gauge, no forced break-out, no armour of ours (" .. tostring(e:GetState()) .. ")")
+  dl = false
+  M.num["Player.GetCommandKind"] = nil
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

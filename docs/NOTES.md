@@ -1017,3 +1017,8 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   boss is in a state whose name holds Warp / Escape / Diving / Disappear / Teleport / Ride / StyleChange / Appear /
   Dead / Standby / Hide / Sink / Fly / Goes_away / Fall / Breakdown (RV.unsafeState; the watchdog waits until he is
   back on his feet), and hidden HP loss does not count while the boss cannot flinch.  Test in extra.lua.
+* Vanitas (Ventus's final, b11ex00), last phase: with Ventus's Vanitas D-Link (COMMAND_KIND_DLink17) running in
+  the air battle, his OnDamageBefore returns 0 at once (no escape) so he stays in place for the finisher.  The
+  revenge layer still counted those hits and forced vanitasCounter (Cartwheel), moving him away from the
+  finisher.  His cfg `active` is now false while airBattle and DLink17: every hook passes through, and the
+  watchdog / revenge armour / move armour still pending are cleared.  Boss only, that phase only.  Test in extra.lua.

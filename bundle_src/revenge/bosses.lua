@@ -103,7 +103,23 @@ cfg.b63ex00 = {
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
 cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
-  armorStates = { XDisCharge = true, DarkBreaker = true, DarkCannon = true, DarkAxisAirBattle = true } }
+  armorStates = { XDisCharge = true, DarkBreaker = true, DarkCannon = true, DarkAxisAirBattle = true },
+  -- the last phase: while Ventus's Vanitas D-Link (DLink17) runs, his script takes every hit without an escape
+  -- so he stays in place for the finisher (OnDamageBefore).  The mod leaves him alone then as well: no
+  -- gauge, no forced break-out, no armour of ours - a forced cartwheel moved him away from the finisher.
+  active = function(self)
+    if not (self.airBattle and type(Player) == "table" and type(Player.GetCommandKind) == "function"
+            and COMMAND_KIND_DLink17 ~= nil and Player.GetCommandKind(Player.GetHandle()) == COMMAND_KIND_DLink17) then
+      return true
+    end
+    local st = rawget(self, "__rv")
+    if st ~= nil then
+      local held = (st.armor or 0) > 0 or (st.mArmor or 0) > 0
+      st.firing, st.fireT, st.armor, st.mArmor = false, 0, 0, 0
+      if held and type(Enemy.EnableNoDamageReaction) == "function" then Enemy.EnableNoDamageReaction(self.myHandle, 0) end
+    end
+    return false
+  end }
 
 -- Vanitas Remnant: growing chance of Dark Splicer / warp attack per hit.
 -- (his answer to shotlocks is unconditional and keeps its own dice)
