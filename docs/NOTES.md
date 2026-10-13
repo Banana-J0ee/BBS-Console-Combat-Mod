@@ -1032,3 +1032,5 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 * Finisher prompt name (style.c finisher_name): the game's plate rule prefers the stored name at PlayerData+0x1b0,
   which is the normal finisher's.  In a Command Style (cmd+0x1a8 > 0) the finisher is the style's own, so the prompt
   now shows that command's name (reported: Spellweaver's finisher showed "Gold Rush").  Test in t_style.
+* MP bar during an MP charge (mp.c bar_frac): the pink bar now starts full and drains as the charge runs (1 - charge),
+  as in KH2, instead of filling up; then the bar is blue and full.  Display only - the charge itself is unchanged.

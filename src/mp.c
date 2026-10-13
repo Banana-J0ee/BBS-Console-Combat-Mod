@@ -416,6 +416,14 @@ const char *test_item_desc(int id, const char *text) { return item_desc(id, text
 const char *test_desc(int id, const char *text) { return desc_with_cost(id, text); }
 void *test_desc_hook(void) { return (void*)desc_hook; }
 
+/* how much of the bar is filled: MP / max; during an MP charge the pink bar starts full and drains as the charge
+   runs, as in KH2 (it used to fill up), then the bar is blue and full again */
+static float bar_frac(void) {
+    float f = g_burn ? 1.0f - g_charge / 100.0f : (g_mpmax > 0 ? g_mp / g_mpmax : 0);
+    if (f < 0) f = 0; if (f > 1) f = 1;
+    return f;
+}
+float test_bar_frac(void) { return bar_frac(); }
 static void burn_start(void) { g_mp = 0; g_burn = 1; g_charge = 0; if (g_debug) LOG("mp: burn starts"); }
 static void burn_end(void)   { g_burn = 0; g_charge = 0; g_mp = g_mpmax; if (g_debug) LOG("mp: burn ends, MP %.0f", g_mp); }
 
@@ -568,7 +576,7 @@ static void MSABI pd_init_hook(void) { o_pd_init(); g_fresh = 1; g_burn = 0; g_c
    the mask is emptied and the fill sprite's quads are rewritten every frame.  The quads draw KH2's own MP bar art,
    which tex.c adds to an unused area of the gauge texture: a black frame, the blue gradient, and the "MP" plate at
    the right end; the left end is round, as KH2's (KH2Art's RoundEnd).  As in KH2 the bar is anchored at that plate:
-   it empties from the left, and so does the pink recharge bar fill up from the right.  Without the art (texture not recognised) a plain bar is drawn instead. */
+   it empties from the left; during an MP charge the pink bar starts full and empties the same way, as in KH2.  Without the art (texture not recognised) a plain bar is drawn instead. */
 #include "mpart_gen.h"
 typedef struct { s16 x0, y0, x1, y1; u16 part, attr; } Grp;
 typedef struct { s16 u0, v0, u1, v1; u32 col[4]; } Part;
@@ -674,8 +682,7 @@ static void bar_update(u8 *g) {
 
     float len = c_bar_len * (1.0f + c_bar_grow * (g_mpmax - 100.0f) / 100.0f);
     if (len < 8) len = 8; if (len > 160) len = 160;
-    float frac = g_burn ? g_charge / 100.0f : (g_mpmax > 0 ? g_mp / g_mpmax : 0);
-    if (frac < 0) frac = 0; if (frac > 1) frac = 1;
+    float frac = bar_frac();
     float pulse = g_burn ? 0.35f * (0.5f + 0.5f * sinf(g_time * 0.12f)) : 0;   /* the recharge bar pulses */
     float se, right_sx, top_sy;      /* scale; sprite coordinates that go to (Right, Top) */
 

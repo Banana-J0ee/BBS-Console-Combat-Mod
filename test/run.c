@@ -162,6 +162,10 @@ static void t_use(void) {
     for (int i = 0; i < 750; i++) frame();
     printf("  after 750 ticks: charge %.1f plate pct %.1f\n", *test_charge(), PCT(1));
     CHECK(*test_burn() == 1 && *test_charge() > 49 && *test_charge() < 51 && PCT(1) > 49 && PCT(1) < 51, "half charged");
+    { extern float test_bar_frac(void); float c = *test_charge(), f = test_bar_frac();
+      CHECK(f > 0.49f && f < 0.51f, "half charged: the pink bar half drained (%.2f)", f);
+      *test_charge() = 10; float f10 = test_bar_frac(); *test_charge() = 90; float f90 = test_bar_frac(); *test_charge() = c;
+      CHECK(f10 > 0.89f && f10 < 0.91f && f90 > 0.09f && f90 < 0.11f, "the pink bar drains as the charge runs (10 %% -> %.2f, 90 %% -> %.2f)", f10, f90); }
     for (int i = 0; i < 752; i++) frame();
     CHECK(*test_burn() == 0 && *test_mp() == 100, "burn over: burn %d mp %.1f", *test_burn(), *test_mp());
     frame();
@@ -561,8 +565,8 @@ static void t_bar(void) {
     *test_mp() = 25;
     *test_burn() = 1; *test_charge() = 50; test_bar_update(gauge);
     CHECK(q[5].p->u0 == 180 && q[5].g->x1 - q[5].g->x0 == 263 && q[6].p->col[0] == 0x80c060ff, "recharge: grey gradient tinted, %d wide, plate %08x", q[5].g->x1 - q[5].g->x0, q[6].p->col[0]);
-    *test_charge() = 100; test_bar_update(gauge);
-    CHECK(q[4].p->u0 == 138 && q[4].g->x0 == 8 && q[4].p->col[0] == q[5].p->col[0], "recharge full: the round end from the grey piece, tinted alike (u %d)", q[4].p->u0);
+    *test_charge() = 0; test_bar_update(gauge);                     /* the pink bar is full as the charge begins */
+    CHECK(q[4].p->u0 == 138 && q[4].g->x0 == 8 && q[4].p->col[0] == q[5].p->col[0], "recharge begins: full pink, the round end from the grey piece, tinted alike (u %d)", q[4].p->u0);
     *test_burn() = 0; *test_charge() = 0;
     /* RoundEnd=0: the old four quads */
     { extern int *test_bar_round(void); *test_bar_round() = 0; test_bar_update(gauge);
