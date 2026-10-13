@@ -1022,3 +1022,10 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   revenge layer still counted those hits and forced vanitasCounter (Cartwheel), moving him away from the
   finisher.  His cfg `active` is now false while airBattle and DLink17: every hook passes through, and the
   watchdog / revenge armour / move armour still pending are cleared.  Boss only, that phase only.  Test in extra.lua.
+* Masked Vanitas's keyblade ride (b10ex00/01/02): RideWaiting switches no damage reaction on and nothing clears it
+  until he gets off (StyleChange / Cartwheel OnEndState) - vanilla, the whole ride is unflinchable, attached to the
+  keyblade (RideKeyBlade AttachCoord).  armorStates RideKeyBlade / KeyBladeRush cleared it when they ended, so hits
+  reacted and their knock-back pushed him off the keyblade while RideMode carried on ("floating").  Removed.  Instead
+  (rideSetup / rideHit, his config only): hits taken in a ride state count (once a frame, `vanilla` hook); when they
+  reach his revenge limit, his RideMode update ends the ride his own way (EndRideMode, StyleChange pushed,
+  BackhandsSpringJump - what it does when the ride runs out).  RideWaiting resets the count.  Test in extra.lua.

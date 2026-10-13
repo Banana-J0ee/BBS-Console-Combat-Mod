@@ -81,11 +81,58 @@ end
 -- vanilla: 15% cartwheel on every hit + growing chance of a warp counter.
 -- Revenge limits ramp with the story (as KH2's Data fights: Data Roxas breaks out at 75 of story Roxas's 100):
 -- opening bosses as they were, early-mid / mid x0.9, late worlds x0.8, story finales and Final Episode x0.75.
-local vanitasArmor = { KeyBladeRush = true, RideKeyBlade = true }
-local vanitas = { limit = 9, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, armorStates = vanitasArmor }
+-- Masked Vanitas's keyblade ride: his script switches flinching off when he summons the keyblades and
+-- keeps it off for the whole ride (jump-on, riding, keyblade rush, Dark Blizzaga), attached to the
+-- keyblade.  So the ride is left as it is - no armour of ours, which used to switch flinching back on
+-- and let hits push him off his keyblade while he kept "riding".  Hits still knock him off: after his
+-- revenge limit's worth of hits taken during the ride, he gets off the way his own script does when
+-- the ride ends (EndRideMode, back-handspring, style change), as soon as he is riding (not mid-attack).
+local RIDING = { RideMode = true, KeyBladeRush = true, KeyBladeDarkBlizzaga = true, RideKeyBlade = true }
+local function rideHit(self, kind, cat)
+  if kind ~= ATK_KIND_RECOVER and type(self.GetState) == "function" and RIDING[self:GetState()] then
+    local st = rawget(self, "__rv")
+    local t = st and st.t or 0
+    if self.__rideHitT ~= t then                      -- asked from both damage callbacks: once a frame
+      self.__rideHitT = t
+      self.__rideHits = (self.__rideHits or 0) + 1
+    end
+  end
+  return false                  -- the hit itself goes the usual way
+end
+local function rideSetup(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.RideMode) ~= "table" or type(states.RideWaiting) ~= "table" then return end
+  local own = {}
+  for k, v in pairs(states) do own[k] = v end
+  local rm, rmUpdate = {}, states.RideMode.OnUpdate
+  for k, v in pairs(states.RideMode) do rm[k] = v end
+  local rw, rwBegin = {}, states.RideWaiting.OnBeginState
+  for k, v in pairs(states.RideWaiting) do rw[k] = v end
+  if type(rmUpdate) ~= "function" or type(rwBegin) ~= "function" then return end
+  rw.OnBeginState = function(self, a, b)
+    self.__rideHits = 0
+    return rwBegin(self, a, b)
+  end
+  rm.OnUpdate = function(self, a, b)
+    local st = rawget(self, "__rv")
+    local need = (st and st.limit) or 9
+    if (self.__rideHits or 0) >= need and type(self.EndRideMode) == "function" and self.stack ~= nil then
+      self.__rideHits = 0
+      self:EndRideMode()
+      self.stack:push("StyleChange")
+      self:GotoState("BackhandsSpringJump")
+      return
+    end
+    return rmUpdate(self, a, b)
+  end
+  own.RideMode = rm
+  own.RideWaiting = rw
+  rawset(ent, "states", own)
+end
+local vanitas = { limit = 9, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = { limit = 8, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, armorStates = vanitasArmor }   -- the late one
+cfg.b10ex02 = { limit = 8, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
   limit = 7.5,

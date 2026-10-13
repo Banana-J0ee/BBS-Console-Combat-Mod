@@ -397,5 +397,28 @@ do
   dl = false
   M.num["Player.GetCommandKind"] = nil
 end
+-- masked Vanitas's ride: no armour of ours; enough hits during the ride knock him off his own way
+do
+  M.script("b10ex00")
+  local e, h = M.create("b10ex00")
+  local st = BBS_REVENGE.ents.b10ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  local ended = 0
+  rawset(e, "EndRideMode", function() ended = ended + 1 end)
+  e.keybladeHandle = { 9001, 9002 }
+  pcall(e.GotoState, e, "RideWaiting")
+  e.keybladeHandle = { 9001, 9002 }
+  check(e.__rideHits == 0, "summoning the keyblades starts a new ride count")
+  pcall(e.GotoState, e, "RideMode")
+  local need = st.limit
+  for i = 1, math.floor(need) - 1 do st.t = st.t + 2 hit(h) pcall(e.GotoState, e, "RideMode") end
+  pcall(e.states.RideMode.OnUpdate, e)
+  check(e:GetState() == "RideMode" and ended == 0, "fewer hits than his limit: still riding (" .. tostring(e.__rideHits) .. " hits)")
+  for i = 1, 2 do st.t = st.t + 2 hit(h) pcall(e.GotoState, e, "RideMode") end
+  pcall(e.states.RideMode.OnUpdate, e)
+  local top = e.stack:pop(1)
+  check(ended == 1 and e:GetState() == "BackhandsSpringJump" and top == "StyleChange",
+        "his limit's worth of hits: off the keyblades the way his script ends a ride (" .. tostring(e:GetState()) .. ", then " .. tostring(top) .. ")")
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
