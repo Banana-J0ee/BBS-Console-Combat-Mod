@@ -297,5 +297,42 @@ do
   for i = 1, 12 do if hit(h4) ~= nil then break end end
   check(st4.armor == 0, "Vanitas Remnant (superboss): no armour after his break-out")
 end
+-- KH2's uninterruptible class: listed specials / warps armoured while they run, normal attacks not
+do
+  local log = {}
+  M.num["Enemy.EnableNoDamageReaction"] = function(h, v) log[h] = v end
+  M.num["Enemy.IsNoDamageReaction"] = function(h) return log[h] == 1 end
+  M.script("b40ex00")
+  local e, h = M.create("b40ex00")
+  local st = BBS_REVENGE.ents.b40ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  pcall(e.GotoState, e, "BladeTornado")
+  check(log[h] == 1, "Master Xehanort's Blade Tornado: armoured")
+  for i = 1, 100 do e:OnUpdate() end
+  check(log[h] == 1, "... for as long as it runs")
+  pcall(e.GotoState, e, "Idling")
+  check(log[h] == 0 and st.mArmor == 0, "back to idling: armour off")
+  pcall(e.GotoState, e, "Attack0")
+  check(log[h] ~= 1, "his normal slash stays flinchable")
+  M.script("b63ex00")
+  local e2, h2 = M.create("b63ex00")
+  local st2 = BBS_REVENGE.ents.b63ex00
+  rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
+  pcall(e2.GotoState, e2, "Idling")
+  pcall(e2.GotoState, e2, "SuccessionAttack2")
+  check(log[h2] == 1, "Ventus-Vanitas: his combo's opening is armoured")
+  for i = 1, 30 do pcall(e2.OnUpdate, e2) end
+  check(log[h2] == 0, "... and flinchable again after 24 frames")
+  -- a revenge answer's armour is not cut by the end of a listed move
+  pcall(e.GotoState, e, "Idling")
+  st.armor, st.armorT0 = 50, st.t
+  pcall(e.GotoState, e, "Warp")
+  pcall(e.GotoState, e, "Attack1")
+  check(log[h] == 1 or st.armor > 0, "leaving an armoured move keeps the revenge armour")
+  st.armor = 0
+  M.num["Enemy.EnableNoDamageReaction"] = nil
+  M.num["Enemy.IsNoDamageReaction"] = nil
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

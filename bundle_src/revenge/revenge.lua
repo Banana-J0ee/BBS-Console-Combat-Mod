@@ -254,6 +254,7 @@ local function attach(ent, name, handle)
   local st = rawget(ent, "__rv")
   if st ~= nil then                         -- same object re-used: just clear
     st.rv, st.idle, st.firing, st.fireT, st.armor = 0, 0, false, 0, 0
+    st.mArmor = 0
     st.limit = c.limit
     if st.pace ~= nil and handle ~= nil then P.by[handle] = st end
     return
@@ -402,6 +403,34 @@ local function attach(ent, name, handle)
     end
   end
 
+  -- KH2 registers each boss move with a flag: specials, warps and revenge answers cannot be
+  -- interrupted once started (0x10000 in its act table), normal attacks can.  armorStates lists
+  -- the BBS moves of that class that the scripts leave flinchable: true = the whole move,
+  -- a number = its first frames only.  Off again when the move ends, so its end is punishable.
+  local as = c.armorStates
+  if as ~= nil then
+    local function setNDR(h, on)
+      if type(Enemy.EnableNoDamageReaction) == "function" then Enemy.EnableNoDamageReaction(h, on and 1 or 0) end
+    end
+    local gss2 = ent.GotoStateSub
+    if type(gss2) == "function" then
+      rawset(ent, "GotoStateSub", function(self, s, a, b)
+        local h = myh(self)
+        if st.mArmor ~= nil and st.mArmor > 0 then         -- leaving an armoured move
+          st.mArmor = 0
+          if not (st.armor > 0) and active(self) then setNDR(h, false) end
+        end
+        local r = gss2(self, s, a, b)
+        local v = as[s]
+        if v ~= nil and v ~= false and active(self) and type(self.GetState) == "function" and self:GetState() == s then
+          if v == true then st.mArmor = 1e9 else st.mArmor = v end
+          setNDR(h, true)
+        end
+        return r
+      end)
+    end
+  end
+
   -- per-boss changes to the script's own states (the instance gets its own states table)
   if c.setup ~= nil then pcall(c.setup, ent) end
 
@@ -483,6 +512,12 @@ local function attach(ent, name, handle)
     local dt = Entity.GetFrameRate(myh(self))
     if type(dt) ~= "number" or dt <= 0 or dt > 6 then dt = 1 end
     st.t = st.t + dt
+    -- an armoured move (armorStates): held while it runs; a timed one lets go after its frames
+    if st.mArmor ~= nil and st.mArmor > 0 and type(Enemy.EnableNoDamageReaction) == "function" then
+      st.mArmor = st.mArmor - dt
+      if st.mArmor > 0 then Enemy.EnableNoDamageReaction(myh(self), 1)
+      else st.mArmor = 0 if not (st.armor > 0) then Enemy.EnableNoDamageReaction(myh(self), 0) end end
+    end
     -- armour window after a forced revenge.  Held every frame: the boss's own
     -- states switch "no damage reaction" off when they end (a counter's
     -- OnEndState), which used to cut the window short.

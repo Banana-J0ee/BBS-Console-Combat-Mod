@@ -29,6 +29,8 @@
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
 --   setup    function(ent) run once when the boss is created (changes to its own states)
+--   armorStates { State = true | frames }: moves of KH2's "cannot be interrupted" class (specials,
+--            warps) the script leaves flinchable: armoured for the whole move, or its first frames
 --   haste    < 1 shortens the idle times the script reads through entity methods
 --            (hasteFns, default GetIdlingChangeTime); timers baked in as constants stay
 -- Large bosses are deliberately absent: they keep their vanilla behaviour.
@@ -79,13 +81,17 @@ end
 -- vanilla: 15% cartwheel on every hit + growing chance of a warp counter.
 -- Revenge limits ramp with the story (as KH2's Data fights: Data Roxas breaks out at 75 of story Roxas's 100):
 -- opening bosses as they were, early-mid / mid x0.9, late worlds x0.8, story finales and Final Episode x0.75.
-local vanitas = { limit = 9, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter }
+local vanitasArmor = { KeyBladeRush = true, RideKeyBlade = true }
+local vanitas = { limit = 9, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, armorStates = vanitasArmor }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = { limit = 8, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter }   -- the late one
+cfg.b10ex02 = { limit = 8, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, armorStates = vanitasArmor }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
   limit = 7.5,
+  -- his specials are armoured in BBS already; his combo's opening is too here (it comes out,
+  -- its end can be punished)
+  armorStates = { SuccessionAttack2 = 24 },
   pre = dmgCountPre,
   counter = vanitasCounter,
   fire = function(self)
@@ -96,7 +102,8 @@ cfg.b63ex00 = {
 }
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
-cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter }
+cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
+  armorStates = { XDisCharge = true, DarkBreaker = true, DarkCannon = true, DarkAxisAirBattle = true } }
 
 -- Vanitas Remnant: growing chance of Dark Splicer / warp attack per hit.
 -- (his answer to shotlocks is unconditional and keeps its own dice)
@@ -126,6 +133,7 @@ cfg.b12ex00 = {
 -- Master Eraqus: guard (+ counter) chance on every hit.
 cfg.b20ex00 = {
   limit = 9,
+  armorStates = { RushAttack = true },
   pre = dmgCountPre,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -162,6 +170,7 @@ cfg.b81vs00 = armor
 -- Braig: 30% escape on every hit.
 local braig = {
   limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
+  armorStates = { WarpShoot = true, WarpCenter = true, RoundShoot = true },
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
   paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
   counter = function(self)
@@ -247,6 +256,7 @@ local function hookSetup(ent)
 end
 cfg.b01pp00 = {
   limit = 8,
+  armorStates = { RushXCutting = true, PresentBombLarge = true },
   iframes = 40,
   setup = hookSetup,
   counter = function(self)
@@ -324,6 +334,7 @@ cfg.b20ls00 = {
 -- moves, fired per hit / from the watchdog.
 cfg.b01sb00 = {
   limit = 9,
+  armorStates = { Teleport = true, StaffAttack = true },
   fire = "real",
   iframes = 40,
   counter = function(self)
@@ -491,6 +502,7 @@ cfg.b80vs00 = hades                                  -- Mirage Arena: as it was
 local hadesStory = {}
 for k, v in pairs(hades) do hadesStory[k] = v end
 hadesStory.limit = 8
+hadesStory.armorStates = { MegaFire = true, BladesCrossing = true }
 cfg.b01he00 = hadesStory
 
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
@@ -498,6 +510,7 @@ cfg.b01he00 = hadesStory
 -- of OnDamageBefore.  At the limit he uses it.
 cfg.b40ex00 = {
   limit = 7,
+  armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true },
   counter = function(self)
     if type(self.QuickWarpStart) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()

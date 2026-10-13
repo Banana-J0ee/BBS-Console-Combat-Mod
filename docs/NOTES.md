@@ -992,3 +992,17 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   any more, so a boss state that holds "no damage reaction" itself (wielder Combo) is not cleared mid-attack.
 * KH2 survey (motion triggers, range trigger 27 "hitbox off" / 19): Roxas and Data Roxas (same B_EX390) have none;
   a few bosses have whole-move "can't be hit" on warp / vanish / special moves; trigger 8 (no damage reaction) unused.
+
+## Revenge v2.4: KH2's uninterruptible moves (`armorStates`)
+
+* KH2 boss AI registers every move with `trap_act_table_add(table, name, flags, code, ...)`: low 16 bits 100
+  (idle / movement), 200 (attacks), 300 (revenge, dead); bit 0x10000 on revenge answers, desperation attacks,
+  warps and big specials (Roxas atk_*_revenge / atk_final_*, Axel *_revenge, Saïx dances, Xemnas warp_target_*,
+  most of Lingering Will's sword moves); never on normal attacks.  Read as "cannot be interrupted once started"
+  (inferred from the pattern; KH2's engine is not available here).  KH2 atkp also has an attack type "pierce armor".
+* BBS states that switch EnableNoDamageReaction on: wielders (all commands), b52ex00 (all attacks), Eraqus's
+  specials, Zack's specials, Braig's sniper / charge / Ultima / inverted shots, Vanitas's warps / Shadow Diving /
+  Grand Cross / Ultimate Charge / Dark Splicer.  None: Master Xehanort, Peter Pan, Maleficent.
+* `armorStates` (bosses.lua) adds the missing ones; the GotoStateSub wrapper sets no damage reaction after the
+  state's OnBeginState and clears it before the next state starts (unless revenge armour runs); a number = only the
+  first frames (OnUpdate counts down).  b63ex00 SuccessionAttack2 24 frames.  Test in extra.lua.
