@@ -60,7 +60,16 @@ local function wielderCounter(self)
   local s = self:GetState()
   if s == "EvasionAction" or s == "Dead" or s == "Appear" then return 0 end
   self.stack:push("BattleIdling")
-  self.stack:push("EvasionAction")
+  -- answer with an attack of their own (their combo, as their action select picks up close);
+  -- otherwise the dodge roll.  attack: share of attacks (per boss, default 0.6)
+  local st = rawget(self, "__rv")
+  local share = (st and st.cfg and st.cfg.attack) or 0.6
+  if Script.Random() < share then
+    self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
+    self.stack:push("Combo")     -- every wielder's action select has its combo (not every one a special 0)
+  else
+    self.stack:push("EvasionAction")
+  end
   self:GotoState(self.stack:pop(1))
   if type(self.DamageCnt) == "number" then self.DamageCnt = 0 end
   return 1
@@ -68,13 +77,15 @@ end
 
 -- Vanitas (story fights)
 -- vanilla: 15% cartwheel on every hit + growing chance of a warp counter.
-local vanitas = { limit = 10, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter }
+-- Revenge limits ramp with the story (as KH2's Data fights: Data Roxas breaks out at 75 of story Roxas's 100):
+-- opening bosses as they were, early-mid / mid x0.9, late worlds x0.8, story finales and Final Episode x0.75.
+local vanitas = { limit = 9, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = vanitas
+cfg.b10ex02 = { limit = 8, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
-  limit = 10,
+  limit = 7.5,
   pre = dmgCountPre,
   counter = vanitasCounter,
   fire = function(self)
@@ -85,12 +96,13 @@ cfg.b63ex00 = {
 }
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
-cfg.b11ex00 = { limit = 10, pre = dmgCountPre, counter = vanitasCounter }
+cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter }
 
 -- Vanitas Remnant: growing chance of Dark Splicer / warp attack per hit.
 -- (his answer to shotlocks is unconditional and keeps its own dice)
 cfg.b12ex00 = {
   limit = 8,
+  iframes = 0,                  -- Final Mix superboss: as he was
   pace = false,                 -- Final Mix superboss: already hard enough
   fireSeq = { 0, "coin" },
   pre = dmgCountPre,
@@ -113,7 +125,7 @@ cfg.b12ex00 = {
 
 -- Master Eraqus: guard (+ counter) chance on every hit.
 cfg.b20ex00 = {
-  limit = 12,
+  limit = 9,
   pre = dmgCountPre,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -121,7 +133,7 @@ cfg.b20ex00 = {
     if s == "Dead" or s == "Appear" or s == "Guard" or s == "Kagerou" then return 0 end
     self.stack:push("Wander")
     self.stack:push("Idling")
-    if Script.Random() < 0.5 then self.stack:push("Kagerou") end
+    self.stack:push("Kagerou")    -- the guard is always followed by his counter
     self:GotoState("Guard")
     if type(self.dmgCount) == "number" then self.dmgCount = 0 end
     return 1
@@ -132,6 +144,7 @@ cfg.b20ex00 = {
 -- 30% chance to flinch at all while he copies Ventus / Terra / Aqua.
 local armor = {
   limit = 9,
+  iframes = 0,                  -- Final Mix superboss: as he was
   pace = false,                 -- Final Mix superboss
   quiet = function(self) if self.style == 2 then return 0.999 end return 0 end,
   fire  = function(self) if self.style == 2 then return 0 end return 0.5 end,
@@ -148,7 +161,8 @@ cfg.b81vs00 = armor
 
 -- Braig: 30% escape on every hit.
 local braig = {
-  limit = 9,
+  limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
+  fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
   paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -157,16 +171,24 @@ local braig = {
        or s == "ChargeShoot" or s == "ArutemaShoot" then return 0 end
     self.stack:clear()
     self.stack:push("Idling")
+    -- he warps away and answers from there (his own dash / circling shots) - 1 in 4 he only escapes
+    local r = Script.Random()
+    if r < 0.4 then self.stack:push("DashShoot") elseif r < 0.75 then self.stack:push("RoundShoot") end
+    self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
     self:GotoState("Escape")
     return 1
   end,
 }
-cfg.b30ex00 = braig
 cfg.b32ex00 = braig
+local braigLate = {}
+for k, v in pairs(braig) do braigLate[k] = v end
+braigLate.limit = 7
+cfg.b30ex00 = braigLate
 
 -- Mysterious Figure: guard / warp counter / time-slip rolls on every hit.
 cfg.b01ex00 = {
   limit = 9,
+  iframes = 0,                  -- Final Mix superboss: as he was
   pace = false,                 -- Final Mix superboss
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -224,7 +246,7 @@ local function hookSetup(ent)
   rawset(ent, "states", own)
 end
 cfg.b01pp00 = {
-  limit = 10,
+  limit = 8,
   iframes = 40,
   setup = hookSetup,
   counter = function(self)
@@ -250,7 +272,7 @@ cfg.b01pp00 = {
 -- he recovers from hit-stun into idling.  At the limit he answers with one of his
 -- own attacks; after any combo he goes straight back on the offensive.
 cfg.b20pp00 = {
-  limit = 10,
+  limit = 8,
   iframes = 48,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
@@ -275,7 +297,7 @@ cfg.b20pp00 = {
 
 -- Experiment 221: growing chance to flee per hit.
 cfg.b20ls00 = {
-  limit = 8,
+  limit = 7,
   fireSeq = { 0, "coin" },
   pre = dmgCountPre,
   counter = function(self)
@@ -286,7 +308,7 @@ cfg.b20ls00 = {
     self.stack:push("AirMove")
     self.stack:push("Flee")
     self.stack:push("StartAirMove")
-    if Script.Random() < 0.5 then
+    if Script.Random() < 0.75 then                       -- usually he answers with his shock first
       self.stack:push("Electroshock")
       Enemy.EnableNoDamageReaction(self.myHandle, 1)      -- as his own escape does
     end
@@ -349,13 +371,14 @@ local function wielderPost(self, fired)
   end
 end
 -- (a wielder whose script has no dodge chance, e.g. in mid-air, still has none)
-local wielder = { limit = 9, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter }
+-- fire 0.999: their own dodge roll does not come out by itself at the limit, the counter picks (mostly an attack)
+local wielder = { limit = 9, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter }
 local wielders = { "b60ex00", "b62ex00", "b68ex00", "b69ex00", "b70ex00", "b72ex00", "b73ex00",
                    "b78ex00", "b79ex00", "b80ex00", "b82ex00", "b83ex00", "b88ex00", "b89ex00" }
 for i = 1, #wielders do
   cfg[wielders[i]] = wielder
 end
-local xehanort = { limit = 8, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter }
+local xehanort = { limit = 6, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter }
 cfg.b50ex00 = xehanort
 cfg.b51ex00 = xehanort
 
@@ -363,7 +386,8 @@ cfg.b51ex00 = xehanort
 -- wielder AI otherwise).  vanilla: counter-attacks after 2-5 hits.
 local function ownAI(self) return self.SetDmgCount ~= nil end
 cfg.b52ex00 = {
-  limit = 8,
+  limit = 6,
+  attack = 1,
   active = wielderActive,
   counter = wielderCounter,     -- the shared-AI form only; his own AI has no EvasionAction and is covered by pre()
   fire = function(self) if ownAI(self) then return "real" end return 0 end,
@@ -425,9 +449,12 @@ local zack = {
     end
   end,
 }
-cfg.b30he00 = zack
-cfg.b40he00 = zack
-cfg.b60vs00 = zack
+cfg.b60vs00 = zack                                   -- Mirage Arena: as it was
+local zackStory = {}
+for k, v in pairs(zack) do zackStory[k] = v end
+zackStory.limit = 8
+cfg.b30he00 = zackStory
+cfg.b40he00 = zackStory
 
 -- Hades (story and Mirage Arena).  vanilla: counters at the 7th hit in a row on the
 -- same spot.  (While he burns red he ignores hits; that stays.)
@@ -460,14 +487,17 @@ local hades = {
     end
   end,
 }
-cfg.b01he00 = hades
-cfg.b80vs00 = hades
+cfg.b80vs00 = hades                                  -- Mirage Arena: as it was
+local hadesStory = {}
+for k, v in pairs(hades) do hadesStory[k] = v end
+hadesStory.limit = 8
+cfg.b01he00 = hadesStory
 
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
 -- warp, from idle into a warp attack) is still there but switched off at the first line
 -- of OnDamageBefore.  At the limit he uses it.
 cfg.b40ex00 = {
-  limit = 9,
+  limit = 7,
   counter = function(self)
     if type(self.QuickWarpStart) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
@@ -483,6 +513,7 @@ cfg.b40ex00 = {
 -- he answers with his burst.  Here the burst comes when the revenge value is reached.
 cfg.b85vs00 = {
   limit = 14,
+  iframes = 0,                  -- Final Mix superboss: as he was
   pace = false,                 -- Final Mix superboss
   grace = 120, drain = 0.03,    -- vanilla forgets a string of hits over ~10 s
   clear = true,                 -- his gauge stands in for that timer: a burst starts it over

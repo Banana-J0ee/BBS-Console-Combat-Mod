@@ -60,7 +60,10 @@ RV.grace    = 60     -- 1 s after the last hit before the gauge drains: a combo'
 RV.drain    = 0.1    -- per frame once draining = KH2's 6 hit-units a second
 RV.vary     = 1.0    -- next limit = boss's limit +- up to this, re-rolled per revenge
 RV.watchdog = 12     -- 0.2 s at the limit without a break-out before `counter` is forced from the update
-RV.iframes  = 0      -- armour frames after a forced break-out (0 = none; per boss: cfg.iframes)
+RV.iframes  = 45     -- armour after a forced break-out, so the answer cannot be stuffed (per boss: cfg.iframes;
+                       -- 0 = none).  It lasts until the boss is back in an idle or a walk - then the end of its
+                       -- answer can be punished - and at most RV.armorMax frames.
+RV.armorMax = 180
 
 -- Boss pace ([Bosses] in bbskh2.ini).  KH2 bosses wait 0.25 .. 0.75 s between decisions and
 -- walk at most 1 .. 2 s before attacking (their AI files: idle_time 15..45 frames, move_target
@@ -331,6 +334,7 @@ local function attach(ent, name, handle)
       if n ~= nil and n ~= false and n > 0 and type(Enemy.EnableNoDamageReaction) == "function" then
         Enemy.EnableNoDamageReaction(myh(ent), 1)
         st.armor = n
+        st.armorT0 = st.t
       end
     end
   end
@@ -483,11 +487,18 @@ local function attach(ent, name, handle)
     -- states switch "no damage reaction" off when they end (a counter's
     -- OnEndState), which used to cut the window short.
     if st.armor > 0 then
+      -- The answer to a combo cannot be stuffed: armour from the break-out until the boss is back
+      -- in an idle or a walk (then it can be punished), at most RV.armorMax frames.  A boss whose
+      -- own attack state holds "no damage reaction" (and clears it when it ends) is not cut short.
       st.armor = st.armor - dt
+      local age = st.t - (st.armorT0 or 0)
+      local idle = type(self.GetState) == "function" and paceKind(self:GetState()) ~= nil
+      local off = (idle and age > 6) or age > RV.armorMax
+      if not off and st.armor <= 0 then st.armor = 1 end      -- the answer is still running
+      if off then st.armor = 0 end
       if type(Enemy.EnableNoDamageReaction) == "function" then
         Enemy.EnableNoDamageReaction(myh(self), st.armor > 0 and 1 or 0)
       end
-      if st.armor <= 0 then st.armor = 0 end
     end
     -- hits the engine hides from the callbacks (some juggle reactions)
     -- still cost HP: count them so those combos cannot run forever.  Only

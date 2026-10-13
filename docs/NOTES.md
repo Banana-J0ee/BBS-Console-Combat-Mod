@@ -976,3 +976,19 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 * EXP Zero's minimum (`1400d2960`, called at 2d2510) has its boss row at 200..1500 HP; the wrapped call looks a
   boss above 1500 up as 1500.
 * Test: `t_bosshp`.
+
+## Revenge v2.3: limits ramp, answers are attacks, armour until idle
+
+* Limits (bosses.lua) ramp like KH2's Data fights (Data Roxas: karma limit 75 against story Roxas's 100 -
+  B_EX390 `trap_enemy_set_karma_limit`, chosen by spawn argument 2, eh21 b_80 vs b_40): opening bosses unchanged,
+  b10ex00/01 9, b32ex00 9, Zack / Hades (story copies) 8, E221 7, Hook / Peter Pan 8, b10ex02 8, finales 7-7.5
+  (b11ex00, b63ex00, b40ex00, b30ex00 7), Eraqus 12 -> 9, Terra-Xehanort b50/b51/b52 8 -> 6.  Mirage Arena copies
+  (b60vs00, b80vs00) and superbosses keep theirs.
+* Answers: keyblade wielders (b60 script) at the limit no longer roll their own dodge (fire 0.999); the counter
+  pushes their Combo (share `attack`, default 0.6; Terra-Xehanort 1) or EvasionAction.  Braig: Escape, then
+  DashShoot (40 %) / RoundShoot (35 %).  Eraqus: Guard always into Kagerou.  E221: Electroshock 75 %.
+* Armour after a forced break-out for every configured boss (RV.iframes 45 default; superbosses 0): held until the
+  boss is in an idle / walk state again (after 6 frames), at most RV.armorMax 180 frames.  Not cut at a fixed time
+  any more, so a boss state that holds "no damage reaction" itself (wielder Combo) is not cleared mid-attack.
+* KH2 survey (motion triggers, range trigger 27 "hitbox off" / 19): Roxas and Data Roxas (same B_EX390) have none;
+  a few bosses have whole-move "can't be hit" on warp / vanish / special moves; trigger 8 (no damage reaction) unused.

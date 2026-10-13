@@ -43,10 +43,10 @@ do
   local st = BBS_REVENGE.ents.b40ex00
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 8 do r = hit(h) end
-  check(r == nil and st.rv == 8 and e:GetState() == "Idling", "Xehanort: 8 hits land, he stays in the combo")
+  for i = 1, 6 do r = hit(h) end
+  check(r == nil and st.rv == 6 and e:GetState() == "Idling", "Xehanort: 6 hits land, he stays in the combo")
   r = hit(h)
-  check(r == "before" and e:GetState() == "Warp" and st.rv == 9 and e.defenseTimer > 0, "9th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
+  check(r == "before" and e:GetState() == "Warp" and st.rv == 7 and e.defenseTimer > 0, "7th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
   local grace = BBS_REVENGE.grace
   check(st.idle >= grace, "... and it drains from now on, while he acts")
   check(hit(h) == nil and e:GetState() == "Warp", "while he is warping nothing more is triggered")
@@ -61,7 +61,7 @@ do
   check(st.rv > 6.9 and st.rv < 7.1, "a third of a second later: drained at KH2's pace, 9 -> " .. st.rv)
   local n = 0
   repeat n = n + 1 r = hit(h) until r == "before" or n > 12
-  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 9")
+  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 7")
   pcall(e.GotoState, e, "Idling")
   for i = 1, 200 do e:OnUpdate() end
   check(st.rv == 0, "left alone long enough it drains to nothing (" .. st.rv .. ")")
@@ -80,7 +80,10 @@ do
   check(r == "before" and st.rv >= 8, "next hit: his counter, now per hit (" .. tostring(r) .. ", into " .. e:GetState() .. "), value kept (" .. st.rv .. ")")
   check(st.armor > 0, "the counter got its armour window")
   for i = 1, 60 do e:OnUpdate() end
-  check(st.armor == 0, "... and the armour ran out")
+  local held = st.armor > 0 or e:GetState() == "Move"
+  pcall(e.GotoState, e, "Move")
+  e:OnUpdate(); e:OnUpdate()
+  check(held and st.armor == 0, "... held through his counter, off once he walks again")
   st.rv = 0
   for i = 1, 4 do hit(h) end
   EntityManager:CallFunctionNoArg("OnReturnDamage", h)
@@ -111,13 +114,16 @@ do
   rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 9 do r = hit(h) end
-  check(r == nil and st.rv == 9, "Peter Pan: 9 hits land, no vanilla escape fires")
+  for i = 1, 7 do r = hit(h) end
+  check(r == nil and st.rv == 7, "Peter Pan: 7 hits land, no vanilla escape fires")
   r = hit(h)
-  check(r == "before" and st.rv == 10 and e:GetState() == "Attack3", "10th hit: his own attack as the revenge (" .. tostring(e:GetState()) .. "), value kept")
+  check(r == "before" and st.rv == 8 and e:GetState() == "Attack3", "8th hit: his own attack as the revenge (" .. tostring(e:GetState()) .. "), value kept")
   check(st.armor > 0, "the revenge has its armour window")
   for i = 1, 70 do e:OnUpdate() end
-  check(st.armor == 0, "... which runs out")
+  check(st.armor > 0, "... held while his attack runs")
+  pcall(e.GotoState, e, "Idling")
+  e:OnUpdate()
+  check(st.armor == 0, "... and off once he is idle again (punishable)")
   EntityManager:CallFunctionNoArg("OnReturnDamage", h)
   check(e:GetState() == "BeforeAttackIdling", "after a combo he goes back on the offensive (" .. e:GetState() .. ")")
   -- a juggle the engine hides from the callbacks: the HP watch and the watchdog still break it
@@ -156,7 +162,7 @@ do
     if st.limit > hi then hi = st.limit end
   end
   BBS_REVENGE.vary = 0
-  check(lo >= 9 and hi <= 11 and hi > lo, string.format("the limit re-rolls in 10 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
+  check(lo >= 7 and hi <= 9 and hi > lo, string.format("the limit re-rolls in 8 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
 end
 -- boss pace: idle waits shortened, walks capped, attacks / superbosses / allies left alone
 do
@@ -227,6 +233,69 @@ do
   check(s3 == "TargetMove", "Hook: still walking while the time lasts (" .. s3 .. ")")
   check(log[h5] == 120, "Hook TargetMove capped at 120 (" .. tostring(log[h5]) .. ")")
   M.num["Entity.SetTimer"] = nil
+end
+-- break-outs answer with an attack; the armour covers the answer and ends once the boss is idle again
+do
+  M.script("b60")
+  local e, h = M.create("b50ex00")
+  local st = BBS_REVENGE.ents.b50ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  M.num["Entity.IsGround"] = true
+  local seen = {}
+  for k = 1, 8 do
+    pcall(e.GotoState, e, "BattleIdling")
+    st.rv, st.firing, st.armor = 0, false, 0
+    local r
+    for i = 1, 10 do r = hit(h) if r ~= nil then break end end
+    seen[e:GetState()] = true
+    check(r == "before" and st.rv >= 5 and st.rv <= 7, "Terra-Xehanort breaks out at his limit (6 +- 1): value " .. st.rv)
+  end
+  local atk = seen.Combo
+  check(atk and not seen.EvasionAction, "... always with an attack of his own, never only the dodge roll")
+  check(st.armor > 0, "the answer has its armour")
+  for i = 1, 10 do e:OnUpdate() end
+  check(st.armor > 0, "still armoured while attacking")
+  pcall(e.GotoState, e, "BattleIdling")
+  e:OnUpdate()
+  check(st.armor == 0, "back to idling: armour off, he can be punished")
+  M.num["Entity.IsGround"] = nil
+  -- an early wielder: attacks mostly, still dodges sometimes
+  local e2, h2 = M.create("b70ex00")
+  local st2 = BBS_REVENGE.ents.b70ex00
+  rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
+  M.num["Entity.IsGround"] = true
+  local na, nd = 0, 0
+  for k = 1, 80 do
+    pcall(e2.GotoState, e2, "BattleIdling")
+    st2.rv, st2.firing, st2.armor = 0, false, 0
+    for i = 1, 12 do if hit(h2) ~= nil then break end end
+    local s2 = e2:GetState()
+    if s2 == "EvasionAction" then nd = nd + 1 elseif s2 == "Combo" or s2 == "SpecialCommandAttack0" or s2 == "ShortDistAttackCommand" then na = na + 1 end
+  end
+  M.num["Entity.IsGround"] = nil
+  check(na > nd and nd > 0, "Terra (practice): " .. na .. " attacks, " .. nd .. " dodges out of 80 break-outs")
+  -- Braig: warps away and shoots from there
+  local e3, h3 = M.create("b30ex00")
+  local st3 = BBS_REVENGE.ents.b30ex00
+  rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
+  local shots = 0
+  for k = 1, 20 do
+    pcall(e3.GotoState, e3, "Idling")
+    st3.rv, st3.firing, st3.armor = 0, false, 0
+    for i = 1, 10 do if hit(h3) ~= nil then break end end
+    local top = e3.stack ~= nil and e3.stack:pop(1) or nil
+    if e3:GetState() == "Escape" and (top == "DashShoot" or top == "RoundShoot") then shots = shots + 1 end
+  end
+  check(shots >= 10, "Braig: escape then his own shots in " .. shots .. " of 20 break-outs")
+  check(st3.limit >= 6 and st3.limit <= 8, "Braig in the Keyblade Graveyard: limit 7 +- 1 (" .. st3.limit .. ")")
+  -- superboss: no armour added
+  M.script("b12ex00")
+  local e4, h4 = M.create("b12ex00")
+  local st4 = BBS_REVENGE.ents.b12ex00
+  rawset(e4, "Update", function() end); rawset(e4, "Debug", function() end)
+  pcall(e4.GotoState, e4, "Idling")
+  for i = 1, 12 do if hit(h4) ~= nil then break end end
+  check(st4.armor == 0, "Vanitas Remnant (superboss): no armour after his break-out")
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
