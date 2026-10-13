@@ -114,6 +114,95 @@ static int MSABI floor_ability_hook(u8 *player, u16 id) {
     if (FN(u8, HAS_ABILITY, u8*, u16)(player, id)) return 1;
     return c_floor >= 2 || (c_floor == 1 && DIFFICULTY == 3);
 }
+/* Boss HP ([BossHP]).  A boss's max HP is the float at +0xc of its .epd, taken as is (names starting with 'b'
+   have no level scaling and no difficulty scaling): 1402d0700 when the .epd is loaded (6th argument != 0) and
+   1402d2ec0 when the HP is set again from it.  After either, a listed boss gets percent x that value, max and
+   current HP alike.  Only the value the game itself just wrote is changed, so nothing is scaled twice.
+   Default: a ramp over the stories (Final Mix superbosses, Mirage Arena and the minigames left out). */
+#define EPD_LOAD 0x2d0700
+#define EPD_LOAD_A 0x2d2dd0
+#define EPD_LOAD_B 0x2d2e24
+#define EPD_LOAD_C 0x2d528e
+#define EPD_LOAD_D 0x2d52b4
+#define EPD_LOAD_E 0x2d52d2
+#define EPD_LOAD_F 0x2d52f2
+#define EPD_RESET 0x2d2ec0
+#define EPD_RESET_A 0x2b7dfe
+#define FLOOR_FN 0xd2960
+#define FLOOR_FN_CALL 0x2d2510       /* the enemy damage function 1402d24b0 asks for EXP Zero's minimum */
+#define FLOOR_BOSS_MAX 1500          /* the table's boss row ends there */
+typedef struct { char name[8]; s16 pct; } BossHp;
+static const BossHp k_boss_hp[] = {
+    /* early-mid: x1.10 */
+    { "b03sb00", 110 }, { "b10ex00", 110 }, { "b10ex01", 110 }, { "b32ex00", 110 },
+    { "b01rg00", 110 }, { "b04rg00", 110 }, { "b05rg00", 110 }, { "b06rg00", 110 }, { "b07rg00", 110 }, { "b08rg00", 110 },
+    /* mid: x1.20 */
+    { "b30he00", 120 }, { "b40he00", 120 }, { "b01he00", 120 }, { "b10he00", 120 },
+    { "b20ls00", 120 }, { "b01ls00", 120 }, { "b02ls00", 120 }, { "b10ls00", 120 },
+    /* late worlds and the story finales: x1.30 */
+    { "b01pp00", 130 }, { "b20pp00", 130 }, { "b10ex02", 130 }, { "b11ex00", 130 }, { "b20ex00", 130 },
+    { "b30ex00", 130 }, { "b40ex00", 130 }, { "b63ex00", 130 }, { "b50ex00", 130 },
+    /* Final Episode: x1.25 */
+    { "b51ex00", 125 }, { "b52ex00", 125 },
+};
+#define BOSS_HP_MAX 96
+static BossHp g_boss_hp[BOSS_HP_MAX];
+static int g_boss_hp_n, c_boss_hp = 1;
+static void boss_hp_set(const char *name, int pct) {
+    if (!name[0] || strlen(name) > 7) return;
+    if (pct < 10) pct = 100; if (pct > 500) pct = 500;
+    for (int i = 0; i < g_boss_hp_n; i++) if (!strcmp(g_boss_hp[i].name, name)) { g_boss_hp[i].pct = (s16)pct; return; }
+    if (g_boss_hp_n < BOSS_HP_MAX) { snprintf(g_boss_hp[g_boss_hp_n].name, 8, "%s", name); g_boss_hp[g_boss_hp_n++].pct = (s16)pct; }
+}
+static void boss_hp_config(void) {
+    g_boss_hp_n = 0;
+    for (unsigned i = 0; i < sizeof k_boss_hp / sizeof *k_boss_hp; i++) boss_hp_set(k_boss_hp[i].name, k_boss_hp[i].pct);
+    c_boss_hp = (int)ini_f("BossHP", "Enabled", 1.0f);
+    static char sec[8192]; sec[0] = sec[1] = 0;
+    GetPrivateProfileSectionA("BossHP", sec, sizeof sec, g_ini);
+    for (char *e = sec; *e; e += strlen(e) + 1) {
+        char k[32]; int v;
+        if (sscanf(e, " %31[^= ] = %d", k, &v) != 2) continue;
+        for (char *c = k; *c; c++) if (*c >= 'A' && *c <= 'Z') *c += 32;
+        if (k[0] != 'b') continue;
+        boss_hp_set(k, v);
+    }
+}
+static int boss_hp_pct(const char *name) {
+    for (int i = 0; i < g_boss_hp_n; i++) if (!strncmp(name, g_boss_hp[i].name, 8)) return g_boss_hp[i].pct;
+    return 100;
+}
+/* after the game set ent's HP from epd: the listed boss gets its share */
+static void boss_hp_apply(u8 *ent, const u8 *epd) {
+    if (!c_boss_hp || !ent || !epd || ent[0xf0] != 'b' || memcmp(epd, "@EPD", 4)) return;
+    int pct = boss_hp_pct((const char*)ent + 0xf0);
+    if (pct == 100) return;
+    int base = (int)*(const float*)(epd + 0xc);
+    s16 *cur = (s16*)(ent + 0x238), *max = (s16*)(ent + 0x23a);
+    if (base <= 0 || *max != (s16)base) return;                  /* not the value the game just wrote */
+    int hp = (base * pct + 50) / 100; if (hp > 32767) hp = 32767; if (hp < 1) hp = 1;
+    *max = (s16)hp;
+    if (*cur == (s16)base) *cur = (s16)hp;
+}
+static u64 MSABI epd_load_hook(u8 *ent, u64 a2, u64 a3, u64 a4, int slot, int set_hp) {
+    u64 r = FN(u64, EPD_LOAD, u8*, u64, u64, u64, int, int)(ent, a2, a3, a4, slot, set_hp);
+    if ((u32)r && set_hp && slot >= 0 && slot < 4) boss_hp_apply(ent, *(u8**)(ent + (0x49 + slot) * 8));
+    return r;
+}
+static void MSABI epd_reset_hook(u8 *ent) {
+    FN(void, EPD_RESET, u8*)(ent);
+    boss_hp_apply(ent, *(u8**)(ent + 0x250));
+}
+/* EXP Zero's minimum reads the boss row of its table (max HP 200..1500): a boss given more HP than 1500 is
+   looked up as 1500, so it keeps its minimum. */
+static u64 MSABI floor_hp_hook(int *dmg, u32 id, int maxhp, const char *name) {
+    if (c_boss_hp && name && name[0] == 'b' && maxhp > FLOOR_BOSS_MAX) maxhp = FLOOR_BOSS_MAX;
+    return FN(u64, FLOOR_FN, int*, u32, int, const char*)(dmg, id, maxhp, name);
+}
+void test_boss_hp_apply(u8 *ent, const u8 *epd) { boss_hp_apply(ent, epd); }
+void test_boss_hp_reset(u8 *ent) { epd_reset_hook(ent); }
+u64 test_floor_hp(int *dmg, u32 id, int maxhp, const char *name) { return floor_hp_hook(dmg, id, maxhp, name); }
+int test_boss_hp_pct(const char *name) { return boss_hp_pct(name); }
 static void load_ini(void) {
     c_max_base = ini_f("MP", "MaxAtLevel1", c_max_base);
     c_max_base = ini_f("MP", "Baseline", c_max_base);
@@ -160,6 +249,7 @@ static void load_ini(void) {
     c_link_keep = ini_f("MP", "DLinkGaugeAfter", c_link_keep);
     if (!(c_link_keep >= 0.0f && c_link_keep <= 100.0f)) c_link_keep = 0.0f;
     c_floor = (int)ini_f("Combat", "DamageFloor", (float)c_floor);
+    boss_hp_config();
     c_desc_cost = (int)ini_f("Menu", "DescriptionCost", (float)c_desc_cost);
     for (int id = 0x5b; id < 0x1a0; id++) {             /* the deck commands */
         char key[8]; snprintf(key, sizeof key, "%x", id);
@@ -888,6 +978,12 @@ int mod_install(void) {
     if (!call_ok(0x206a6e, 0x1ce550)) { LOG("call site 206a6e does not match"); bad++; }
     if ((c_desc_cost || c_ether) && !call_ok(DESC_CALL, MSG_FIND)) { LOG("description site does not match"); bad++; }
     if (c_floor && !call_ok(FLOOR_CALL, HAS_ABILITY)) { LOG("damage floor site does not match"); bad++; }
+    if (c_boss_hp) {
+        static const u32 l[] = { EPD_LOAD_A, EPD_LOAD_B, EPD_LOAD_C, EPD_LOAD_D, EPD_LOAD_E, EPD_LOAD_F };
+        for (unsigned i = 0; i < 6; i++) if (!call_ok(l[i], EPD_LOAD)) { LOG("boss HP site %x does not match", l[i]); bad++; }
+        if (!call_ok(EPD_RESET_A, EPD_RESET)) { LOG("boss HP site %x does not match", EPD_RESET_A); bad++; }
+        if (!call_ok(FLOOR_FN_CALL, FLOOR_FN)) { LOG("boss HP floor site does not match"); bad++; }
+    }
     if (G(u64, VT_CTD_READY) != (u64)(g_base + FN_CTD_READY)) { LOG("message file vtable does not match"); bad++; }
     if (c_berserk_pct > 0 && !call_ok(DMG_CALL, DMG_FN)) { LOG("damage site does not match"); bad++; }
     if (c_link_keep < 100.0f && (!call_ok(LINK_END_A, LINK_END) || !call_ok(LINK_END_B, LINK_END))) { LOG("D-Link end sites do not match"); bad++; }
@@ -908,6 +1004,13 @@ int mod_install(void) {
         LOG("combat: EXP Zero's minimum damage applies without the ability %s", c_floor >= 2 ? "on every difficulty" : "on Critical");
     }
     if (c_berserk_pct > 0) hook_call(DMG_CALL, DMG_FN, damage_hook, "damage (Berserker)");
+    if (c_boss_hp) {
+        static const u32 l[] = { EPD_LOAD_A, EPD_LOAD_B, EPD_LOAD_C, EPD_LOAD_D, EPD_LOAD_E, EPD_LOAD_F };
+        for (unsigned i = 0; i < 6; i++) hook_call(l[i], EPD_LOAD, epd_load_hook, "boss HP (load)");
+        hook_call(EPD_RESET_A, EPD_RESET, epd_reset_hook, "boss HP (reset)");
+        hook_call(FLOOR_FN_CALL, FLOOR_FN, floor_hp_hook, "boss HP (damage floor)");
+        LOG("combat: boss HP for %d bosses", g_boss_hp_n);
+    }
     g_link_set = (void (MSABI *)(u8*, float))(g_base + 0x20ac70);
     if (c_link_keep < 100.0f) {
         hook_call(LINK_END_A, LINK_END, link_end_hook, "D-Link end (revert)");

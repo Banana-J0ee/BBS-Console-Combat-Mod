@@ -42,3 +42,6 @@ static inline BOOL WritePrivateProfileStringA(const char *s, const char *k, cons
 static inline DWORD GetPrivateProfileStringA(const char *s, const char *k, const char *def, char *out, DWORD n, const char *file) {
     (void)s; (void)k; (void)file; snprintf(out, n, "%s", def); return (DWORD)strlen(out);
 }
+static inline DWORD GetPrivateProfileSectionA(const char *s, char *out, DWORD n, const char *file) {
+    (void)s; (void)file; if (n >= 2) out[0] = out[1] = 0; return 0;
+}

@@ -1756,6 +1756,60 @@ static void pad(u32 held, u32 edge) {       /* what the game's pad update leaves
 extern void test_uncover_attack(u8 *cmd);
 static int g_icon_kind;
 static void MSABI icon_stub(u64 obj, int h, int kind) { (void)obj; (void)h; g_icon_kind = kind; }
+/* boss HP: the listed bosses get their share of the .epd value, max and current, once */
+extern void test_boss_hp_apply(u8 *ent, const u8 *epd), test_boss_hp_reset(u8 *ent);
+extern u64 test_floor_hp(int *dmg, u32 id, int maxhp, const char *name);
+extern int test_boss_hp_pct(const char *name);
+static void t_bosshp(void) {
+    static const u32 load[] = { 0x2d2dd0, 0x2d2e24, 0x2d528e, 0x2d52b4, 0x2d52d2, 0x2d52f2 };
+    for (unsigned i = 0; i < 6; i++) CHECK(call_target(load[i]) != RVA(0x2d0700), ".epd load %x is hooked", load[i]);
+    CHECK(call_target(0x2b7dfe) != RVA(0x2d2ec0), "HP reset is hooked");
+    CHECK(call_target(0x2d2510) != RVA(0xd2960), "the damage floor call is hooked");
+    static const struct { const char *n; int pct; } P[] = { { "b10sb00", 100 }, { "b10ex00", 110 }, { "b20ls00", 120 },
+        { "b40ex00", 130 }, { "b52ex00", 125 }, { "b12ex00", 100 }, { "b01ex00", 100 }, { "b81vs00", 100 },
+        { "b85vs00", 100 }, { "b02ex00", 100 }, { "b80vs00", 100 }, { "m01ex00", 100 } };
+    for (unsigned i = 0; i < sizeof P / sizeof *P; i++)
+        CHECK(test_boss_hp_pct(P[i].n) == P[i].pct, "%s: %d%% (want %d)", P[i].n, test_boss_hp_pct(P[i].n), P[i].pct);
+    static u8 lvl[16]; *(u32*)(lvl + 8) = 2;                       /* level row: normal enemies x2 */
+    u8 stub[11] = { 0x48, 0xb8 }; u64 a = (u64)lvl; memcpy(stub + 2, &a, 8); stub[10] = 0xc3;
+    u8 keep[11]; memcpy(keep, RVA(0x2cef40), 11); memcpy(RVA(0x2cef40), stub, 11);
+    static const struct { const char *n; float hp; int want; } T[] = { { "b40ex00", 900, 1170 }, { "b52ex00", 1500, 1875 },
+        { "b10ex00", 550, 605 }, { "b10sb00", 400, 400 }, { "b12ex00", 200, 200 }, { "b81vs00", 1000, 1000 }, { "m01ex00", 30, 60 } };
+    for (unsigned i = 0; i < sizeof T / sizeof *T; i++) {
+        u8 *ent = calloc(1, 0x300), *epd = calloc(1, 0x100);
+        memcpy(epd, "@EPD", 4); *(float*)(epd + 0xc) = T[i].hp;
+        strcpy((char*)ent + 0xf0, T[i].n); *(u8**)(ent + 0x250) = epd;
+        test_boss_hp_reset(ent);
+        CHECK(*(s16*)(ent + 0x23a) == T[i].want && *(s16*)(ent + 0x238) == T[i].want, "%s: %d / %d (want %d)", T[i].n, *(s16*)(ent + 0x238), *(s16*)(ent + 0x23a), T[i].want);
+        test_boss_hp_reset(ent);
+        CHECK(*(s16*)(ent + 0x23a) == T[i].want, "%s: set again, not scaled twice (%d)", T[i].n, *(s16*)(ent + 0x23a));
+        *(s16*)(ent + 0x238) = 100; test_boss_hp_apply(ent, epd);
+        CHECK(*(s16*)(ent + 0x23a) == T[i].want && *(s16*)(ent + 0x238) == 100, "%s: an HP already scaled is left alone", T[i].n);
+        free(ent); free(epd);
+    }
+    memcpy(RVA(0x2cef40), keep, 11);
+    u8 diff = G(u8, 0x10fa0881); G(u8, 0x10fa0881) = 3;
+    if (!G(u8*, 0x83e700)) {                                       /* EXP Zero's table, as t_floor builds it */
+        static const u16 ids[] = { 0x83 };
+        world(1, ids);
+        static u8 edp[0xa8 + 2 * 0x34];
+        memcpy(edp, "@EDP", 4); *(u32*)(edp + 4) = 2; *(u32*)(edp + 8) = 1; *(u32*)(edp + 12) = 1;
+        memset(edp + 0x10, 0xff, 0x98);
+        int k = 0xac - 1; u8 *b = edp + 0x10 + (k >> 1); *b = (k & 1) ? (u8)((*b & 0x0f) | (2 << 4)) : (u8)((*b & 0xf0) | 2);
+        static const int rows[2][13] = { { 0, 0, 15, 132, 30, 3, 10, 30, 3, 20, 30, 3, 30 }, { 0, 0, 200, 1500, 200, 0, 10, 200, 3, 15, 200, 3, 25 } };
+        memcpy(edp + 0xa8, rows, sizeof rows);
+        FN(void, 0xd2af0, u8*)(edp);
+    }
+    if (G(u8*, 0x83e700)) {
+        int d1 = 1, d2 = 1, d3 = 1;
+        FN(u64, 0xd2960, int*, u32, int, const char*)(&d1, 0xac, 1875, "b52ex00");
+        test_floor_hp(&d2, 0xac, 1875, "b52ex00");
+        test_floor_hp(&d3, 0xac, 2000, "m01ex00");
+        CHECK(d1 == 1 && d2 == 26 && d3 == 1, "damage floor: 1875 HP boss looked up as 1500 (%d -> %d), normal enemies untouched (%d)", d1, d2, d3);
+    } else printf("  (floor part skipped: no table)\n");
+    G(u8, 0x10fa0881) = diff;
+    printf("t_bosshp done\n");
+}
 static void t_special(void) {
     u8 *pd = calloc(1, 0x100); *(u32*)(pd + 0xa0) = 1;
     int (MSABI *sp)(u8*, int, int) = (void*)call_target(0x2738c9);
@@ -2926,6 +2980,7 @@ int main(int argc, char **argv) {
     bad |= run("t_style", t_style);
     bad |= run("t_speed", t_speed);
     bad |= run("t_floor", t_floor);
+    bad |= run("t_bosshp", t_bosshp);
     bad |= run("t_desc", t_desc);
     bad |= run("t_shortcut", t_shortcut);
     bad |= run("t_sclist", t_sclist);

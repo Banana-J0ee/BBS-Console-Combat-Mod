@@ -961,3 +961,18 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   < 2, 1402047f0) and the game's Attack part did nothing until the finisher offer ran out ("finisher: not taken";
   moving the cursor only happened to take that long).  After every command update with no prompt up, a covered
   level-0 Attack plate is uncovered with 140205890.  Test: `t_special`.
+
+## Boss HP (src/mp.c, `[BossHP]`)
+
+* A boss's max HP is the float at `.epd + 0xc`, taken as is for names starting with 'b' (normal enemies: x the
+  level row's `+8` from `1402cef40`); no difficulty scaling.  Written to `enemy+0x23a` (max) / `+0x238` (current) by
+  `1402d0700(ent, .., .., .., slot, setHp)` (.epd at `ent[0x49 + slot]`; called at 2d2dd0 2d2e24 2d528e 2d52b4
+  2d52d2 2d52f2) and `1402d2ec0(ent)` (.epd at `ent+0x250`; called at 2b7dfe).  The calls are wrapped: after the
+  game's own write, a listed boss gets percent x the value - only when `+0x23a` still holds the .epd value, so
+  nothing is scaled twice.  No boss script sets a max HP of its own (they only read GetHpMax).
+* Default ramp: opening bosses 100, early-mid 110, mid 120, late worlds and story finales 130, Final Episode 125.
+  Not listed: superbosses (b01ex00 999, b12ex00 200 at x0.5/x0.25 taken, b81vs00 1000 at x0.5, b85vs00 1500),
+  Dark Hide b02ex00 1650, Mirage Arena (b*vs00), Disney Town (b*dc00).
+* EXP Zero's minimum (`1400d2960`, called at 2d2510) has its boss row at 200..1500 HP; the wrapped call looks a
+  boss above 1500 up as 1500.
+* Test: `t_bosshp`.
