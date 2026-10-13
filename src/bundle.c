@@ -95,7 +95,7 @@ static u64 MSABI rsrc_loaded(u8 *r) {
 
 /* [Bosses]: boss pace, carried by the Revenge Value script.  Its two settings are float constants in the
    compiled Lua (type byte 3 + the float) with marker values that are replaced by the ini's here. */
-static float c_aggr = 0.4f, c_walkcap = 2.0f;
+static float c_aggr = 0.4f, c_walkcap = 2.0f, c_recover = 0.1f;   /* RecoverWait: seconds, < 0 off */
 static u8 rv_buf[sizeof rv_factory];
 static int pace_patch(float marker, float value, const char *what) {
     u8 pat[5] = {3}; memcpy(pat + 1, &marker, 4);
@@ -113,9 +113,14 @@ static void pace_config(void) {
     GetPrivateProfileStringA("Bosses", "WalkCap", d, b, sizeof b, g_ini); c_walkcap = (float)atof(b);
     if (!(c_aggr >= 0.1f && c_aggr <= 1.0f)) c_aggr = 0.4f;
     if (!(c_walkcap >= 0.0f && c_walkcap <= 30.0f)) c_walkcap = 2.0f;
+    snprintf(d, sizeof d, "%g", c_recover);
+    GetPrivateProfileStringA("Bosses", "RecoverWait", d, b, sizeof b, g_ini); c_recover = (float)atof(b);
+    if (!(c_recover <= 5.0f)) c_recover = 0.1f;
+    if (c_recover < 0) c_recover = -1.0f;
     memcpy(rv_buf, rv_factory, sizeof rv_buf);
     pace_patch(9001.5f, c_aggr, "Aggression");
     pace_patch(9002.5f, c_walkcap, "WalkCap");
+    pace_patch(9003.5f, c_recover, "RecoverWait");
 }
 
 /* luaL_loadbuffer(L, buf, size, name) at the game's script loader */
@@ -198,8 +203,8 @@ void bundle_apply(void) {
     }
     if (c_revenge) hook_call(LUA_CALL, LUA_LOAD, lua_load_hook, "lua load");
     if (c_camera) cam_pitch_apply();
-    LOG("bundle: combo flow %d, camera %d (distance %.2f, pitch %.0f..%.0f), revenge value %d (boss pace: idle x%.2f, walks %.1f s)",
-        c_combo, c_camera, c_camera ? c_cam_dist : 1.0f, c_pitch_min, c_pitch_max, c_revenge, c_aggr, c_walkcap);
+    LOG("bundle: combo flow %d, camera %d (distance %.2f, pitch %.0f..%.0f), revenge value %d (boss pace: idle x%.2f, walks %.1f s, recover %.2f s)",
+        c_combo, c_camera, c_camera ? c_cam_dist : 1.0f, c_pitch_min, c_pitch_max, c_revenge, c_aggr, c_walkcap, c_recover);
 }
 
 #ifndef _WIN32
@@ -209,7 +214,7 @@ int test_lua_swap(const char **buf, size_t *n) {      /* the decision of lua_loa
     return 0;
 }
 void test_pace(float aggr, float walk) { c_aggr = aggr; c_walkcap = walk; memcpy(rv_buf, rv_factory, sizeof rv_buf);
-    pace_patch(9001.5f, c_aggr, "Aggression"); pace_patch(9002.5f, c_walkcap, "WalkCap"); }
+    pace_patch(9001.5f, c_aggr, "Aggression"); pace_patch(9002.5f, c_walkcap, "WalkCap"); pace_patch(9003.5f, c_recover, "RecoverWait"); }
 u32 test_crc(const u8 *p, size_t n) { return crc32_(p, n); }
 void test_cam_dist(float d) { c_cam_dist = d; memset(cam_scaled_crc, 0, sizeof cam_scaled_crc); }
 #endif

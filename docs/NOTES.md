@@ -976,3 +976,17 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 * EXP Zero's minimum (`1400d2960`, called at 2d2510) has its boss row at 200..1500 HP; the wrapped call looks a
   boss above 1500 up as 1500.
 * Test: `t_bosshp`.
+
+## Recover into action (revenge.lua, config `rush`, `[Bosses] RecoverWait`)
+
+* KH2 bosses act again as soon as they are up from a flinch.  In BBS, Vanitas (all fights), Eraqus and Braig
+  already zero their idle timer on every hit (`idlingTimer = 0` in OnDamageBefore), and Terra-Xehanort's wielder
+  AI (b50/b51, b60 script) shortens its BattleIdling by the hits taken (`SubTime`).  What still waits: Eraqus's
+  Wander after the flinch (walk capped at 2 s, then SelectAttack), Master Xehanort / Braig / E221 resuming an idle,
+  and the Final Episode Terra-Xehanort (b52ex00 own AI), who only circles (MoveIdling) until his AttackTimer runs out.
+* `rush = true`: in the OnReturnDamage wrapper a window of `RV.rushWindow` (30) frames opens; any idle timer (or
+  `^Wander` walk) set in it is cut to RecoverWait (float marker 9003.5, default 0.1 s), and an idle state the boss is
+  still in gets its timer (or its paceFields field) set to that.  `rush = function(self)`: b52ex00 sets AttackTimer 0
+  and calls his own thinkAttack(distance).  Needs pace (superbosses and Hades have none).
+* On: b10ex02, b11ex00, b63ex00, b20ex00, b30ex00 / b32ex00, b20ls00, b40ex00, b50ex00 / b51ex00, b52ex00.
+  Early bosses (b10ex00 / b10ex01, Maleficent, ...) keep theirs.  Tests in test/revenge/extra.lua.

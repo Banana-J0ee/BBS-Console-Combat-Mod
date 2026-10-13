@@ -71,6 +71,11 @@ RV.walkCap   = 9002.5  -- walk / approach / wander timers capped at this many se
 if RV.aggr > 100 or RV.aggr <= 0 then RV.aggr = 0.4 end
 if RV.walkCap > 100 or RV.walkCap < 0 then RV.walkCap = 2.0 end
 RV.idleFloor = 45      -- 0.75 s, KH2's longest wait between decisions: shorter waits stay as they are
+-- Recover into action: a boss with "rush" in its config waits at most this many seconds after it
+-- gets up from a flinch before it acts (its own choice of move).  Negative = off.
+RV.recoverWait = 9003.5
+if RV.recoverWait > 100 then RV.recoverWait = 0.1 end
+RV.rushWindow = 30     -- frames after getting up in which a new idle (or aimless wander) is cut short
 
 -- ---------------------------------------------------------------------
 -- Controlled dice.  While one of our wrapped callbacks runs, the boss
@@ -251,6 +256,7 @@ local function attach(ent, name, handle)
   local st = rawget(ent, "__rv")
   if st ~= nil then                         -- same object re-used: just clear
     st.rv, st.idle, st.firing, st.fireT, st.armor = 0, 0, false, 0, 0
+    st.rushT = nil
     st.limit = c.limit
     if st.pace ~= nil and handle ~= nil then P.by[handle] = st end
     return
@@ -374,7 +380,14 @@ local function attach(ent, name, handle)
       local mh = rawget(ent, "myHandle")
       if mh ~= nil and mh ~= h then return v end        -- a stale entry: another object owns h now
       if not active(ent) then return v end
-      return paceValue(paceKind(st.state), v)
+      local k = paceKind(st.state)
+      -- just up from a flinch: the next wait is short (recover into action)
+      if st.rushT ~= nil and st.t <= st.rushT and RV.recoverWait >= 0 and (k == "idle" or (k == "walk" and st.state:find("^Wander"))) then
+        local r = RV.recoverWait * 60
+        if v > r then return r end
+        return v
+      end
+      return paceValue(k, v)
     end
     if h0 ~= nil then P.by[h0] = st end
     local gss = ent.GotoStateSub
@@ -457,7 +470,26 @@ local function attach(ent, name, handle)
     end)
   end
 
-  if ord ~= nil or c.recover ~= nil then
+  -- recover into action (config "rush"): KH2 bosses do not stand around after a flinch
+  local function rushOn(self)
+    return c.rush and RV.recoverWait >= 0 and st.pace ~= nil and active(self)
+  end
+  local function rush(self)
+    if type(self.GetState) ~= "function" then return end
+    local s = self:GetState()
+    if s == "Dead" or s == "Appear" then return end
+    if type(c.rush) == "function" then c.rush(self) return end
+    -- still (or again) in an idle state: its wait ends now
+    local r = RV.recoverWait * 60
+    local pf = c.paceFields
+    if pf ~= nil and pf[s] ~= nil and type(self[pf[s]]) == "number" then
+      if self[pf[s]] > r then self[pf[s]] = r end
+    elseif paceKind(s) == "idle" and P.real ~= nil then
+      P.real(myh(self), r)
+    end
+  end
+
+  if ord ~= nil or c.recover ~= nil or c.rush then
     rawset(ent, "OnReturnDamage", function(self, a, b, c2, d)
       -- out of hit-stun: KH2 starts draining here, it does not clear the gauge
       -- (clearing it made every combo string start from nothing, so only one
@@ -467,10 +499,13 @@ local function attach(ent, name, handle)
       if c.clear then st.rv, st.idle, st.firing, st.fireT = 0, 0, false, 0
       elseif st.idle < grace then st.idle = grace end
       local r
+      local rushing = rushOn(self)
+      if rushing then st.rushT = st.t + RV.rushWindow end
       if ord ~= nil then r = ord(self, a, b, c2, d) end
       -- KH2 bosses come back at you after a combo; the config's recover
       -- overrides a script that just stands up into idling.
       if c.recover ~= nil then pcall(c.recover, self) end
+      if rushing then pcall(rush, self) end
       return r
     end)
   end

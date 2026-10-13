@@ -197,6 +197,20 @@ do
   pcall(e3.GotoState, e3, "WaitIdling")
   M.num["Script.RandomInRange"] = nil
   check(e3.timer == 45, "Braig WaitIdling: 90 -> 45 frames (" .. tostring(e3.timer) .. ")")
+  -- Terra-Xehanort (Final Episode, his own AI): an attack at once instead of circling
+  -- (before the wielder script is loaded: in this stand-in it takes over his helper classes)
+  M.script("b52ex00")
+  local e10, h10 = M.create("b52ex00")
+  rawset(e10, "Update", function() end); rawset(e10, "Debug", function() end)
+  e10.insUshiro = { GotoState = function() end, getDLDamage = function() return 0 end }   -- his Guardian
+  e10.nHarf = 1
+  pcall(e10.GotoState, e10, "MoveIdling")
+  e10.AttackTimer = 300
+  M.num["Entity.CalcDistanceXZ"] = 2
+  pcall(e10.OnReturnDamage, e10)
+  local s10 = e10:GetState()
+  M.num["Entity.CalcDistanceXZ"] = nil
+  check(type(s10) == "string" and s10:find("^Attack") ~= nil, "Terra-Xehanort up from a flinch: " .. tostring(s10))
   -- keyblade wielder as an ally: untouched
   M.script("b60")
   local e4, h4 = M.create("b60ex00")
@@ -226,6 +240,50 @@ do
   local s3 = walk(100, false)
   check(s3 == "TargetMove", "Hook: still walking while the time lasts (" .. s3 .. ")")
   check(log[h5] == 120, "Hook TargetMove capped at 120 (" .. tostring(log[h5]) .. ")")
+  -- recover into action: up from a flinch, the next wait is RecoverWait (0.1 s = 6 frames)
+  check(RVs.recoverWait > 0.09 and RVs.recoverWait < 0.11, "RecoverWait default 0.1 s (" .. tostring(RVs.recoverWait) .. ")")
+  M.script("b63ex00")
+  local e6, h6 = M.create("b63ex00")
+  rawset(e6, "Update", function() end); rawset(e6, "Debug", function() end)
+  pcall(e6.GotoState, e6, "Cartwheel")
+  e6.idlingTimer = 120
+  pcall(e6.OnReturnDamage, e6)
+  check(e6:GetState() == "Idling" and log[h6] <= 6, "Ventus-Vanitas up from a flinch: Idling waits " .. tostring(log[h6]) .. " frames")
+  BBS_REVENGE.ents.b63ex00.t = BBS_REVENGE.ents.b63ex00.t + 40      -- 40 frames on
+  pcall(e6.GotoState, e6, "Idling")
+  check(log[h6] > 6, "an Idling later (no flinch) keeps its paced wait (" .. tostring(log[h6]) .. ")")
+  RVs.recoverWait = -1
+  e6.idlingTimer = 120
+  pcall(e6.OnReturnDamage, e6)
+  check(log[h6] > 6, "RecoverWait off: his own wait (" .. tostring(log[h6]) .. ")")
+  RVs.recoverWait = 0.1
+  -- Eraqus: Idling, then Wander, both short; then his SelectAttack decides
+  M.script("b20ex00")
+  local e7, h7 = M.create("b20ex00")
+  rawset(e7, "Update", function() end); rawset(e7, "Debug", function() end)
+  pcall(e7.GotoState, e7, "Wander")
+  e7.reflect = true; e7.idlingTimer = 120
+  pcall(e7.OnReturnDamage, e7)
+  local i1 = log[h7]
+  M.num["Entity.IsTimeOver"] = true
+  pcall(e7.states.Idling.OnUpdate, e7)
+  M.num["Entity.IsTimeOver"] = false
+  check(i1 <= 6 and e7:GetState() == "Wander" and log[h7] <= 6, "Eraqus up from a flinch: Idling " .. tostring(i1) .. ", then Wander " .. tostring(log[h7]) .. " frames (" .. e7:GetState() .. ")")
+  -- masked Vanitas early on (b10ex00) is not changed
+  local e8, h8 = M.create("b10ex00")
+  rawset(e8, "Update", function() end); rawset(e8, "Debug", function() end)
+  pcall(e8.GotoState, e8, "Cartwheel")
+  e8.idlingTimer = 120
+  pcall(e8.OnReturnDamage, e8)
+  check(log[h8] == 48, "early masked Vanitas keeps his paced wait after a flinch (" .. tostring(log[h8]) .. ")")
+  -- Braig: his wait is a field
+  local e9, h9 = M.create("b30ex00")
+  rawset(e9, "Update", function() end); rawset(e9, "Debug", function() end)
+  M.num["Script.RandomInRange"] = function(a, b) return 90 end
+  pcall(e9.GotoState, e9, "WaitIdling")
+  M.num["Script.RandomInRange"] = nil
+  pcall(e9.OnReturnDamage, e9)
+  check(e9.timer <= 6, "Braig up from a flinch in WaitIdling: " .. tostring(e9.timer) .. " frames")
   M.num["Entity.SetTimer"] = nil
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
