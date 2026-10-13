@@ -1010,3 +1010,10 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   offset of 2-3.5 m on each axis from the player, i.e. right next to you (DashShoot the same, WarpShoot 4-6).
   setup() wraps WarpToTarget: during Escape at least 8-11 m (his own loop clamps to the arena's MaxDist).
   DashShoot added to his armorStates (his last flinchable attack).
+* Bug (Vanitas vanished / misplaced in a fight): Warp1 / Warp2 set alpha 0 and switch off lock-on, damage and body
+  collision; only WarpAttack1/2's OnEndState switch them on again.  The watchdog (or a counter after a failed fire)
+  could GotoState("Cartwheel") out of a warp or ShadowDiving, leaving him invisible and unhittable (or under the
+  floor).  The HP watch could arm the watchdog from damage taken during a warp.  Now: no forced counter while the
+  boss is in a state whose name holds Warp / Escape / Diving / Disappear / Teleport / Ride / StyleChange / Appear /
+  Dead / Standby / Hide / Sink / Fly / Goes_away / Fall / Breakdown (RV.unsafeState; the watchdog waits until he is
+  back on his feet), and hidden HP loss does not count while the boss cannot flinch.  Test in extra.lua.

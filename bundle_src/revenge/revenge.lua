@@ -180,6 +180,20 @@ local function countsAsHit(kind)
   return kind ~= ATK_KIND_RECOVER
 end
 
+-- States a forced break-out must never cut into: warps / vanishing moves hide the boss (alpha 0, no
+-- damage or lock-on collision) until the move's own end shows it again, so leaving them any other way
+-- leaves it invisible and unhittable.  Also entrances, deaths and mode changes.
+local UNSAFE = { "Warp", "Escape", "Diving", "Disappear", "Teleport", "Ride", "StyleChange", "Appear",
+                 "Dead", "Standby", "Hide", "Sink", "Fly", "Goes_away", "Fall", "Breakdown" }
+local function unsafeState(self)
+  if type(self) ~= "table" or type(self.GetState) ~= "function" then return true end
+  local ok, s = pcall(self.GetState, self)
+  if not ok or type(s) ~= "string" then return true end
+  for i = 1, #UNSAFE do if s:find(UNSAFE[i], 1, true) then return true end end
+  return false
+end
+RV.unsafeState = unsafeState
+
 local function shielded(h)
   if Enemy.IsNoDamageReaction(h) then return true end
   local inv = Enemy.IsInvincible
@@ -345,7 +359,7 @@ local function attach(ent, name, handle)
   -- fires on a hit.  Returns the value for the engine.
   local function fire(f, self, kind, cat, attr, x)
     local r = runFire(f, self, kind, cat, attr, x)
-    if not truthy(r) and c.counter ~= nil then
+    if not truthy(r) and c.counter ~= nil and not unsafeState(self) then
       local ok, r2 = pcall(c.counter, self, kind, cat, attr, x)
       if ok then r = r2 end
     end
@@ -542,7 +556,8 @@ local function attach(ent, name, handle)
     -- ticks (spaced wider, with no hits landing) cannot build revenge.
     local hp = Enemy.GetHp(myh(self))
     if type(hp) == "number" then
-      if type(st.hp) == "number" and hp < st.hp and not st.sawHit and active(self) then
+      -- (not while it cannot flinch anyway: a warp, an armoured move - nothing to break out of)
+      if type(st.hp) == "number" and hp < st.hp and not st.sawHit and active(self) and not shielded(myh(self)) then
         if st.t - st.seen <= 60 or st.t - st.drop <= 30 then
           st.rv = st.rv + RV.weight.default
           st.idle = 0
@@ -570,7 +585,7 @@ local function attach(ent, name, handle)
     -- fire (muted callbacks, a script with no own break-out) is forced
     if st.firing then
       st.fireT = st.fireT + dt
-      if st.fireT >= RV.watchdog and c.counter ~= nil and active(self) then
+      if st.fireT >= RV.watchdog and c.counter ~= nil and active(self) and not unsafeState(self) then
         local ok, r = pcall(c.counter, self)
         if ok and truthy(r) then done(true) else st.fireT = 0 end
       end

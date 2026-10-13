@@ -354,5 +354,22 @@ do
   M.num["Enemy.EnableNoDamageReaction"] = nil
   M.num["Enemy.IsNoDamageReaction"] = nil
 end
+-- a forced break-out never cuts into a warp / dive (it would leave the boss hidden or misplaced)
+do
+  M.script("b10ex00")
+  local e, h = M.create("b10ex00")
+  local st = BBS_REVENGE.ents.b10ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  for _, s0 in ipairs{ "Warp1", "Warp2", "ShadowDiving", "RideMode" } do
+    pcall(e.GotoState, e, s0)
+    st.rv, st.firing, st.fireT, st.armor = st.limit + 1, true, 0, 0
+    for i = 1, 30 do pcall(e.OnUpdate, e) end
+    check(e:GetState() ~= "Cartwheel", "watchdog leaves Vanitas alone in " .. s0 .. " (" .. tostring(e:GetState()) .. ")")
+  end
+  pcall(e.GotoState, e, "Idling")
+  st.rv, st.firing, st.fireT, st.armor = st.limit + 1, true, 0, 0
+  for i = 1, 30 do pcall(e.OnUpdate, e) end
+  check(e:GetState() == "Cartwheel", "... and breaks out as soon as he is back on his feet (" .. tostring(e:GetState()) .. ")")
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
