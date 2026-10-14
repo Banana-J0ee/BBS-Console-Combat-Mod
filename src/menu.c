@@ -320,9 +320,13 @@ static int MSABI special_pad(u8 *pad, int n, int strict) {
     if (c_react && n == 3) n = 0;
     return FN(int, 0x273030, u8*, int, int)(pad, n, strict);
 }
-static void MSABI special_icon(u64 obj, int h, int kind) {
+/* The offer's icon is set by its two offer paths (27908f, 2794ee: 140213e50(icon, 2, handle, 3)) - only those are
+   turned to triangle.  140213e50 / 140214040 are the game's general button-icon routines: the random-button prompts
+   inside commands (shotlock finales, Air Dive ...: 288b0b, 288b72 - triangle, confirm or square at random,
+   1 << n - 1 = kind 0, 1, 3) draw with them too, and a square one repainted as triangle failed on the press. */
+static void MSABI special_icon(u64 obj, int show, int h, int kind) {
     if (c_react && kind == 3) kind = 0;
-    FN(void, 0x214040, u64, int, int)(obj, h, kind);
+    FN(void, 0x213e50, u64, int, int, int)(obj, show, h, kind);
 }
 /* A prompt covers the Attack plate (1402376b0: state 2) and its close (140237090) uncovers it - unless a finisher
    is available (cmd+0x60 bit 0x20000), when the game expects the finisher plate to take the Attack button.  Here the
@@ -1214,7 +1218,7 @@ int menu_check(void) {
     if (G(u64, VT_PLATE_UPDATE) != (u64)(g_base + 0x204880) || G(u64, VT_CMD_UPDATE) != (u64)(g_base + 0x2363d0)) { LOG("menu: vtable slots do not match"); bad++; }
     if (!call_ok(0x238902, 0x272cd0) || !call_ok(0x2333f1, 0x272c20) || !call_ok(0x2332fe, 0x272c20) || !call_ok(0x236c92, 0x272c20)) { LOG("menu: D-Link pad call sites do not match"); bad++; }
     if (!call_ok(0x236b97, 0x272860)) { LOG("menu: prompt pad call site does not match"); bad++; }
-    if (c_react && (!call_ok(0x2738c9, 0x273030) || !call_ok(0x213f55, 0x214040) || !call_ok(0x214a40, 0x214040))) { LOG("menu: special command sites do not match"); bad++; }
+    if (c_react && (!call_ok(0x2738c9, 0x273030) || !call_ok(0x27908f, 0x213e50) || !call_ok(0x2794ee, 0x213e50))) { LOG("menu: special command sites do not match"); bad++; }
     if (!call_ok(0x21fb99, 0x272f10) || !call_ok(0x2337e9, 0x272d30)) { LOG("menu: jump / list close pad call sites do not match"); bad++; }
     if (!call_ok(0x2332a1, 0x205cf0) || !call_ok(0x233491, 0x205cf0)) { LOG("menu: D-Link list move call sites do not match"); bad++; }
     /* placement table rows 2..7: the Attack plate and what stacks on it, y 247 / 249 */
@@ -1236,8 +1240,8 @@ void menu_apply(void) {
     hook_call(0x236b97, 0x272860, prompt_pad, "prompt pad");
     if (c_react) {
         hook_call(0x2738c9, 0x273030, special_pad, "special command pad (triangle)");
-        hook_call(0x213f55, 0x214040, special_icon, "special command icon");
-        hook_call(0x214a40, 0x214040, special_icon, "special command icon 2");
+        hook_call(0x27908f, 0x213e50, special_icon, "special command icon");
+        hook_call(0x2794ee, 0x213e50, special_icon, "special command icon 2");
     }
     hook_call(0x21fb99, 0x272f10, jump_pad, "jump pad");
     hook_call(0x2337e9, 0x272d30, link_close_pad, "link close pad");

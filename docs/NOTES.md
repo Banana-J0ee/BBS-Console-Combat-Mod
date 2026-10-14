@@ -954,7 +954,12 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   646a5c (f567, f564, f565, f566 by kind; 3 = f566 square).  The press made state 0x1d; Burst of Faith (274f40)
   shows the prompt plate with 0x141 (cmd+0x60 0x40000, f564) for its mashing, which is the confirm button [27506c].
 * With ReactionButton the offer is taken with triangle (n 3 -> 0 at 2738c9) and its icon shows triangle (kind 3 -> 0
-  at both calls of 140214040, 213f55 / 214a40).  The mashing stays on confirm.
+  at its two offer paths, 27908f / 2794ee: 140213e50(icon, 2, handle, 3)).  The mashing stays on confirm.
+* (2026-10-13) Was at both calls of 140214040 (213f55 / 214a40) at first: those are the game's general button-icon
+  routines.  The random-button prompts inside commands (288a10..: pl+0x334 = random 0..2, pressed with 272c20
+  triangle / 272860 confirm / 272760 square, icon kind 1 << n - 1 = 0, 1, 3 via 288b0b / 288b72) were repainted
+  triangle when the game wanted square, and a triangle press failed them ("Absolute Zero / Sonic Shadow / Air Dive
+  QTE sometimes drops").  Found from the log + code: no follow-up, offer or walk-out was involved.
 * Lockout: the plate's close (140237090(cmd, 0)) uncovers the Attack plate (1402376b0 had put it in state 2) only
   when no finisher is available (cmd+0x60 bit 0x20000) - the game's finisher plate would take the Attack button.
   Here the finisher is style.c's own prompt, so the Attack plate stayed covered (type 1 is "stable" only in state

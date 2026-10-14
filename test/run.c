@@ -1837,7 +1837,8 @@ static void t_special(void) {
     G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f6493c) = 0;
     int none = sp(pd, 3, 0);
     CHECK(sq < 1 && tri == 1 && none == 0, "square no longer starts it, triangle does (%d %d %d)", sq, tri, none);
-    CHECK(call_target(0x213f55) != RVA(0x214040) && call_target(0x214a40) != RVA(0x214040), "its icon is hooked (both places)");
+    CHECK(call_target(0x27908f) != RVA(0x213e50) && call_target(0x2794ee) != RVA(0x213e50), "its icon is hooked (both offer paths)");
+    CHECK(call_target(0x213f55) == RVA(0x214040) && call_target(0x214a40) == RVA(0x214040), "the general button icons are left alone (random-button prompts)");
     u8 *cm = calloc(1, 0x360), *A = calloc(1, 0x70);
     *(u8**)(cm + 0x1b0) = A; A[0x30] = 1; A[0x31] = 2; *(int*)(A + 0x4c) = 0;
     u8 keep[3]; memcpy(keep, RVA(0x1a7520), 3); memcpy(RVA(0x1a7520), "\x31\xc0\xc3", 3);   /* L2D SetControl: none here */
