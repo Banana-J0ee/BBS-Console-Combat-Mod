@@ -1050,7 +1050,7 @@ static int site2(u8 *p, u32 rva) { g_land = 0; if (!setjmp(g_jb)) enter2(p, RVA(
 /* Command cancel: a deck command can be cut short once its last hit window is over (+ FollowThrough + its own
    delay); a press up to 8 frames early is held.  The end call (21c510) is the test's own here. */
 extern void test_cc_after(u8 *pl), test_cc_before(u8 *pl), test_cc_seen(u8 *pl, int magic), test_cc_tick(void), test_cc_reset(void);
-extern int test_cc_state(void); extern u32 test_cc_stash(void); extern float *test_cc_off(void); extern int *test_cc_on(void);
+extern int test_cc_state(void); extern u32 test_cc_stash(void); extern float *test_cc_off(void); extern int *test_cc_on(void); extern float *test_cc_rec(void);
 extern void test_cc_end(void (MSABI *f)(u8*, int, int));
 static int g_cc_ends, g_cc_air;
 static void MSABI cc_end_stub(u8 *pl, int air, int moving) { (void)pl; (void)moving; g_cc_ends++; g_cc_air = air; }
@@ -1097,6 +1097,15 @@ static void t_cancel(void) {
     FRAME(24); CHECK(test_cc_state() == 1, "with Fire Surge=6: frame 24 only takes early presses");
     FRAME(29); CHECK(test_cc_state() == 2, "... and it is over at 29");
     test_cc_off()[0x6a] = 0;
+    /* its recovery speed ("Fire Surge=0, 2"): x2 from "over" (23) on, its hits at the usual speed */
+    test_cc_rec()[0x6a] = 2.0f; test_cc_reset(); g_cc_ends = 0;
+    FRAME(22); CHECK(test_speed_wanted(p) != 2.0f, "recovery speed: not before the last hit is over (%.2f)", test_speed_wanted(p));
+    FRAME(23); CHECK(test_speed_wanted(p) == 2.0f, "recovery speed: x2 once over");
+    mot[8] = 1; CHECK(test_speed_wanted(p) != 2.0f, "recovery speed: gone once the animation has ended"); mot[8] = 0;
+    *test_cc_on() = 0; FRAME(24); CHECK(test_speed_wanted(p) != 2.0f, "recovery speed: off with [CommandCancel] Enabled=0"); *test_cc_on() = 1;
+    test_cc_off()[0x6a] = 6; FRAME(24); CHECK(test_speed_wanted(p) == 2.0f, "recovery speed starts at 'over', before the cancel delay");
+    test_cc_off()[0x6a] = 0; test_cc_rec()[0x6a] = 0;
+    FRAME(24); CHECK(test_speed_wanted(p) != 2.0f, "no recovery speed set: as before");
     /* the action's own window takes it */
     test_cc_reset(); g_cc_ends = 0; vac = 0x80; FRAME(24); PRESS(0x4 | 0x8000000);
     CHECK(g_cc_ends == 0, "Attack while the game's own window is open: the game's");
