@@ -1039,3 +1039,10 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   now shows that command's name (reported: Spellweaver's finisher showed "Gold Rush").  Test in t_style.
 * MP bar during an MP charge (mp.c bar_frac): the pink bar now starts full and drains as the charge runs (1 - charge),
   as in KH2, instead of filling up; then the bar is blue and full.  Display only - the charge itself is unchanged.
+
+## Negative command-cancel delays (2026-10-15; speed.c cc_after / cc_config)
+* The recovery-speed experiment (f58f6f4) was reverted on request; instead `[CommandCancel]` delays may be negative
+  (down to -120): "over" moves that many frames earlier, into the last hit window (asked for: a cut-off hit is
+  fine).  Still judged only on the end-test frames of the last animation (so never before it starts; r clamped
+  at 0), and for spells never before t1 + 1 (the spell goes off first).  Test: in `t_cancel`.  Not seen in the
+  game by me.

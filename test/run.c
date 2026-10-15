@@ -1096,6 +1096,13 @@ static void t_cancel(void) {
     test_cc_off()[0x6a] = 6; test_cc_reset(); g_cc_ends = 0;
     FRAME(24); CHECK(test_cc_state() == 1, "with Fire Surge=6: frame 24 only takes early presses");
     FRAME(29); CHECK(test_cc_state() == 2, "... and it is over at 29");
+    /* a negative delay: earlier, into the last hit (window 12..20 still open) */
+    test_cc_off()[0x6a] = -5; test_cc_reset(); g_cc_ends = 0; *(s16*)(ent + 0x28) = 1;
+    FRAME(17); CHECK(test_cc_state() == 1, "with Fire Surge=-5: frame 17 takes early presses");
+    FRAME(18); CHECK(test_cc_state() == 2, "... and it can be cut short at 18, its hit window still open");
+    PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 1, "... and a press then cuts it short");
+    test_cc_off()[0x6a] = -60; test_cc_reset(); FRAME(0); CHECK(test_cc_state() == 2, "a large negative: from the start of the last animation");
+    *(s16*)(ent + 0x28) = 3;
     test_cc_off()[0x6a] = 0;
     /* the action's own window takes it */
     test_cc_reset(); g_cc_ends = 0; vac = 0x80; FRAME(24); PRESS(0x4 | 0x8000000);
@@ -1132,6 +1139,10 @@ static void t_cancel(void) {
     test_cc_reset(); g_cc_ends = 0; CMDSET(0x11, 4, 0xac);
     FRAME(25); CHECK(test_cc_state() == 1, "Mega Flare at 25: early presses");
     FRAME(30); PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 1, "Mega Flare at 30: cut short into the next command");
+    test_cc_off()[0xac] = -20; test_cc_reset(); g_cc_ends = 0;
+    FRAME(20); CHECK(test_cc_state() == 1, "Mega Flare=-20: not before it goes off (t1 20)");
+    FRAME(21); CHECK(test_cc_state() == 2, "... but right after (21)");
+    test_cc_off()[0xac] = 0;
     test_cc_reset(); g_cc_ends = 0; *(u16*)(p + 0x422) = 0x30; FRAME(2); CHECK(test_cc_state() == 2, "in its idle pose while the lock runs: over");
     *(s32*)(ctl + 0x20) = 1; rec[0x14] = 0; rec[0x0d] = 24;
     *test_cc_on() = 0; test_cc_reset(); g_cc_ends = 0; CMDSET(0x10, 3, 0x6a); *(u16*)(p + 0x422) = 0;

@@ -230,7 +230,8 @@ static int leave(u8 *pl, int kind) {
 
 /* ---- command cancel ([CommandCancel]) ----
    A deck command (attack or magic, ids 5b..bb) can be cut short once it is over: its last hit window has closed
-   (+ FollowThrough), plus a per-command delay from the ini.  Whatever is pressed then - another command, Attack,
+   (+ FollowThrough), plus a per-command delay from the ini (negative = earlier: the last hit can be cut off; never
+   before the last animation starts, nor before a spell goes off).  Whatever is pressed then - another command, Attack,
    guard, dodge, jump, shotlock ... - starts at once; nothing pressed, and the animation plays to its end.
    "Over" is only judged where the game itself waits for the command's last animation to finish (the end tests
    hooked above: deck attacks 2246c0 / 224476, dashes and surges 2253ff, magic recovery 26825f / 26828a), so a
@@ -244,7 +245,7 @@ static int leave(u8 *pl, int kind) {
    and released then.  Requests the action's own window already takes (21c140) are left to the game. */
 static int   c_cc = 1;
 static float c_cc_buf = 8.0f;                   /* frames (1/30 s) a press may come early */
-static float g_cc_off[CMD_IDS];                 /* frames later than "over", per command (>= 0) */
+static float g_cc_off[CMD_IDS];                 /* frames later (or, negative, earlier) than "over", per command */
 static const struct { u16 id; const char *name; } cc_names[] = {
     { 0x5b, "Quick Blitz" },
     { 0x5c, "Blitz" },
@@ -432,7 +433,14 @@ static void cc_after(u8 *pl) {
     u16 mo = *(u16*)(pl + 0x422);
     int anim_over = finished(pl) || (magic && (mo == 10 || mo == *(u16*)(pl + 0x428)));   /* spell: idle pose while its lock runs */
     float r = -1.0f;
-    if (!anim_over) { r = cc_over(pl, rec, magic); if (r >= 0.0f) r += g_cc_off[id]; }
+    if (!anim_over) {
+        r = cc_over(pl, rec, magic);
+        if (r >= 0.0f) {
+            r += g_cc_off[id];                                   /* a negative delay: earlier, into the last hit */
+            if (magic && rec[0x14] && r < rec[0x14] + 1.0f) r = rec[0x14] + 1.0f;   /* a spell always goes off first */
+            if (r < 0.0f) r = 0.0f;                              /* (only the last animation is judged at all) */
+        }
+    }
     int st = anim_over || (r >= 0.0f && fr >= r) ? CCS_READY : (r >= 0.0f && fr >= r - c_cc_buf ? CCS_ZONE : CCS_NONE);
     if (st == CCS_NONE) return;
     g_cc.state = st; g_cc.rec = rec; g_cc.id = id;
@@ -483,10 +491,10 @@ static void cc_config(void) {
         GetPrivateProfileStringA("CommandCancel", cc_names[i].name, "", b, sizeof b, g_ini);
         if (!b[0]) { snprintf(hex, sizeof hex, "%x", id); GetPrivateProfileStringA("CommandCancel", hex, "", b, sizeof b, g_ini); }
         float v = b[0] ? (float)atof(b) : 0.0f;
-        if (!(v >= 0.0f)) v = 0.0f;                              /* no earlier than "over" (for now) */
+        if (!(v >= -120.0f)) v = b[0] && v < 0.0f ? -120.0f : 0.0f;    /* negative = before "over", into the last hit */
         if (v > 120.0f) v = 120.0f;
         g_cc_off[id] = v;
-        if (v > 0.0f) n++;
+        if (v != 0.0f) n++;
     }
     if (n) LOG("cancel: %d commands with a delay of their own", n);
 }
