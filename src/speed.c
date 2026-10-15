@@ -245,7 +245,6 @@ static int leave(u8 *pl, int kind) {
 static int   c_cc = 1;
 static float c_cc_buf = 8.0f;                   /* frames (1/30 s) a press may come early */
 static float g_cc_off[CMD_IDS];                 /* frames later than "over", per command (>= 0) */
-static float g_cc_rec[CMD_IDS];                 /* speed of the rest of the animation once the command is over (0 = as before) */
 static const struct { u16 id; const char *name; } cc_names[] = {
     { 0x5b, "Quick Blitz" },
     { 0x5c, "Blitz" },
@@ -415,25 +414,6 @@ static float cc_over(u8 *pl, const u8 *rec, int magic) {
     if (magic && rec[0x0d] > d) d = rec[0x0d];
     return d > busy + 1.0f ? d : busy + 1.0f;
 }
-/* Recovery speed ("<command>=<delay>, <speed>"): once the command is over - the same point the cancel uses, before
-   the delay - the rest of its animation plays this many times faster (times nothing else: it replaces Actions /
-   [CommandSpeed] for that stretch).  Its hits are untouched; only the part after the last one is shorter.  0 = not
-   now. */
-static float cc_recovery(u8 *pl) {
-    if (!c_cc || pl != local_player()) return 0.0f;
-    u16 id = cc_command(pl); if (!id) return 0.0f;
-    float k = g_cc_rec[id]; if (!(k > 0.0f)) return 0.0f;
-    const u8 *rec = *(u8**)(pl + 0x5b8);
-    if (!rec || !*(u8**)(pl + 0x78) || finished(pl)) return 0.0f;
-    float fr = frame_of(pl);
-    if (cc_repress(id)) {
-        u8 *cmd = *(u8**)(pl + 0x390);
-        if (cmd && (*(u32*)(cmd + 0x60) & 0x1000)) return 0.0f;
-        if (can_follow(pl, rec, K_DECK, fr)) return 0.0f;
-    }
-    float r = cc_over(pl, rec, *(u32*)(pl + 0x304) == 0x11);
-    return r >= 0.0f && fr >= r ? k : 0.0f;
-}
 /* after this frame's state function (220b1d): is the command over, or nearly? then any button makes a request */
 static void cc_after(u8 *pl) {
     g_cc.state = CCS_NONE;
@@ -497,7 +477,7 @@ static void cc_config(void) {
     char def[32]; snprintf(def, sizeof def, "%g", c_cc_buf);
     GetPrivateProfileStringA("CommandCancel", "BufferFrames", def, b, sizeof b, g_ini); c_cc_buf = (float)atof(b);
     if (!(c_cc_buf >= 0.0f && c_cc_buf <= 30.0f)) c_cc_buf = 8.0f;
-    int n = 0, nr = 0;
+    int n = 0;
     for (unsigned i = 0; i < sizeof cc_names / sizeof *cc_names; i++) {
         u16 id = cc_names[i].id; char hex[8]; b[0] = 0;
         GetPrivateProfileStringA("CommandCancel", cc_names[i].name, "", b, sizeof b, g_ini);
@@ -507,15 +487,8 @@ static void cc_config(void) {
         if (v > 120.0f) v = 120.0f;
         g_cc_off[id] = v;
         if (v > 0.0f) n++;
-        const char *comma = strchr(b, ',');                     /* ", <recovery speed>" */
-        float k = comma ? (float)atof(comma + 1) : 0.0f;
-        if (!(k >= 0.25f)) k = 0.0f;
-        if (k > 4.0f) k = 4.0f;
-        g_cc_rec[id] = k;
-        if (k > 0.0f) { nr++; if (g_debug) LOG("cancel: %s (%x) recovers at x%.2f", cc_names[i].name, id, k); }
     }
     if (n) LOG("cancel: %d commands with a delay of their own", n);
-    if (nr) LOG("cancel: %d commands with a recovery speed of their own", nr);
 }
 static void MSABI input_hook(u8 *pl) {
     FN(void, 0x21f9f0, u8*)(pl);
@@ -562,8 +535,6 @@ static u64 MSABI h_mag_lock(Ctx *c) {
     if (c_on) {                                                  /* KH2's time from release to the next action */
         int f = family(*(u16*)(pl + 0x312));
         float fre = f == F_FIRE ? c_free_fire : f == F_BLIZZARD ? c_free_blizzard : f == F_THUNDER ? c_free_thunder : 40.0f;
-        u16 sid = *(u16*)(pl + 0x312);                           /* a recovery speed shortens the lock by as much */
-        if (c_cc && sid < CMD_IDS && g_cc_rec[sid] > 1.0f && cc_covered(sid)) { fre /= g_cc_rec[sid]; if (fre < 6.0f) fre = 6.0f; }
         if (fre < 40.0f && 40.0f - t >= fre && !(*(u32*)(pl + 0x320) & 0x80)) return (u64)(g_base + 0x26829a);
     }
     if (!c_walk || finished(pl)) return 0;
@@ -641,8 +612,6 @@ static u64 MSABI h_launch(Ctx *c) {
 static float g_mine;                    /* the factor this module has put into pl+0x1a8 (0 = none) */
 static float *g_lunge_div;              /* divisor of the lunge speed, 60 / factor */
 static float wanted(u8 *pl) {
-    float rk = cc_recovery(pl);
-    if (rk > 0.0f) return rk;
     float o = cmd_override(pl);
     if (o > 0.0f) return o;
     if (c_big > 0.0f && *(u32*)(pl + 0x5e0) && big_spell(*(u16*)(pl + 0x312))) return c_big;
@@ -868,7 +837,6 @@ int   test_cc_state(void) { return g_cc.state; }
 u32   test_cc_stash(void) { return g_cc.stash; }
 void  test_cc_reset(void) { memset(&g_cc, 0, sizeof g_cc); g_cc.seen = (unsigned)-1; }
 float *test_cc_off(void) { return g_cc_off; }
-float *test_cc_rec(void) { return g_cc_rec; }
 int   *test_cc_on(void) { return &c_cc; }
 void  test_cc_end(void (MSABI *f)(u8*, int, int)) { g_cc_end = f; }
 void  test_cc_config(void) { cc_config(); }

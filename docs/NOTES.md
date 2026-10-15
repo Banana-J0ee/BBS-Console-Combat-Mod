@@ -1039,11 +1039,3 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   now shows that command's name (reported: Spellweaver's finisher showed "Gold Rush").  Test in t_style.
 * MP bar during an MP charge (mp.c bar_frac): the pink bar now starts full and drains as the charge runs (1 - charge),
   as in KH2, instead of filling up; then the bar is blue and full.  Display only - the charge itself is unchanged.
-
-## Recovery speed per command (2026-10-13; speed.c cc_recovery, `[CommandCancel]` "<delay>, <speed>")
-* Asked for: some commands feel clunky after their last hit; instead of cancelling before it (would cost the hit),
-  play the part after "over" faster.  Same point and same commands as the cancel (cc_command / cc_over, repress
-  commands only once no press can continue them); from there wanted() returns the given speed (against the game's
-  own, replacing Actions / [CommandSpeed]) until the animation ends.  Spells: the post-release lock (40 ticks or
-  FireFree ...) is divided by it too (h_mag_lock, at least 6 ticks).  [CommandCancel] Enabled=0 turns it off.
-  0.25..4, absent = as before.  Test: in `t_cancel`.  Not seen in the game by me.
