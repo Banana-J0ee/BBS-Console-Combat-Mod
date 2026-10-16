@@ -1072,3 +1072,4 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   p0 410, p1 140, p2 6, p3 28, p4 14; action sets: p0 45-48, p1 30-33, p2/p3 one file, p4 = p0's.
 * Test build (debug only): logs every room entry (asked value, model), F7 = next outfit (from the next room load,
   and forced over the rooms), F6 = rooms decide again.
+* Seen in the game (Terra): outfit 3 (p2x, model char+6) is the Rumble Racing outfit - F7 skips it.
