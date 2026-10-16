@@ -33,7 +33,7 @@ static int of_of(int m) { return m >= 1 ? (m - 1) / 3 : -1; }
 static int MSABI room_ask_hook(void *room) {
     int v = FN(int, ROOM_ASK, void*)(room);
     int m = (int)CUR_MODEL;
-    LOG("outfit: room entry - the room asks for %#x (%s), current model %d = %s outfit %d (p%d%d)%s", v,
+    if (g_debug) LOG("outfit: room entry - the room asks for %#x (%s), current model %d = %s outfit %d (p%d%d)%s", v,
         v == 0 ? "nothing: keep" : v >= 1 && v <= 3 ? "that character, normal" : (v & 15) == 0 && v >= 0x10 && v <= 0x50 ? "an outfit" : "?",
         m, k_char[ch_of(m)], of_of(m) + 1, of_of(m), ch_of(m), g_force >= 0 ? " [F7 outfit forced]" : "");
     return v;
@@ -41,7 +41,7 @@ static int MSABI room_ask_hook(void *room) {
 static void MSABI set_model_hook(int m) {
     int want = m;
     if (g_force >= 0 && m >= 1 && m <= 15) want = ch_of(m) + 3 * g_force;
-    LOG("outfit: room sets model %d (%s outfit %d)%s", m, k_char[ch_of(m)], of_of(m) + 1,
+    if (g_debug) LOG("outfit: room sets model %d (%s outfit %d)%s", m, k_char[ch_of(m)], of_of(m) + 1,
         want != m ? " - replaced by the F7 outfit" : "");
     if (want != m) LOG("outfit: -> model %d (%s outfit %d, p%d%d)", want, k_char[ch_of(want)], of_of(want) + 1, of_of(want), ch_of(want));
     FN(void, SET_MODEL, int)(want);
@@ -50,7 +50,7 @@ static void MSABI set_model_hook(int m) {
 /* every frame (speed.c's player tick, local player) */
 void outfit_test_frame(void) {
     static int was7, was6;
-    if (!g_on) return;
+    if (!g_on || !g_debug) return;
     int d7 = (GetAsyncKeyState(VK_F7) & 0x8000) != 0, d6 = (GetAsyncKeyState(VK_F6) & 0x8000) != 0;
     if (d7 && !was7) {
         int m = (int)CUR_MODEL, c = ch_of(m);
@@ -70,15 +70,14 @@ void outfit_test_frame(void) {
     }
     was7 = d7; was6 = d6;
 }
+/* (the debug channel is switched on after the install: the hooks go in always, and do nothing unless it is on) */
 int outfit_test_check(void) {
-    if (!g_debug) return 1;
     if (!call_ok(ROOM_CALL, ROOM_ASK) || !call_ok(SET_CALL, SET_MODEL)) { LOG("outfit test: sites do not match"); return 0; }
     return 1;
 }
 void outfit_test_apply(void) {
-    if (!g_debug) return;
     hook_call(ROOM_CALL, ROOM_ASK, room_ask_hook, "outfit test: room asks");
     hook_call(SET_CALL, SET_MODEL, set_model_hook, "outfit test: room sets");
     g_on = 1;
-    LOG("outfit test: on (F7 next outfit, F6 rooms decide); current model %d", (int)CUR_MODEL);
+    LOG("outfit test: installed (with debug on: F7 next outfit, F6 rooms decide)");
 }
