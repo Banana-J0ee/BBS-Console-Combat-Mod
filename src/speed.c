@@ -719,37 +719,7 @@ static void air_log(u8 *pl) {
     LOG("air: t %5.1f  state %2x part %d  rec %4d  frame %5.1f  vy %+.4f  y %+.3f  g %.5f%s", g_air_t, *(u16*)(pl + 0x304), *(s16*)(pl + 0x310),
         rec ? (int)patk_index(rec) : -1, frame_of(pl), vy, g_air_y, *(float*)(pl + 0x508), (*(u32*)(pl + 0x318) & 0x800000) ? " aerial" : "");
 }
-/* debug log (bbskh2_debug.txt): every change of the player's state, with the command, the offers on screen and the
-   buttons held - to follow what ends a shotlock / finisher (QTE reports) */
-extern int style_offers_up(void);
-static void state_log(u8 *pl) {
-    static u8 *who; static u16 last; static u16 last_cmd;
-    if (!g_debug || pl != local_player()) return;
-    u16 st = *(u16*)(pl + 0x304), id = *(u16*)(pl + 0x312);
-    if (pl == who && st == last && id == last_cmd) return;
-    u32 btn = G(u32, 0x8f64930) & 0xf000;
-    int off = style_offers_up();
-    LOG("state: %x -> %x (command %x -> %x, part %d)%s%s%s%s%s%s", who == pl ? last : 0xffff, st, last_cmd, id, *(s16*)(pl + 0x310),
-        off & 1 ? " [style offer up]" : "", off & 2 ? " [finisher offer up]" : "",
-        btn & 0x1000 ? " [triangle]" : "", btn & 0x2000 ? " [circle]" : "", btn & 0x4000 ? " [cross]" : "", btn & 0x8000 ? " [square]" : "");
-    who = pl; last = st; last_cmd = id;
-}
-/* TESTING ONLY - remove before a release.  With debug on (bbskh2_debug.txt), F9 re-reads [CommandCancel] from the
-   ini while the game runs (a beep confirms), so delays can be tuned without restarting. */
-static void cc_reload_key(void) {
-    static int was;
-    int down = (GetAsyncKeyState(VK_F9) & 0x8000) != 0;
-    if (down && !was && g_debug) {
-        memset(&g_cc, 0, sizeof g_cc);
-        cc_config();
-        LOG("cancel: [CommandCancel] reloaded (F9)");
-        MessageBeep(MB_OK);
-    }
-    was = down;
-}
 static void MSABI tick_hook(u8 *pl) {
-    if (pl == local_player()) cc_reload_key();
-    state_log(pl);
     if (c_on) cc_after(pl);
     if (pl == local_player()) g_tick++;
     if (c_on) speed_frame(pl);

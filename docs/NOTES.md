@@ -1047,8 +1047,9 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   at 0), and for spells never before t1 + 1 (the spell goes off first).  Test: in `t_cancel`.  Not seen in the
   game by me.
 
-## TESTING ONLY: F9 reloads [CommandCancel] (2026-10-15; speed.c cc_reload_key) - remove before a release
-* Debug only (bbskh2_debug.txt): F9 (GetAsyncKeyState, polled in tick_hook for the local player) clears g_cc and
-  runs cc_config() again, logs "cancel: [CommandCancel] reloaded (F9)" and beeps.  Asked for to tune delays without
-  restarting; the user wants it gone in the final version (also the GetAsyncKeyState / MessageBeep stubs in
-  test/inc/windows.h).
+## Release (2026-10-15): debug-only test aids removed, tuned cancel delays as defaults
+* Removed: the F9 [CommandCancel] reload and the QTE investigation log (state_log, follow-up press log,
+  style_offers_up).  [CommandCancel] defaults are the user's tuned values: Quick Blitz / Blitz / Fire Surge /
+  Barrier Surge / Thunder Surge -5, Aerial Slam / Fire Strike / Confusion Strike / Binding Strike -2.
+  Known: Blitz's value has no effect yet (repress gate waits for its follow-up window, ~frame 38; see the Blitz
+  investigation - a fix would apply the delay to that gate too).
