@@ -1069,3 +1069,13 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   bbsarmor.ini; local source /home/claude/bbs/armormod).  It touches none of this mod's sites (the 10 calls of
   26c720, the 2 of 1ebc00, CCampItemTop's update and CCampItemCmd's input / destructor slots) and keeps its choice
   in bits 24-25 of EXP Zero's save u32, next to Combo Master's bit 23.
+
+## 1.7: D-Link chosen plate, world map free flight (2026-10-15)
+* D-Link list: on choosing a link the list closes and the chosen plate plays control 5 (the cursor plate's places:
+  text offset 27 vs 17, hearts without the -10) - its name and hearts jumped 10 right.  menu.c link_row_places:
+  every frame, open or closed, name node 2 at -3 + DLinkNameX (- 10 in controls 0 / 5) and hearts 3 / 4 at 116 /
+  128 (- 10 in controls 0 / 1 / 5); control 5 also gets link_cursor_body.  Test: in t_cursor.
+* World map: the rider's move 4b83b0 asks 4b74a0 (sphere +0x600 against the map collision; a hit on one of the
+  route volumes listed at +0x200 sets +0x6a0 / +0x6a4 / +0x6a8) twice, at 4b8549 / 4b8647; a route found makes the
+  move follow it (4b86d3..).  worldmap.c: both calls answer 0 ([WorldMap] FreeFlight).  Landing at a world is the
+  landmarks' test, untouched.  Test: t_worldmap.  Not seen in the game by me.

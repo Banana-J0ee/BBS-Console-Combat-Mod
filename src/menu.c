@@ -712,6 +712,19 @@ static void ready_look(int h, int selected, u16 name_node) {
 /* The plate under the cursor carries the confirm button's icon (a text node holding the icon's character code).
    The menu does not show it: that text is kept empty (cheap: a lookup and a short string copy). */
 /* after every command plate's own update */
+/* A D-Link row's name (node 2, layout l_comand: at -3) and affinity hearts (nodes 3 / 4, at 116 / 128): in the
+   game's controls for the large cursor plate (0 / 5 for the name, 0 / 1 / 5 for the hearts) they sit 10 further
+   right than in the plain plate's (the text's own offset 27 against 17, the hearts' -10 missing).  The plain
+   places, always: the name also DLinkNameX further right, in line with the Magic / Items rows. */
+static void link_row_places(int h) {
+    int c = L2D_GetNodeControl(h, 2);
+    FN(int, 0x1a7ec0, int, u16, float, float)(h, 2, -3.0f + c_link_name_x - (c == 0 || c == 5 ? 10.0f : 0.0f), 0.0f);
+    static const float hx[2] = { 116.0f, 128.0f };
+    for (u16 nd = 3; nd <= 4; nd++) {
+        int k = L2D_GetNodeControl(h, nd);
+        FN(int, 0x1a7ec0, int, u16, float, float)(h, nd, hx[nd - 3] - (k == 0 || k == 1 || k == 5 ? 10.0f : 0.0f), 2.0f);
+    }
+}
 static void (MSABI *o_plate_update)(u8 *P);
 static void MSABI plate_update_hook(u8 *P) {
     o_plate_update(P);
@@ -745,9 +758,12 @@ static void MSABI plate_update_hook(u8 *P) {
         cursor_body(h, 0x5d, cm);
         L2D_Show(h, 1);
     } else if (type == 6) {
-        if (!link_open(cmd)) return;
         int n = cmd[0x350], idx = (s8)P[0x33];
         if (idx < 0 || idx >= n) return;
+        /* A link chosen: the list closes and the chosen plate plays the game's "decided" look (control 5: the
+           cursor plate's places - name and hearts 10 further right).  It keeps the plain plate's places, as
+           while the list is open. */
+        if (!link_open(cmd)) { if (L2D_GetControl(h) == 5) link_cursor_body(h); link_row_places(h); return; }
         L2D_SetNodeText(h, 1, "");
         /* the game puts the whole plate in control 0 when the cursor reaches it (flag 4) */
         int selected = (fl & 4) != 0;
@@ -761,7 +777,7 @@ static void MSABI plate_update_hook(u8 *P) {
         else if (!selected && L2D_GetControl(h) == 3) set_node_control(h, 2, 1);   /* ready, not under the cursor: white as well */
         /* the name (node 2 of l_comand, at -3) starts 2 further left than a Magic / Items row's (node 0 of d_comand, at -1;
            the text sits at +17 in both): moved to the same place */
-        FN(int, 0x1a7ec0, int, u16, float, float)(h, 2, -3.0f + c_link_name_x, 0.0f);
+        link_row_places(h);
         /* The D-Link plate's blue is in its art (the corners of sprite 63's quads are 0080ff); the game multiplies
            it with 3c3c3c for every row but the one under the cursor.  Here those rows are in full colour, like the
            rows of the other lists (their alpha, a0, stays). */
@@ -1288,6 +1304,7 @@ void *test_sc_keys(void) { return g_sc_keys; }
 void test_strip_gauge_shadow(int h) { strip_gauge_shadow(h); }
 void test_cursor_body(int h, int mode) { cursor_body(h, 0x5d, mode); }
 void test_link_cursor_body(int h) { link_cursor_body(h); }
+void test_link_row_places(int h) { link_row_places(h); }
 int *test_menu_state(void) { return &g_state; }
 int *test_menu_cur(void) { return &g_cur; }
 int *test_menu_sel(void) { return g_sel; }

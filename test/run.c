@@ -912,6 +912,16 @@ static void t_cursor(void) {
     CHECK(c == 3 && q && q[0].g->x0 == -7 && q[2].g->x1 == 119, "gradient (object 10, %d quads) moved: %d..%d", c, q ? q[0].g->x0 : 0, q ? q[2].g->x1 : 0);
     test_link_cursor_body(l);
     CHECK(q[0].g->x0 == -7, "a second pass changes nothing");
+    /* D-Link rows: the name and hearts at the plain plate's places in every control - the "decided" look (5) after
+       a link is chosen included */
+    {   extern void test_link_row_places(int h);
+        float x2 = 0, x3 = 0, x4 = 0, y = 0;
+        FN(int, 0x1a7520, int, int)(l, 5); test_link_row_places(l);
+        FN(int, 0x1a6880, int, u16, float*, float*)(l, 2, &x2, &y); FN(int, 0x1a6880, int, u16, float*, float*)(l, 3, &x3, &y); FN(int, 0x1a6880, int, u16, float*, float*)(l, 4, &x4, &y);
+        CHECK(x2 == -11 && x3 == 106 && x4 == 118, "control 5 (link chosen): name at %.0f (-3 + 2 - 10), hearts at %.0f / %.0f", x2, x3, x4);
+        FN(int, 0x1a7520, int, int)(l, 3); test_link_row_places(l);
+        FN(int, 0x1a6880, int, u16, float*, float*)(l, 2, &x2, &y); FN(int, 0x1a6880, int, u16, float*, float*)(l, 3, &x3, &y);
+        CHECK(x2 == -1 && x3 == 116, "control 3 (plain): name at %.0f, hearts at %.0f", x2, x3); }
     printf("t_cursor done\n");
 }
 /* The Command Style offer, through the real hook at 2368f2.  The three places the hook can send the game to are
@@ -1451,6 +1461,15 @@ static void t_tex(void) {
     const char *out = getenv("BBS_GAUGE_OUT");
     if (out) { f = fopen(out, "wb"); fwrite(pix, 1, sz, f); fclose(f); }
     printf("t_tex done\n");
+}
+/* World map: the rider's two route tests answer "no route" */
+static u8 *call_target2(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
+static void t_worldmap(void) {
+    int (MSABI *a)(u8*) = (void*)call_target2(0x4b8549), (MSABI *b)(u8*) = (void*)call_target2(0x4b8647);
+    CHECK((void*)a != RVA(0x4b74a0) && (void*)b != RVA(0x4b74a0), "both route tests hooked");
+    u8 *ride = calloc(1, 0xa00); *(u32*)(ride + 0x6a0) = 0;
+    CHECK(a(ride) == 0 && b(ride) == 0 && *(u32*)(ride + 0x6a0) == 0, "no route, the rider's route state untouched");
+    printf("t_worldmap done\n");
 }
 /* Combo Master: a new ability (id 0x1c3) in the camp Abilities menu, and what it does to the normal combo's window */
 extern int test_cm_on(void); extern void test_cm_set(int on); extern u32 *test_cm_rec(void); extern const char *test_cm_help(void);
@@ -3015,6 +3034,7 @@ int main(int argc, char **argv) {
     bad |= run("t_status", t_status);
     bad |= run("t_sccamp", t_sccamp);
     bad |= run("t_cm", t_cm);
+    bad |= run("t_worldmap", t_worldmap);
     bad |= run("t_bundle", t_bundle);
     bad |= run("t_menu", t_menu);
     return bad || !ok;
