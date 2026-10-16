@@ -720,6 +720,7 @@ static void air_log(u8 *pl) {
         rec ? (int)patk_index(rec) : -1, frame_of(pl), vy, g_air_y, *(float*)(pl + 0x508), (*(u32*)(pl + 0x318) & 0x800000) ? " aerial" : "");
 }
 static void MSABI tick_hook(u8 *pl) {
+    if (pl == local_player()) outfit_test_frame();
     if (c_on) cc_after(pl);
     if (pl == local_player()) g_tick++;
     if (c_on) speed_frame(pl);

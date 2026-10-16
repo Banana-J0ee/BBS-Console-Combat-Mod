@@ -1061,3 +1061,14 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   frame.  The prompt plate (type 5) keeps the game's priority (placement table row 4.., set in the plate update);
   while a list is open it is put at 11, under the list rows (12 / 13), over the entries (5 / 7).  Not seen in the
   game by me.
+
+## TESTING ONLY: player outfits (2026-10-15; src/outfit_test.c) - remove before a release
+* Player model = 1..15 = character (1 Ven, 2 Aqua, 3 Terra) + 3 x outfit 0..4 (files p0x..p4x; name tables at
+  818bb8 base, 818c38 menu, 818d78 ex00 model, 818df8 ex_000 motions - p4x points at p0x's motions), at 150f9ee4c
+  (get 26b7d0, set 26c720), saved at save 150fa0880+7.  1ebc00(model) changes it + the save byte; the room load builds
+  the player from it (26ad90).  Room entry 1ed3f2: 3115f0 reads the room's event data (entries of type 6, u16 at +4):
+  0x10..0x50 = outfit 0..4 of the current character, 1..3 = that character in normal clothes, else keep; 1ed44d sets
+  it.  Mirage Arena (mode 0xf, 27bc91) uses outfit 1 (+3).  Event animations per outfit (ForEventJP/pc/pNNex/event_*):
+  p0 410, p1 140, p2 6, p3 28, p4 14; action sets: p0 45-48, p1 30-33, p2/p3 one file, p4 = p0's.
+* Test build (debug only): logs every room entry (asked value, model), F7 = next outfit (from the next room load,
+  and forced over the rooms), F6 = rooms decide again.
