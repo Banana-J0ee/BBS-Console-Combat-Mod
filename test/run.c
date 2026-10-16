@@ -1576,7 +1576,7 @@ static void t_bundle(void) {
             for (u32 k = 0; k < rs; k++) if (g_base[va + k] != d[ro + k]) diff++;
         }
         printf("  code bytes differing from the original exe: %ld (our own hooks)\n", diff);
-        CHECK(diff > 0 && diff < 500, "only our hook sites differ");      /* 415 with armor.c's 12 call sites */
+        CHECK(diff > 0 && diff < 400, "only our hook sites differ");
         CHECK(!memcmp(RVA(0x62f080), d + 0x400 + 0x62e080, 349), "the old Combo Flow routines are not installed (speed.c has the walk-out)");
         CHECK(*(u8*)RVA(0x2291bf) == 0xe9 && *(u8*)RVA(0x26825f) == 0xe9 && *(u8*)RVA(0x26828a) == 0xe9, "its three sites carry our hooks");
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
@@ -2471,84 +2471,7 @@ static void t_sccamp(void) {
     /* the list goes: ours with it */
     FN(void, 0x1a57f0, int)(lh);
     CHECK(ST(2) == 0 && ST(3) == 0 && FN(int, 0x1a60e0, int)(it) == 8, "destroyed with the list");
-
-    /* Armor (armor.c): a third plate under the Items screen's two (layout 0x18a), confirm steps through the outfits */
-    {   extern int test_armor_choice(void); extern int *test_armor_state(void); extern void test_armor_top(u8 *top), test_armor_frame(u8 *top);
-        extern int test_armor_input(u8 *self);
-        #define AST(i) (test_armor_state()[i])
-        #define ASTEP(held, edge) (pad(held, edge), test_armor_top(itop), test_armor_input(il), test_armor_frame(itop), test_armor_top(NULL))
-        int ih = FN(int, 0x1a4ec0, int, u16, int, void*)(d, 0x18a, 1, NULL);
-        CHECK(ih > 0, "items list layout %d", ih);
-        u8 *itop = calloc(1, 0x300), *il = calloc(1, 0xc8);
-        *(u8**)(itop + 0x2b0) = il; itop[0x9b] = 2;
-        *(u32*)(il + 8) = 0xffffffff; *(int*)(il + 0x20) = ih; *(u32*)(il + 0x44) = 0x100010; *(u32*)(il + 0x48) = 0x400040;
-        *(u32*)(il + 0x88) = 0xfff8fdff | 0x200; *(u32*)(il + 0x34) = 0x4000; *(u32*)(il + 0x38) = 0x2000; *(s16*)(il + 0x8e) = 1;
-        for (int i = 0; i < 2; i++) FN(int, 0x1a6880, int, u16, float*, float*)(ih, (u16)(i + 1), (float*)(il + 0xa8 + i * 8), (float*)(il + 0xac + i * 8));
-        FN(int, 0x1a7db0, int, u16, int)(ih, 2, 4);
-        {   u8 *h2 = calloc(1, 0x28), *l2 = calloc(1, 0x50);       /* the list's hand and light frame */
-            *(int*)(h2 + 0x18) = FN(int, 0x1a5350, const char*, u16, int, void*)("camp:0", 3, 0, NULL); *(float*)(h2 + 8) = 8; *(float*)(h2 + 0xc) = 10;
-            *(int*)(l2 + 0x18) = FN(int, 0x1a5350, const char*, u16, int, void*)("camp:0", 4, 0, NULL); *(float*)(l2 + 8) = 105;
-            FN(int, 0x1a4e10, int, u16, int)(ih, 0xb, *(int*)(h2 + 0x18)); FN(int, 0x1a4e10, int, u16, int)(ih, 0xb, *(int*)(l2 + 0x18));
-            *(u8**)(il + 0xb8) = h2; *(u8**)(il + 0xc0) = l2; }
-        u32 *exp0 = (u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4); *exp0 = 0x0007c2ffu;
-        G(u8, 0x10fa0887) = 3; G(u32, 0x10f9ee4c) = 3;
-        test_armor_frame(itop);
-        int ai = AST(1);
-        u8 *aic = ai > 0 ? FN(u8*, 0x1a5fd0, int)(ai) : NULL;
-        CHECK(ai > 0 && AST(2) == ih && aic && *(float*)(aic + 0x50) == -230 && *(float*)(aic + 0x54) == -42, "a third plate under Stock: (%.0f, %.0f)",
-              aic ? *(float*)(aic + 0x50) : 0, aic ? *(float*)(aic + 0x54) : 0);
-        ASTEP(0, 0); ASTEP(0x40, 0x40);
-        CHECK(AST(0) == 1 && itop[0x11] == 1 && FN(int, 0x1a60e0, int)(ai) == 4, "down from Stock: on Armor, lit, the screen's buttons held (mode %d)", AST(0));
-        ASTEP(0, 0); ASTEP(0x4000, 0x4000);
-        CHECK(test_armor_choice() == 1 && G(u32, 0x10f9ee4c) == 6 && G(u8, 0x10fa0887) == 3 && (*exp0 & 0x00ffffffu) == 0x0007c2ffu,
-              "confirm: Armor - Terra's model 6 at once, the save keeps the game's 3, the save's other bits untouched (%u, %08x)", G(u32, 0x10f9ee4c), *exp0);
-        ASTEP(0, 0); ASTEP(0x4000, 0x4000); CHECK(test_armor_choice() == 2 && G(u32, 0x10f9ee4c) == 15, "again: no helmet (model 15)");
-        ASTEP(0, 0); ASTEP(0x4000, 0x4000); CHECK(test_armor_choice() == 0 && G(u32, 0x10f9ee4c) == 3, "again: No Armor (model 3)");
-        ASTEP(0, 0); ASTEP(0x4000, 0x4000);
-        ASTEP(0, 0); ASTEP(0x10, 0x10); CHECK(AST(0) == 0 && *(s16*)(il + 0x8e) == 1 && itop[0x11] == 0 && FN(int, 0x1a6790, int, u16)(ih, 2) == 4, "up: back on Stock");
-        ASTEP(0, 0); ASTEP(0x10, 0x10); CHECK(AST(0) == 0 && *(s16*)(il + 0x8e) == 0, "up again: the game's own move to the first entry");
-        ASTEP(0, 0); ASTEP(0x10, 0x10); CHECK(AST(0) == 1, "up from the first entry: on Armor");
-        ASTEP(0, 0); ASTEP(0x40, 0x40); CHECK(AST(0) == 0 && *(s16*)(il + 0x8e) == 0, "down from Armor: the first entry");
-        FN(void, 0x1a57f0, int)(ih);
-        CHECK(AST(1) == 0 && FN(int, 0x1a60e0, int)(ai) == 8, "destroyed with the list");
-        *exp0 = 0;
-    }
     printf("t_sccamp done\n");
-}
-/* Armor (armor.c): the outfit the game wants is kept in the save; normal clothes are shown as the chosen outfit */
-extern int test_armor_choice(void); extern void test_armor_set(int c); extern int test_armor_shown(int m);
-static void t_armor(void) {
-    u32 *exp0 = (u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4);
-    u32 *cur = (u32*)RVA(0x10f9ee4c); u8 *save = (u8*)RVA(0x10fa0887), *world = (u8*)RVA(0x818120);
-    u8 w0 = world[0];
-    for (int i = 0; i < 10; i++) { static const u32 s[] = { 0x1da5f3, 0x1db229, 0x1db2b3, 0x1db465, 0x1db524, 0x1db605, 0x1db81a, 0x1ebc3e, 0x1ec760, 0x1ed100 };
-        CHECK(call_target(s[i]) != RVA(0x26c720), "model set site %x hooked", s[i]); }
-    CHECK(call_target(0x1ec880) != RVA(0x1ebc00) && call_target(0x1ed44d) != RVA(0x1ebc00), "both model change sites hooked");
-    void (MSABI *set)(int) = (void*)call_target(0x1ec760);
-    void (MSABI *change)(int) = (void*)call_target(0x1ed44d);
-    *exp0 = 0x0007c2ffu | 0x800000u; world[0] = 1;
-    CHECK(test_armor_choice() == 0, "a save without the bits: No Armor");
-    for (int m = 1; m <= 15; m++) CHECK(test_armor_shown(m) == m, "No Armor: model %d as the game has it", m);
-    test_armor_set(1); CHECK((*exp0 & 0x00ffffffu) == (0x0007c2ffu | 0x800000u) && (*exp0 >> 24) == 1, "Armor: bits 24-25, Combo Master and the game's bits kept (%08x)", *exp0);
-    CHECK(test_armor_shown(1) == 4 && test_armor_shown(2) == 5 && test_armor_shown(3) == 6, "normal clothes -> armor (4 5 6)");
-    for (int m = 4; m <= 15; m++) CHECK(test_armor_shown(m) == m, "the game's own outfit %d stays", m);
-    test_armor_set(2); CHECK(test_armor_shown(1) == 13 && test_armor_shown(3) == 15, "no helmet: outfit 4 (13, 15)");
-    world[0] = 0x0f; CHECK(test_armor_shown(3) == 3, "not in the Mirage Arena"); world[0] = 1;
-    /* loading a save: the game sets the save's model */
-    test_armor_set(1); *save = 3; *cur = 0; set(3); CHECK(*cur == 6 && *save == 3, "a save in normal clothes loads in armor (model %u), the save keeps 3", *cur);
-    *save = 9; set(9); CHECK(*cur == 9, "Rumble Racing stays (%u)", *cur);
-    /* a room asks for an outfit (1ebc00): the game's own test compares with what it wanted, not with ours */
-    *save = 3; *cur = 6;
-    change(3); CHECK(*cur == 6 && *save == 3, "room asks for normal clothes while in our armor: armor (%u), save %u", *cur, *save);
-    change(6); CHECK(*cur == 6 && *save == 6, "room asks for armor (story): armor, the save now says 6 (%u)", *save);
-    test_armor_set(0); CHECK(*cur == 6, "No Armor during the story's armor: the story's armor stays");
-    change(3); CHECK(*cur == 3 && *save == 3, "the story takes it off: normal clothes (%u)", *cur);
-    test_armor_set(2); CHECK(*cur == 15 && *save == 3, "No Helmet chosen in normal clothes: 15 at once, the save 3");
-    change(9); CHECK(*cur == 9 && *save == 9, "Rumble Racing: as the game has it");
-    change(3); CHECK(*cur == 15 && *save == 3, "and back: no helmet again");
-    test_armor_set(0); CHECK(*cur == 3, "No Armor: back to the game's model");
-    *exp0 = 0; world[0] = w0; *cur = 0; *save = 0;
-    printf("t_armor done\n");
 }
 /* the command menu: cursor, lists, confirm button routing, casting through the game's own use gate */
 extern int *test_menu_state(void), *test_menu_cur(void), *test_menu_sel(void);
@@ -3092,7 +3015,6 @@ int main(int argc, char **argv) {
     bad |= run("t_status", t_status);
     bad |= run("t_sccamp", t_sccamp);
     bad |= run("t_cm", t_cm);
-    bad |= run("t_armor", t_armor);
     bad |= run("t_bundle", t_bundle);
     bad |= run("t_menu", t_menu);
     return bad || !ok;

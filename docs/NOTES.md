@@ -1062,31 +1062,10 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   while a list is open it is put at 11, under the list rows (12 / 13), over the entries (5 / 7).  Not seen in the
   game by me.
 
-## TESTING ONLY: player outfits (2026-10-15; src/outfit_test.c) - remove before a release
-* Player model = 1..15 = character (1 Ven, 2 Aqua, 3 Terra) + 3 x outfit 0..4 (files p0x..p4x; name tables at
-  818bb8 base, 818c38 menu, 818d78 ex00 model, 818df8 ex_000 motions - p4x points at p0x's motions), at 150f9ee4c
-  (get 26b7d0, set 26c720), saved at save 150fa0880+7.  1ebc00(model) changes it + the save byte; the room load builds
-  the player from it (26ad90).  Room entry 1ed3f2: 3115f0 reads the room's event data (entries of type 6, u16 at +4):
-  0x10..0x50 = outfit 0..4 of the current character, 1..3 = that character in normal clothes, else keep; 1ed44d sets
-  it.  Mirage Arena (mode 0xf, 27bc91) uses outfit 1 (+3).  Event animations per outfit (ForEventJP/pc/pNNex/event_*):
-  p0 410, p1 140, p2 6, p3 28, p4 14; action sets: p0 45-48, p1 30-33, p2/p3 one file, p4 = p0's.
-* Test build (debug only): logs every room entry (asked value, model), F7 = next outfit (from the next room load,
-  and forced over the rooms), F6 = rooms decide again.
-* Seen in the game (Terra): outfits 3 and 4 (p2x, p3x; models char+6, char+9) are Rumble Racing outfits (also the
-  MgRrp21ve / MgRrp31ve files) - F7 skips both.
-
-## Armor (2026-10-15; src/armor.c, `[Armor]`) - replaces the outfit test
-* Asked for: an "Armor" option under Items (below Stock) choosing No Armor / Armor / Armor (No Helmet); the choice
-  is used only where the game would show normal clothes, the game's own outfits (story armor, Rumble Racing) win.
-  From the test: outfit 1 (p1x) = armor with helmet (also Mirage Arena), 2 / 3 (p2x, p3x) = Rumble Racing, 4 (p4x) =
-  armor without helmet; a cutscene played fine in a non-normal outfit (user).
-* How: all 10 calls of the model setter 26c720 are hooked (normal model 1..3 -> char + 3 x outfit; not in world 0xf,
-  the Mirage Arena; 140818120 is the world record 1ec250 returns); the 2 calls of 1ebc00 (room entry 1ed44d, the
-  character switch 1ec880) first put the save's model (the game's wish) into 150f9ee4c for its "already that one"
-  test, and re-apply the choice after.  The save byte 150fa0887 always holds the game's model.  The choice: bits
-  24-25 of EXP Zero's u32 (next to Combo Master's bit 23).  Menu change: 150f9ee4c set at once, shown from the
-  next room load (the room load builds the player from it, as the outfit test's F7 did).
-* Menu: CCampItemTop (update 40c480, state +0x9b, list +0x2b0) / CCampItemCmd (input 40d170, layout 0x18a: two
-  entries at -230,-76 / -59; hand +0xb8, light +0xc0; +0x9e is the list's event for the screen - 2 = picked, 6 = a
-  move, >= 0xf = close - not a "busy" flag).  Third plate seq 0x1fb at -230,-42.  Test: t_armor, end of t_sccamp.
-  Not seen in the game by me.
+## Player outfits -> the separate "BBS Armor" mod (2026-10-15)
+* The outfit research (model 1..15 = character + 3 x outfit p0x..p4x, setter 26c720, room entry 1ed3f2 / 1ed44d,
+  save byte 150fa0887; outfit 1 armor, 2 / 3 Rumble Racing, 4 armor without helmet) and the Items > Armor entry
+  were moved out of this mod on request: they live in the stand-alone BBS Armor mod (its own DLL, bbsarmor.dll /
+  bbsarmor.ini; local source /home/claude/bbs/armormod).  It touches none of this mod's sites (the 10 calls of
+  26c720, the 2 of 1ebc00, CCampItemTop's update and CCampItemCmd's input / destructor slots) and keeps its choice
+  in bits 24-25 of EXP Zero's save u32, next to Combo Master's bit 23.

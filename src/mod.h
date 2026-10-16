@@ -79,10 +79,6 @@ int  style_prompt_active(void);
 int  style_prompt_shown(void);
 
 /* guard.c: 2D nodes whose texture is gone are not drawn with it (and the log says which) */
-int  armor_check(void);                 /* armor.c */
-void armor_apply(void);
-void armor_on_destroy(int h);
-void armor_own(char *out, int n);
 int  combomaster_check(void);
 void combomaster_apply(void);
 void combomaster_texts(u8 *self);        /* a message file is in memory (called from mp.c's hook) */
