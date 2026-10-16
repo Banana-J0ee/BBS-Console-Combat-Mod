@@ -88,6 +88,7 @@ static u32   c_sc_fill = 0x606060;                  /* strength of the gradient 
 static float c_sc_item_dx = 11;                     /* an item's bottle icon: this far right of its place on the plain plate */
 static int   c_link_icon = 1;                       /* the D-Link entry gets the pink heart (sequence 0x2e, control 0) */
 static float c_link_icon_x = 97, c_link_icon_y = 2; /* ... moved to where the other entries' icons sit (its sprite is at 0,0) */
+static float c_link_name_x = 2;          /* D-Link rows: their name this much further right (2 = where Magic / Items rows have theirs) */
 static u32   c_sc_dim = 0x404040;                   /* name of a command that cannot be used now */
 static int   c_hd = 1;                              /* the "COMMANDS" window is grey as well while the list is shown */
 static u32   c_hd_plate = 0x707070, c_hd_text = 0xffffff;   /* ... its label plate and the letters on it (its frame: c_sc_col) */
@@ -140,6 +141,7 @@ static void load_ini(void) {
     c_sc_item_dx = ini_f("ShortcutItemIconShift", c_sc_item_dx);
     c_link_icon = (int)ini_f("DLinkIcon", (float)c_link_icon);
     c_link_icon_x = ini_f("DLinkIconX", c_link_icon_x); c_link_icon_y = ini_f("DLinkIconY", c_link_icon_y);
+    c_link_name_x = ini_f("DLinkNameX", c_link_name_x);
     c_sc_pad = ini_f("ShortcutPad", c_sc_pad); if (c_sc_pad < 0) c_sc_pad = 0; if (c_sc_pad > 30) c_sc_pad = 30;
     { char b[32];
       snprintf(b, sizeof b, "%06x", c_sc_col); ini_s("ShortcutColor", b, sizeof b); c_sc_col = (u32)strtoul(b, NULL, 16) & 0xffffff;
@@ -757,6 +759,9 @@ static void MSABI plate_update_hook(u8 *P) {
             for (u16 nd = 3; nd <= 4; nd++) { int c = L2D_GetNodeControl(h, nd); if (c == 0 || c == 1) L2D_SetNodeControl(h, nd, c + 2); }
         }
         else if (!selected && L2D_GetControl(h) == 3) set_node_control(h, 2, 1);   /* ready, not under the cursor: white as well */
+        /* the name (node 2 of l_comand, at -3) starts 2 further left than a Magic / Items row's (node 0 of d_comand, at -1;
+           the text sits at +17 in both): moved to the same place */
+        FN(int, 0x1a7ec0, int, u16, float, float)(h, 2, -3.0f + c_link_name_x, 0.0f);
         /* The D-Link plate's blue is in its art (the corners of sprite 63's quads are 0080ff); the game multiplies
            it with 3c3c3c for every row but the one under the cursor.  Here those rows are in full colour, like the
            rows of the other lists (their alpha, a0, stays). */
@@ -770,6 +775,9 @@ static void MSABI plate_update_hook(u8 *P) {
         /* the game stacks the prompt on the Attack row, one step further right per style level (table rows 4.. =
            x 65, 130, 195); here it always sits at the same place above the gauge window */
         L2D_SetPos(h, c_prompt_x, context_y(cmd));
+        /* under an open Magic / Items / D-Link list (rows 12 / 13): the game's own priority for it put it over the
+           Magic and Items rows (made earlier than the prompt; the D-Link rows are made when that list opens) */
+        if (link_open(cmd) || g_state == S_MAGIC || g_state == S_ITEM) L2D_SetPriority(h, 11);
         /* its button picture (text of node 0x5a; the layout's is f564, the confirm button): the one that answers it */
         if (c_react) { u16 *k = *(u16**)(P + 0x58); L2D_SetNodeText(h, 0x5a, k && CMD_CAT(k[0]) == 6 ? "\xf5\x64" : "\xf5\x67"); }
     } else if (type == 1 || type == 3 || type == 4) {

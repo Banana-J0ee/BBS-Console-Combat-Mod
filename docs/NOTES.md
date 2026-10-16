@@ -1053,3 +1053,11 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   Barrier Surge / Thunder Surge -5, Aerial Slam / Fire Strike / Confusion Strike / Binding Strike -2.
   Known: Blitz's value has no effect yet (repress gate waits for its follow-up window, ~frame 38; see the Blitz
   investigation - a fix would apply the delay to that gate too).
+
+## D-Link row names, prompt under the lists (2026-10-15; menu.c plate_update_hook)
+* Reported: D-Link rows' text sits further left than Magic / Items rows'; Magic and Items rows draw behind the Save
+  prompt (D-Link rows draw over it).  From bc01_00.l2d: d_comand's name node (id 0) is at -1, l_comand's (id 2) at
+  -3, the text at +17 in both controls 1 / 3 - so the D-Link name is moved by DLinkNameX (2) with 1a7ec0 every
+  frame.  The prompt plate (type 5) keeps the game's priority (placement table row 4.., set in the plate update);
+  while a list is open it is put at 11, under the list rows (12 / 13), over the entries (5 / 7).  Not seen in the
+  game by me.
