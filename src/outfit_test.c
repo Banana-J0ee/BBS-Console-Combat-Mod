@@ -56,7 +56,7 @@ void outfit_test_frame(void) {
         int m = (int)CUR_MODEL, c = ch_of(m);
         if (c) {
             int o = g_force >= 0 ? (g_force + 1) % 5 : (of_of(m) + 1) % 5;
-            if (o == 2) o = 3;                                  /* p2x: the Rumble Racing outfit - skipped */
+            if (o == 2 || o == 3) o = 4;                        /* p2x, p3x: the Rumble Racing outfits - skipped */
             g_force = o;
             FN(void, SET_MODEL, int)(c + 3 * o);
             LOG("outfit: F7 - %s outfit %d (model %d, files p%d%d) from the next room load on; rooms can no longer change it (F6 = let them)",
