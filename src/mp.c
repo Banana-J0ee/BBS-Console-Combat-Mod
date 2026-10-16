@@ -655,7 +655,7 @@ int own_add(char *out, int n, const char *name, int h) {
 void mod_own_handles(char *out, int n) {
     if (n > 0) out[0] = 0;
     own_add(out, n, "mpbar", g_bar);
-    menu_own(out, n); style_own(out, n); status_own(out, n); sccamp_own(out, n);
+    menu_own(out, n); style_own(out, n); status_own(out, n); sccamp_own(out, n); armor_own(out, n);
 }
 static u32 lerp_col(u32 a, u32 b, float t) {
     u32 r = 0;
@@ -1004,7 +1004,7 @@ int mod_install(void) {
     if (!sccamp_check()) bad++;
     if (!guard_check()) bad++;
     if (!combomaster_check()) bad++;
-    if (!outfit_test_check()) bad++;
+    if (!armor_check()) bad++;
     if (bad) { LOG("this is not the game build the mod was written for: nothing changed"); g_patch_errors += bad; return 0; }
     if (c_desc_cost || c_ether) hook_call(DESC_CALL, MSG_FIND, desc_hook, "descriptions (MP cost, MP items)");
     if (c_floor) {
@@ -1039,7 +1039,7 @@ int mod_install(void) {
     sccamp_apply();
     guard_apply();
     combomaster_apply();
-    outfit_test_apply();
+    armor_apply();
 
     o_gauge_update = hook_fn(&S_gauge_update, gauge_update_hook, "gauge_update");
     o_gauge_dtor   = hook_fn(&S_gauge_dtor, gauge_dtor_hook, "gauge_dtor");

@@ -58,10 +58,10 @@ static void drop(void) {
 }
 static u64 MSABI destroy_hook(int h) {
     if (h > 0 && h == g_parent) drop();
-    if (h > 0) sccamp_on_destroy(h);
+    if (h > 0) { sccamp_on_destroy(h); armor_on_destroy(h); }
     return o_destroy(h);
 }
-/* the Destroy hook serves this file and sccamp.c */
+/* the Destroy hook serves this file, sccamp.c and armor.c */
 int l2d_destroy_hook(void) {
     if (!o_destroy) o_destroy = hook_fn(&S_l2d_destroy, destroy_hook, "l2d destroy");
     return o_destroy != NULL;

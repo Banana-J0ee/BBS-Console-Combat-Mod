@@ -1074,3 +1074,19 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   and forced over the rooms), F6 = rooms decide again.
 * Seen in the game (Terra): outfits 3 and 4 (p2x, p3x; models char+6, char+9) are Rumble Racing outfits (also the
   MgRrp21ve / MgRrp31ve files) - F7 skips both.
+
+## Armor (2026-10-15; src/armor.c, `[Armor]`) - replaces the outfit test
+* Asked for: an "Armor" option under Items (below Stock) choosing No Armor / Armor / Armor (No Helmet); the choice
+  is used only where the game would show normal clothes, the game's own outfits (story armor, Rumble Racing) win.
+  From the test: outfit 1 (p1x) = armor with helmet (also Mirage Arena), 2 / 3 (p2x, p3x) = Rumble Racing, 4 (p4x) =
+  armor without helmet; a cutscene played fine in a non-normal outfit (user).
+* How: all 10 calls of the model setter 26c720 are hooked (normal model 1..3 -> char + 3 x outfit; not in world 0xf,
+  the Mirage Arena; 140818120 is the world record 1ec250 returns); the 2 calls of 1ebc00 (room entry 1ed44d, the
+  character switch 1ec880) first put the save's model (the game's wish) into 150f9ee4c for its "already that one"
+  test, and re-apply the choice after.  The save byte 150fa0887 always holds the game's model.  The choice: bits
+  24-25 of EXP Zero's u32 (next to Combo Master's bit 23).  Menu change: 150f9ee4c set at once, shown from the
+  next room load (the room load builds the player from it, as the outfit test's F7 did).
+* Menu: CCampItemTop (update 40c480, state +0x9b, list +0x2b0) / CCampItemCmd (input 40d170, layout 0x18a: two
+  entries at -230,-76 / -59; hand +0xb8, light +0xc0; +0x9e is the list's event for the screen - 2 = picked, 6 = a
+  move, >= 0xf = close - not a "busy" flag).  Third plate seq 0x1fb at -230,-42.  Test: t_armor, end of t_sccamp.
+  Not seen in the game by me.

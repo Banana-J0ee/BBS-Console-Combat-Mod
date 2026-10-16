@@ -28,12 +28,6 @@ static inline void LeaveCriticalSection(CRITICAL_SECTION *c) { (void)c; }
 static inline HANDLE CreateFileA(const char *p, int a, int b, void *c, int d, int e, void *f) { (void)p;(void)a;(void)b;(void)c;(void)d;(void)e;(void)f; return (HANDLE)stderr; }
 static inline BOOL WriteFile(HANDLE h, const void *b, DWORD n, DWORD *w, void *o) { (void)o; *w = (DWORD)fwrite(b, 1, n, (FILE*)h); return 1; }
 static inline DWORD GetTickCount(void) { return 0; }
-static inline short GetAsyncKeyState(int k) { (void)k; return 0; }   /* outfit_test.c (testing only) */
-static inline int MessageBeep(unsigned t) { (void)t; return 1; }
-#define VK_F6 0x75
-#define VK_F7 0x76
-#define MB_OK 0
-#define MB_ICONASTERISK 0x40
 static inline void *VirtualAlloc(void *addr, size_t n, int t, int p) {
     (void)t; (void)p;
     void *r = mmap(addr, n, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS | (addr ? MAP_FIXED_NOREPLACE : 0), -1, 0);
