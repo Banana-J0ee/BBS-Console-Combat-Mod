@@ -1046,3 +1046,9 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   fine).  Still judged only on the end-test frames of the last animation (so never before it starts; r clamped
   at 0), and for spells never before t1 + 1 (the spell goes off first).  Test: in `t_cancel`.  Not seen in the
   game by me.
+
+## TESTING ONLY: F9 reloads [CommandCancel] (2026-10-15; speed.c cc_reload_key) - remove before a release
+* Debug only (bbskh2_debug.txt): F9 (GetAsyncKeyState, polled in tick_hook for the local player) clears g_cc and
+  runs cc_config() again, logs "cancel: [CommandCancel] reloaded (F9)" and beeps.  Asked for to tune delays without
+  restarting; the user wants it gone in the final version (also the GetAsyncKeyState / MessageBeep stubs in
+  test/inc/windows.h).

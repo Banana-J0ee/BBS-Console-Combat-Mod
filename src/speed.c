@@ -734,7 +734,21 @@ static void state_log(u8 *pl) {
         btn & 0x1000 ? " [triangle]" : "", btn & 0x2000 ? " [circle]" : "", btn & 0x4000 ? " [cross]" : "", btn & 0x8000 ? " [square]" : "");
     who = pl; last = st; last_cmd = id;
 }
+/* TESTING ONLY - remove before a release.  With debug on (bbskh2_debug.txt), F9 re-reads [CommandCancel] from the
+   ini while the game runs (a beep confirms), so delays can be tuned without restarting. */
+static void cc_reload_key(void) {
+    static int was;
+    int down = (GetAsyncKeyState(VK_F9) & 0x8000) != 0;
+    if (down && !was && g_debug) {
+        memset(&g_cc, 0, sizeof g_cc);
+        cc_config();
+        LOG("cancel: [CommandCancel] reloaded (F9)");
+        MessageBeep(MB_OK);
+    }
+    was = down;
+}
 static void MSABI tick_hook(u8 *pl) {
+    if (pl == local_player()) cc_reload_key();
     state_log(pl);
     if (c_on) cc_after(pl);
     if (pl == local_player()) g_tick++;
