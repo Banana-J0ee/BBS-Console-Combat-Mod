@@ -1097,3 +1097,7 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   Superbosses and Mirage Arena copies: as they were.
 * Moves whose own update switches the armour off part way (Braig ChargeShoot / InvertedShoot, Dark Splicer): the
   OnUpdate wrapper sets it again after the script's update, so no frame is left open.  Test in extra.lua.
+* Braig's idle (2026-10-17, "lower his idle time"): his wait between moves is the WaitIdling field timer, rolled from
+  .epd IdlLowTime..IdlHiTime (b30ex00 30..90, b32ex00 30..60 frames).  The boss pace cut it x0.4 but never below
+  RV.idleFloor 45, so it was 30..45 frames.  New per-boss `idleFloor` (frames); Braig 15 (KH2's shortest wait):
+  now 15..36.  The warp inside WaitIdling is unchanged.  Test in extra.lua.

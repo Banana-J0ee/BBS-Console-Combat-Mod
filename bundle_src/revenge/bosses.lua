@@ -27,6 +27,7 @@
 --   pace     false: the boss keeps its own pace (superbosses, Hades).  Otherwise [Bosses] in the ini
 --            shortens its idle waits and caps its walks (revenge.lua, "Boss pace")
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
+--   idleFloor  shortest paced idle wait in frames for this boss (default RV.idleFloor 45)
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
 --   setup    function(ent) run once when the boss is created (changes to its own states)
 --   armorStates { State = true | frames }: moves of KH2's "cannot be interrupted" class (specials,
@@ -255,6 +256,9 @@ local braig = {
   end,
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
   paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
+  -- his wait (.epd IdlLowTime..IdlHiTime: 30..90 frames, 30..60 in the first fight) x the boss pace, down to
+  -- 15 frames (0.25 s, KH2's shortest wait between decisions) instead of the usual 45: 15..36 frames
+  idleFloor = 15,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
     local s = self:GetState()

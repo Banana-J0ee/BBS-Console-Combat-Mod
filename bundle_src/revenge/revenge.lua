@@ -222,15 +222,17 @@ local function paceKind(s)
 end
 RV.paceKind = paceKind
 
-local function paceIdle(v)
-  if RV.aggr >= 1 or v <= RV.idleFloor then return v end
+-- floor: a boss's own shortest wait (cfg.idleFloor, frames) instead of RV.idleFloor
+local function paceIdle(v, floor)
+  floor = floor or RV.idleFloor
+  if RV.aggr >= 1 or v <= floor then return v end
   local n = v * RV.aggr
-  if n < RV.idleFloor then n = RV.idleFloor end
+  if n < floor then n = floor end
   return n
 end
 
-local function paceValue(kind, v)
-  if kind == "idle" then return paceIdle(v) end
+local function paceValue(kind, v, floor)
+  if kind == "idle" then return paceIdle(v, floor) end
   if kind == "walk" then
     local cap = RV.walkCap * 60
     if cap > 0 and v > cap then return cap end
@@ -393,7 +395,7 @@ local function attach(ent, name, handle)
       local mh = rawget(ent, "myHandle")
       if mh ~= nil and mh ~= h then return v end        -- a stale entry: another object owns h now
       if not active(ent) then return v end
-      return paceValue(paceKind(st.state), v)
+      return paceValue(paceKind(st.state), v, c.idleFloor)
     end
     if h0 ~= nil then P.by[h0] = st end
     local gss = ent.GotoStateSub
@@ -410,7 +412,7 @@ local function attach(ent, name, handle)
         -- scripts that count an idle down in a field of their own (frames) instead of SetTimer
         if pf ~= nil and pf[s] ~= nil and active(self) then
           local f = pf[s]
-          if type(self[f]) == "number" then self[f] = paceIdle(self[f]) end
+          if type(self[f]) == "number" then self[f] = paceIdle(self[f], c.idleFloor) end
         end
         return r
       end)

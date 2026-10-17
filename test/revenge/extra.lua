@@ -202,7 +202,12 @@ do
   M.num["Script.RandomInRange"] = function(a, b) return 90 end
   pcall(e3.GotoState, e3, "WaitIdling")
   M.num["Script.RandomInRange"] = nil
-  check(e3.timer == 45, "Braig WaitIdling: 90 -> 45 frames (" .. tostring(e3.timer) .. ")")
+  check(math.abs(e3.timer - 36) < 0.01, "Braig WaitIdling: 90 -> 36 frames (" .. tostring(e3.timer) .. ")")
+  pcall(e3.GotoState, e3, "Idling")
+  M.num["Script.RandomInRange"] = function(a, b) return 30 end
+  pcall(e3.GotoState, e3, "WaitIdling")
+  M.num["Script.RandomInRange"] = nil
+  check(e3.timer == 15, "... 30 -> 15 frames, his own floor (" .. tostring(e3.timer) .. ")")
   -- keyblade wielder as an ally: untouched
   M.script("b60")
   local e4, h4 = M.create("b60ex00")
