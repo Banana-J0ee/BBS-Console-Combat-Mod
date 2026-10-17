@@ -1160,4 +1160,9 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   of OnDamageBefore, before asking IsNoDamageReaction.  With every attack armoured, each hit during an attack
   zeroed it and the next attack came with no pause (log: Ventus's Vanitas Idling 1 frame between attacks).  The
   shielded branch of our OnDamageBefore restores the field.  Test in extra.lua.
-* Braig "armour only the first second of a shot" (option 3) is stashed (git stash "braig option 3"), not built.
+* Braig: armour only for the first second of a shot (2026-10-17, his log: a Dash Shoot ran ~10 s, an Inverted
+  Shoot ~22 s, all under armour - no opening, no gauge).  As KH2's Xigbar (single shots armoured, long shooting
+  strings not): armorStates Dash / Round / Warp Shoot = 60 frames, Warp Center whole; Charge Shoot and Inverted
+  Shoot back to the game's own armour (charge until it fires; the inverted phase's start and end).  armorHit now
+  also covers a revenge answer's armour (st.armor), and applies only while armour lasts - after that a hit ends
+  the shot as in vanilla.  The hold test moved to Ventus's Vanitas's Dark Splicer.

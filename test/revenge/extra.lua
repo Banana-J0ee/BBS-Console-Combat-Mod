@@ -358,25 +358,40 @@ do
   for i = 1, 30 do pcall(e2.OnUpdate, e2) end
   check(log[h2] == 1, "... for the whole move")
   -- a move whose own update drops the armour part way is held (the script's off is undone)
+  M.script("b11ex00")
+  local e5, h5 = M.create("b11ex00")
+  rawset(e5, "Update", function() end); rawset(e5, "Debug", function() end)
+  pcall(e5.GotoState, e5, "Idling")
+  pcall(e5.GotoState, e5, "DarkSplicer1GroundBattle")
+  local held5, n5 = true, 0
+  for i = 1, 120 do
+    pcall(e5.OnUpdate, e5)
+    if e5:GetState() ~= "DarkSplicer1GroundBattle" then break end
+    n5 = n5 + 1
+    if log[h5] ~= 1 then held5 = false end
+  end
+  check(held5 and n5 > 0, "Vanitas's Dark Splicer: armoured to its end (" .. n5 .. " frames)")
+  -- Braig: the first second of a shot is armoured and hits do not reach his script (it would end the shot);
+  -- after that hits stagger him and end it, as in vanilla (his shots are long shooting phases)
   M.script("b30ex00")
   local e3, h3 = M.create("b30ex00")
   rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
-  pcall(e3.GotoState, e3, "Idling")
-  pcall(e3.GotoState, e3, "ChargeShoot")
-  local held3 = true
-  for i = 1, 200 do
-    pcall(e3.OnUpdate, e3)
-    if e3:GetState() ~= "ChargeShoot" then break end
-    if log[h3] ~= 1 then held3 = false end
-  end
-  check(held3, "Braig's Charge Shot: armoured to its end")
-  -- his script sends a shot to Idling on any hit; during an armoured shot that hit does not reach it
+  local st3 = BBS_REVENGE.ents.b30ex00
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "DashShoot")
-  local st3 = BBS_REVENGE.ents.b30ex00
-  st3.rv, st3.firing = 0, false
+  st3.rv, st3.firing, st3.armor = 0, false, 0
   for i = 1, 3 do hit(h3) end
-  check(e3:GetState() == "DashShoot", "Braig: hits during his Dash Shoot do not cut it short (" .. tostring(e3:GetState()) .. ")")
+  check(e3:GetState() == "DashShoot" and log[h3] == 1, "Braig: hits in his Dash Shoot's first second do not cut it short (" .. tostring(e3:GetState()) .. ")")
+  for i = 1, 70 do pcall(e3.OnUpdate, e3) end
+  local s3 = e3:GetState()
+  check(log[h3] == 0, "... after a second his armour is off (" .. tostring(s3) .. ")")
+  if s3 == "DashShoot" then
+    hit(h3)
+    check(e3:GetState() ~= "DashShoot", "... and a hit ends the shot (" .. tostring(e3:GetState()) .. ")")
+  end
+  pcall(e3.GotoState, e3, "Idling")
+  pcall(e3.GotoState, e3, "InvertedShoot")
+  check(st3.mArmor == 0, "... Inverted Shoot keeps the game's own armour only")
   -- a revenge answer's armour is not cut by the end of a listed move
   pcall(e.GotoState, e, "Idling")
   st.armor, st.armorT0 = 50, st.t

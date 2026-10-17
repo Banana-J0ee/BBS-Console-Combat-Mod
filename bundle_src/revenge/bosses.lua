@@ -318,17 +318,21 @@ cfg.b81vs00 = armor
 -- Braig: 30% escape on every hit.
 local braig = {
   limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
-  armorStates = { WarpShoot = true, WarpCenter = true, RoundShoot = true, DashShoot = true,
-                  ChargeShoot = true, InvertedShoot = true },   -- these two: the script drops it part way
+  -- His shots are long shooting phases (a Dash Shoot ran ~10 s, an Inverted Shoot ~22 s in play), so a whole
+  -- phase under armour left him with no opening at all.  As KH2's Xigbar (his single shots armoured, his long
+  -- shooting strings not): armour for the first second of each shot, then hits stagger him and end it.
+  -- Charge Shoot / Inverted Shoot keep the game's own armour (the charge until it fires; the inverted
+  -- phase's start and end), the warp to the centre is armoured whole.
+  armorStates = { WarpShoot = 60, RoundShoot = 60, DashShoot = 60, WarpCenter = true },
   answer = { close = { "RoundShoot", "DashShoot" }, far = { "WarpShoot", "DashShoot", "ChargeShoot" }, noRet = true },
   -- his OnDamageBefore sends every shot to Idling on any hit (30 % escape otherwise), armour or not, so an
-  -- armoured shot was still cut short.  Kept from the script during his armoured shots; his designed breaks
-  -- stay: Sniper / Charge Shot charging end after enough damage (AttackReleaseHP), Inverted Shot's dodge
+  -- armoured shot was still cut short.  Kept from the script while a shot's armour lasts (its first second,
+  -- or a revenge answer); after that a hit ends the shot as in vanilla.  His designed breaks stay: Sniper /
+  -- Charge Shot charging end after enough damage (AttackReleaseHP), Inverted Shot's dodge
   answerClear = { Sniper = true, ArutemaShoot = true },   -- (his entrance may go straight into the Sniper)
   armorHit = function(self)
     local s = self:GetState()
-    if s == "DashShoot" or s == "WarpShoot" or s == "RoundShoot" or s == "WarpCenter" then return true end
-    return s == "ChargeShoot" and type(self.step) == "number" and self.step >= 4
+    return s == "DashShoot" or s == "WarpShoot" or s == "RoundShoot" or s == "WarpCenter"
   end,
   -- his escape warp lands 8-11 m out on each axis (vanilla 2-6): out of reach, the arena edge caps it
   setup = function(ent)

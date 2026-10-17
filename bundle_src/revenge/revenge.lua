@@ -322,7 +322,7 @@ local function attach(ent, name, handle)
   local function runQuiet(f, self, kind, cat, attr, x)
     -- an armoured move whose script would still cut it short on any hit (Braig: every hit sends his shots
     -- to Idling, armour or not): the hit does not reach the script
-    if c.armorHit ~= nil and (st.mArmor or 0) > 0 and c.armorHit(self) == true then
+    if c.armorHit ~= nil and ((st.mArmor or 0) > 0 or st.armor > 0) and c.armorHit(self) == true then
       rlog(name, st.t, "hit kept from the script: armoured move goes on")
       return 0
     end
