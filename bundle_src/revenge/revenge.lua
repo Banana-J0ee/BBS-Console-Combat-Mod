@@ -71,9 +71,9 @@ RV.armorMax = 180
 -- below are markers the DLL overwrites with the ini values; left as they are, the defaults apply.
 RV.aggr      = 9001.5  -- idle waits x this (1 = vanilla); never cut below RV.idleFloor
 RV.walkCap   = 9002.5  -- walk / approach / wander timers capped at this many seconds (0 = no cap)
-if RV.aggr > 100 or RV.aggr <= 0 then RV.aggr = 0.4 end
+if RV.aggr > 100 or RV.aggr <= 0 then RV.aggr = 0.25 end
 if RV.walkCap > 100 or RV.walkCap < 0 then RV.walkCap = 2.0 end
-RV.idleFloor = 45      -- 0.75 s, KH2's longest wait between decisions: shorter waits stay as they are
+RV.idleFloor = 15      -- 0.25 s, KH2's shortest wait between decisions (its waits: 15..45): shorter waits stay as they are
 
 -- ---------------------------------------------------------------------
 -- Controlled dice.  While one of our wrapped callbacks runs, the boss

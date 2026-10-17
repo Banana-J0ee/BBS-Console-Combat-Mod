@@ -95,7 +95,7 @@ static u64 MSABI rsrc_loaded(u8 *r) {
 
 /* [Bosses]: boss pace, carried by the Revenge Value script.  Its two settings are float constants in the
    compiled Lua (type byte 3 + the float) with marker values that are replaced by the ini's here. */
-static float c_aggr = 0.4f, c_walkcap = 2.0f;
+static float c_aggr = 0.25f, c_walkcap = 2.0f;
 static u8 rv_buf[sizeof rv_factory];
 static int pace_patch(float marker, float value, const char *what) {
     u8 pat[5] = {3}; memcpy(pat + 1, &marker, 4);
@@ -111,7 +111,7 @@ static void pace_config(void) {
     GetPrivateProfileStringA("Bosses", "Aggression", d, b, sizeof b, g_ini); c_aggr = (float)atof(b);
     snprintf(d, sizeof d, "%g", c_walkcap);
     GetPrivateProfileStringA("Bosses", "WalkCap", d, b, sizeof b, g_ini); c_walkcap = (float)atof(b);
-    if (!(c_aggr >= 0.1f && c_aggr <= 1.0f)) c_aggr = 0.4f;
+    if (!(c_aggr >= 0.1f && c_aggr <= 1.0f)) c_aggr = 0.25f;
     if (!(c_walkcap >= 0.0f && c_walkcap <= 30.0f)) c_walkcap = 2.0f;
     memcpy(rv_buf, rv_factory, sizeof rv_buf);
     pace_patch(9001.5f, c_aggr, "Aggression");

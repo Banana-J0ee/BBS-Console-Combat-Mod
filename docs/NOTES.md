@@ -1101,3 +1101,10 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   .epd IdlLowTime..IdlHiTime (b30ex00 30..90, b32ex00 30..60 frames).  The boss pace cut it x0.4 but never below
   RV.idleFloor 45, so it was 30..45 frames.  New per-boss `idleFloor` (frames); Braig 15 (KH2's shortest wait):
   now 15..36.  The warp inside WaitIdling is unchanged.  Test in extra.lua.
+* Boss pace raised (2026-10-17, "increase the aggression"): Aggression default 0.4 -> 0.25 and RV.idleFloor 45 -> 15
+  frames, so idle waits land in KH2's 15..45 frame range (Vanitas Idling 120 -> 30, Braig 30..90 -> 15..22.5).
+  Braig's own idleFloor is no longer needed (the key stays for per-boss use).  The user's ini: Aggression 0.4 -> 0.25.
+* KH2 revenge (checked in the AI scripts): the "revenge" act always starts an attack - Axel atk_burst/assault_revenge,
+  Larxene atk_aero/turn/brush/jump, Saix atk_behave/normal_swing, Roxas atk_spotbeam_revenge_air/land; the warping
+  bosses warp and attack as one answer (Xigbar move_warp -> atk_shot/drop_shot, Xemnas warp_target_near ->
+  atk_counter/combo).  Never a bare escape.
