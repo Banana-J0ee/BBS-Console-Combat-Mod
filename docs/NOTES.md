@@ -1154,3 +1154,10 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   its own loop.  Cleared when it attacks on its own first (Braig's entrance Sniper: answerClear) or outside
   `active` (wielders as allies).  Masked Vanitas's late fight opens with his ride as before (no answer in ride
   mode).  Superbosses: unchanged.  RV.opening = false in the stand-in tests except the opening check.
+* Pace undone (2026-10-17, "attacking just slightly too fast"): Aggression back to 0.4, RV.idleFloor back to 45
+  (Braig's wait 30..45 again).  The per-boss idleFloor key stays (unused).
+* Hits on armour no longer zero the idle pause: Vanitas (b10 / b11 / b63) and Eraqus set idlingTimer = 0 at the top
+  of OnDamageBefore, before asking IsNoDamageReaction.  With every attack armoured, each hit during an attack
+  zeroed it and the next attack came with no pause (log: Ventus's Vanitas Idling 1 frame between attacks).  The
+  shielded branch of our OnDamageBefore restores the field.  Test in extra.lua.
+* Braig "armour only the first second of a shot" (option 3) is stashed (git stash "braig option 3"), not built.

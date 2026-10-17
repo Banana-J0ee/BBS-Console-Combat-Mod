@@ -172,12 +172,12 @@ do
   local log = {}
   M.num["Entity.SetTimer"] = function(h, v) log[h] = v end
   local RVs = BBS_REVENGE
-  check(math.abs(RVs.aggr - 0.25) < 1e-6 and RVs.walkCap == 2 and RVs.idleFloor == 15, "pace defaults: idle x0.25 (floor 0.25 s), walks capped at 2 s")
+  check(math.abs(RVs.aggr - 0.4) < 1e-6 and RVs.walkCap == 2 and RVs.idleFloor == 45, "pace defaults: idle x0.4 (floor 0.75 s), walks capped at 2 s")
   M.script("b10ex00")
   local e, h = M.create("b10ex00")
   rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
   pcall(e.GotoState, e, "Idling")
-  check(log[h] == 30, "Vanitas Idling: 120 -> 30 frames (" .. tostring(log[h]) .. ")")
+  check(math.abs(log[h] - 48) < 0.01, "Vanitas Idling: 120 -> 48 frames (" .. tostring(log[h]) .. ")")
   pcall(e.GotoState, e, "TargetMove")
   check(log[h] == 120, "Vanitas TargetMove: 300 -> 120 frames (" .. tostring(log[h]) .. ")")
   pcall(e.GotoState, e, "KeyBladeRush")
@@ -185,8 +185,8 @@ do
   pcall(e.GotoState, e, "Warp1")
   check(log[h] == 30, "Vanitas Warp1 keeps its 30")
   -- a short idle stays as it is
-  check(RVs.paceValue("idle", 12) == 12 and RVs.paceValue("idle", 40) == 15 and RVs.paceValue("idle", 120) == 30 and RVs.paceValue("walk", 90) == 90,
-        "waits under 0.25 s and walks under 2 s are not changed; 2 s idle -> 0.5 s")
+  check(RVs.paceValue("idle", 40) == 40 and RVs.paceValue("idle", 60) == 45 and math.abs(RVs.paceValue("idle", 120) - 48) < 0.01 and RVs.paceValue("walk", 90) == 90,
+        "waits under 0.75 s and walks under 2 s are not changed; 1 s idle -> 0.75 s")
   -- the same handle handed to another entity: no pace for it
   M.names[h] = "x"
   pcall(EntityFactory.Create, EntityFactory, "b01cd00", h)
@@ -205,12 +205,12 @@ do
   M.num["Script.RandomInRange"] = function(a, b) return 90 end
   pcall(e3.GotoState, e3, "WaitIdling")
   M.num["Script.RandomInRange"] = nil
-  check(math.abs(e3.timer - 22.5) < 0.01, "Braig WaitIdling: 90 -> 22.5 frames (" .. tostring(e3.timer) .. ")")
+  check(math.abs(e3.timer - 45) < 0.01, "Braig WaitIdling: 90 -> 45 frames (" .. tostring(e3.timer) .. ")")
   pcall(e3.GotoState, e3, "Idling")
   M.num["Script.RandomInRange"] = function(a, b) return 30 end
   pcall(e3.GotoState, e3, "WaitIdling")
   M.num["Script.RandomInRange"] = nil
-  check(e3.timer == 15, "... 30 -> 15 frames, the floor (" .. tostring(e3.timer) .. ")")
+  check(e3.timer == 30, "... 30 stays 30 (under the floor) (" .. tostring(e3.timer) .. ")")
   -- keyblade wielder as an ally: untouched
   M.script("b60")
   local e4, h4 = M.create("b60ex00")
@@ -553,6 +553,22 @@ do
   M.num["Entity.CalcDistanceSq"] = 4
   check((s2 == "Warp2" or s2 == "ShadowDiving" or s2 == "DarkThundaga") and st.armor > 0,
         "... and when it ends he attacks at once, armoured (" .. tostring(s2) .. ")")
+end
+-- a hit on armour leaves the boss's idle pause alone (Vanitas / Eraqus zero it on every hit)
+do
+  M.script("b63ex00")
+  local e, h = M.create("b63ex00")
+  local st = BBS_REVENGE.ents.b63ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  e.idlingTimer = 90
+  M.num["Enemy.IsNoDamageReaction"] = true
+  hit(h)
+  M.num["Enemy.IsNoDamageReaction"] = false
+  check(e.idlingTimer == 90, "Vanitas hit on armour: his next pause is kept (" .. tostring(e.idlingTimer) .. ")")
+  st.rv, st.firing = 0, false
+  hit(h)
+  check(e.idlingTimer == 0, "... a hit that lands still cuts it, as in vanilla (" .. tostring(e.idlingTimer) .. ")")
 end
 -- the opening: the first idle after the entrance is an attack from the boss's list (no armour of ours),
 -- then its own loop; bosses without a list (superbosses) as they were

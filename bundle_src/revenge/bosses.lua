@@ -28,7 +28,7 @@
 --            shortens its idle waits and caps its walks (revenge.lua, "Boss pace")
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
---   idleFloor  shortest paced idle wait in frames for this boss (default RV.idleFloor 15)
+--   idleFloor  shortest paced idle wait in frames for this boss (default RV.idleFloor 45)
 --   opening  false: no opening attack (default: a boss with an answer opens with one; openAt: states where)
 --   armorHit function(self) -> true: during an armoured move, hits are kept from the script's OnDamageBefore
 --   answer   the revenge answer (revenge.lua, RV.oweMax): after the get-away the boss goes into an attack
@@ -344,7 +344,7 @@ local braig = {
   end,
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
   paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
-  -- his wait (.epd IdlLowTime..IdlHiTime: 30..90 frames, 30..60 in the first fight) x the boss pace: 15..36 frames
+  -- his wait (.epd IdlLowTime..IdlHiTime: 30..90 frames, 30..60 in the first fight) x the boss pace: 30..45 frames
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
     local s = self:GetState()
