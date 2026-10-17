@@ -97,8 +97,9 @@ for _, row in ipairs(plan) do
               if run > maxrun then maxrun = run end
               run = 0
               for k = 1, 30 do pcall(e.OnUpdate, e) end
+              st.owe = nil                -- (its answer has played out too: extra.lua checks the answers)
               pcall(e.GotoState, e, "Idling")
-              st.armor = 0
+              st.armor, st.mArmor = 0, 0
             else
               run = run + 1
             end

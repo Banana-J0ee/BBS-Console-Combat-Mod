@@ -27,8 +27,11 @@
 --   pace     false: the boss keeps its own pace (superbosses, Hades).  Otherwise [Bosses] in the ini
 --            shortens its idle waits and caps its walks (revenge.lua, "Boss pace")
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
---   idleFloor  shortest paced idle wait in frames for this boss (default RV.idleFloor 15)
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
+--   idleFloor  shortest paced idle wait in frames for this boss (default RV.idleFloor 15)
+--   answer   the revenge answer (revenge.lua, RV.oweMax): after the get-away the boss goes into an attack
+--            picked from { close = {...}, far = {...} } (by distance, never the last one again), or chosen
+--            by function(self, near, ret, choose).  answerAt / answerNear / answerClear: see revenge.lua
 --   setup    function(ent) run once when the boss is created (changes to its own states)
 --   armorStates { State = true | frames }: moves of KH2's "cannot be interrupted" class (specials,
 --            warps) the script leaves flinchable: armoured for the whole move, or its first frames
@@ -44,6 +47,17 @@ local function dmgCountPre(self, firing)
   if type(self.dmgCount) == "number" then
     if firing then self.dmgCount = 99 else self.dmgCount = 0 end
   end
+end
+
+-- The revenge answer (KH2: a break-out is always an attack).  answers(self): this boss's config has one,
+-- so its counter only does the get-away and the attack is picked when that ends; answerNow: at once.
+local function answers(self)
+  local st = rawget(self, "__rv")
+  return st ~= nil and st.cfg ~= nil and st.cfg.answer ~= nil and st.answer ~= nil
+end
+local function answerNow(self, ret)
+  local st = rawget(self, "__rv")
+  return st ~= nil and st.answer ~= nil and st.answer(self, ret) == true
 end
 
 -- Break-outs for the bosses whose own escapes live in dice or in OnDamage:
@@ -67,7 +81,14 @@ local function wielderCounter(self)
   -- otherwise the dodge roll.  attack: share of attacks (per boss, default 0.6)
   local st = rawget(self, "__rv")
   local share = (st and st.cfg and st.cfg.attack) or 0.6
-  if Script.Random() < share then
+  if answers(self) then
+    -- an attack picked at once, or the dodge roll and the attack after it (owed)
+    if Script.Random() < share and answerNow(self, "BattleIdling") then
+      if type(self.DamageCnt) == "number" then self.DamageCnt = 0 end
+      return 1
+    end
+    self.stack:push("EvasionAction")
+  elseif Script.Random() < share then
     self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
     self.stack:push("Combo")     -- every wielder's action select has its combo (not every one a special 0)
   else
@@ -76,6 +97,48 @@ local function wielderCounter(self)
   self:GotoState(self.stack:pop(1))
   if type(self.DamageCnt) == "number" then self.DamageCnt = 0 end
   return 1
+end
+-- wielders: close their combo or short-range command, far the distance commands that copy has
+local function wielderAnswer(self, near, ret, choose)
+  if type(self.GetGrandEvasionRate) ~= "function" then return nil end     -- not the shared wielder script
+  local function has(cmd)
+    if cmd == nil then return false end
+    local ok, r = pcall(self.GetRate, self, cmd)
+    return ok and type(r) == "number" and r > 0
+  end
+  local list = {}
+  if near then
+    list[1] = "Combo"
+    if has(PLBBASE_COMMAND_ATTACKCOM1) then list[#list + 1] = "ShortDistAttackCommand" end
+  else
+    if has(PLBBASE_COMMAND_ATTACKCOM2) then list[#list + 1] = "DistanceAttackCommand2" end
+    if has(PLBBASE_COMMAND_ATTACKCOM3) then list[#list + 1] = "DistanceAttackCommand3" end
+    if #list == 0 then list[1] = "Combo" end
+  end
+  local n = choose(list)
+  if n ~= nil and self.stack ~= nil and ret ~= nil then self.stack:push(ret) end
+  return n
+end
+-- Masked Vanitas: his own close / far attacks for the mode he is in (the late fight's normal mode is
+-- the keyblade ride - no answer there; neither while he waits for Xehanort's go-ahead)
+local function maskedAnswer(self, near, ret, choose)
+  if self.rideMode == true then return nil end
+  -- with Xehanort in the fight they take turns (his go-ahead: attackPermission, as SearchTarget asks)
+  if self.attackPermission == false and Enemy.SearchEnemy(self.myHandle, "b40ex00", SEARCH_TYPE_NEAR) ~= NULL_HANDLE then
+    return nil
+  end
+  local dark = self.darkMode == true
+  if self.type == 3 and not dark then return nil end
+  local list
+  if near then
+    list = { dark and "SuccessionAttack2" or "SuccessionAttack1", "DarkFiraga", "DarkThundaga" }
+  else
+    list = { dark and "Warp2" or "Warp1", "DarkFiraga", "DarkThundaga" }
+    if dark then list[#list + 1] = "ShadowDiving" end
+  end
+  local n = choose(list)
+  if n ~= nil and self.stack ~= nil then self.stack:push(dark and "CheckDarkModeAttackCount" or ret or "Idling") end
+  return n
 end
 
 -- Vanitas (story fights)
@@ -132,16 +195,17 @@ local function rideSetup(ent)
 end
 -- KH2 armour (2026-10-17): every attack of his is armoured; the ride moves already are (RideWaiting)
 local vanitasArmor = { SuccessionAttack1 = true, SuccessionAttack2 = true, DarkFiraga = true, DarkThundaga = true }
-local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }
+local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }   -- the late one
+cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
   limit = 7.5,
   -- his specials are armoured in BBS already; his combo's opening is too here (it comes out,
   -- its end can be punished)
   armorStates = { SuccessionAttack2 = true, WarpAttack2 = true, DarkThundaga = true },
+  answer = { close = { "SuccessionAttack2", "DarkThundaga" }, far = { "Warp2", "ShadowDiving", "DarkThundaga" } },
   pre = dmgCountPre,
   counter = vanitasCounter,
   fire = function(self)
@@ -153,6 +217,15 @@ cfg.b63ex00 = {
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
 cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
+  -- the answer: his own attack pick for the phase (ground / air), without its wait
+  answer = function(self, near, ret, choose)
+    if self.stack == nil then return nil end
+    local f = self.airBattle and self.SelectAttackAirBattle or self.SelectAttackGroundBattle
+    if type(f) ~= "function" then return nil end
+    self.stack:push(ret or (self.airBattle and "Hovering" or "Idling"))
+    f(self)
+    return self.stack:pop(1)
+  end,
   armorStates = { XDisCharge = true, DarkBreaker = true, DarkCannon = true, DarkAxisAirBattle = true,
                   SuccessionAttack = true, DarkThundaga = true,
                   -- the script drops its own armour part way through these: held to the end
@@ -204,6 +277,7 @@ cfg.b12ex00 = {
 cfg.b20ex00 = {
   limit = 9,
   armorStates = { RushAttack = true, SuccessionAttack = true },
+  answer = { close = { "SuccessionAttack", "RushAttack", "Kagerou" }, far = { "RushAttack", "Oboro", "Kasumi", "Itusen" } },
   pre = dmgCountPre,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -211,7 +285,9 @@ cfg.b20ex00 = {
     if s == "Dead" or s == "Appear" or s == "Guard" or s == "Kagerou" then return 0 end
     self.stack:push("Wander")
     self.stack:push("Idling")
-    self.stack:push("Kagerou")    -- the guard is always followed by his counter
+    if not answers(self) then
+      self.stack:push("Kagerou")  -- the guard is always followed by his counter
+    end                           -- (with an answer: the guard, then the attack it picks)
     self:GotoState("Guard")
     if type(self.dmgCount) == "number" then self.dmgCount = 0 end
     return 1
@@ -242,6 +318,7 @@ local braig = {
   limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
   armorStates = { WarpShoot = true, WarpCenter = true, RoundShoot = true, DashShoot = true,
                   ChargeShoot = true, InvertedShoot = true },   -- these two: the script drops it part way
+  answer = { close = { "RoundShoot", "DashShoot" }, far = { "WarpShoot", "DashShoot", "ChargeShoot" }, noRet = true },
   -- his escape warp lands 8-11 m out on each axis (vanilla 2-6): out of reach, the arena edge caps it
   setup = function(ent)
     local wt = ent.WarpToTarget
@@ -265,8 +342,10 @@ local braig = {
     self.stack:clear()
     self.stack:push("Idling")
     -- he warps away and answers from there (his own dash / circling shots) - 1 in 4 he only escapes
-    local r = Script.Random()
-    if r < 0.4 then self.stack:push("DashShoot") elseif r < 0.75 then self.stack:push("RoundShoot") end
+    if not answers(self) then     -- (with an answer: the attack is picked when the warp ends)
+      local r = Script.Random()
+      if r < 0.4 then self.stack:push("DashShoot") elseif r < 0.75 then self.stack:push("RoundShoot") end
+    end
     self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
     self:GotoState("Escape")
     return 1
@@ -344,6 +423,8 @@ cfg.b01pp00 = {
                   PresentBombSmall = true },
   iframes = 40,
   setup = hookSetup,
+  answer = { close = { "JumpCutting", "RushStab", "DisturbStab" }, far = { "RushXCutting", "PresentBombSmall" } },
+  answerNear = 12.25,           -- his own close range (3.5 m)
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
@@ -351,7 +432,7 @@ cfg.b01pp00 = {
        or s == "SinkSea" or s == "FlyUp" or s == "Blow" or s == "FireDamage" then return 0 end
     if self.stack == nil then return 0 end
     self.stack:push("Idling")
-    self.stack:push("JumpCutting")
+    if not answers(self) then self.stack:push("JumpCutting") end   -- with an answer: picked after the guard / evade
     if Script.Random() < 0.5 then
       self.stack:push("Guard")
     else
@@ -370,6 +451,9 @@ cfg.b20pp00 = {
   limit = 8,
   armorStates = { Attack1 = true, Attack2 = true, Attack3 = true, Attack4 = true },
   iframes = 48,
+  -- his three attacks are all picked at the same range in his script (BeforeAttackIdling); Attack4 is
+  -- never used by it, so it stays out
+  answer = { close = { "Attack1", "Attack2", "Attack3" }, far = { "Attack1", "Attack2", "Attack3" }, noRet = true },
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
@@ -379,6 +463,7 @@ cfg.b20pp00 = {
       pcall(function() self.stack:clear() self.stack:push("Idling") end)
     end
     pcall(self.ReSetRot, self)
+    if answers(self) and answerNow(self) then return 1 end
     self:GotoState("Attack3")
     return 1
   end,
@@ -395,6 +480,24 @@ cfg.b20pp00 = {
 cfg.b20ls00 = {
   limit = 7,
   armorStates = { Electroshock = true, Lightning = true, ElectricBall = true, BlasterMode = true },
+  -- his answer once he has fled: close his shock (he lands for it, as his script does), far his air shots
+  answerAt = { AirMove = true, AirIdling = true, Idling = true, Wander = true },
+  answer = function(self, near, ret, choose)
+    if self.stack == nil then return nil end
+    local n = choose(near and { "Electroshock", "Lightning" } or { "Lightning", "ElectricBall" })
+    if n == nil then return nil end
+    self.stack:push(ret or "AirMove")
+    if n == "Electroshock" then
+      self.stack:push("Electroshock")
+      return "Landing"
+    end
+    self.stack:push("AirIdling")
+    if n == "ElectricBall" then
+      if Script.Random() < 0.5 then self.stack:push("ElectricBall") end
+      return "ElectricBall"
+    end
+    return "Lightning"
+  end,
   fireSeq = { 0, "coin" },
   pre = dmgCountPre,
   counter = function(self)
@@ -405,7 +508,7 @@ cfg.b20ls00 = {
     self.stack:push("AirMove")
     self.stack:push("Flee")
     self.stack:push("StartAirMove")
-    if Script.Random() < 0.75 then                       -- usually he answers with his shock first
+    if not answers(self) and Script.Random() < 0.75 then -- usually he answers with his shock first
       self.stack:push("Electroshock")
       Enemy.EnableNoDamageReaction(self.myHandle, 1)      -- as his own escape does
     end
@@ -424,6 +527,14 @@ cfg.b01sb00 = {
   armorStates = { Teleport = true, StaffAttack = true, Meteor = true },
   fire = "real",
   iframes = 40,
+  -- her answer: the staff or the spell of the phase she is in (IdlingA: Thundaga, IdlingB / C: Thunder)
+  answer = function(self, near, ret, choose)
+    local n = choose({ "StaffAttack", ret == "IdlingA" and "Thundaga" or "Thunder" })
+    if n ~= nil and self.stack ~= nil and ret ~= nil then self.stack:push(ret) end
+    return n
+  end,
+  answerClear = { Thunder = true, Thundaga = true, Meteor = true, CharmFlash = true, SoldierSummons = true,
+                  Sleep = true, StaffAttack = true },
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
@@ -432,8 +543,8 @@ cfg.b01sb00 = {
     if self.stack ~= nil and type(self.stack.getn) == "function" and self.stack:getn() <= 0 then
       if s ~= nil then self.stack:push(s) else self.stack:push("IdlingA") end
     end
-    if Script.Random() < 0.5 and type(self.ChangeWarpState) == "function" then
-      self:ChangeWarpState()
+    if type(self.ChangeWarpState) == "function" and (answers(self) or Script.Random() < 0.5) then
+      self:ChangeWarpState()      -- with an answer: always the teleport, then the attack it picks
     else
       self:GotoState("StaffAttack")
     end
@@ -470,13 +581,15 @@ local function wielderPost(self, fired)
 end
 -- (a wielder whose script has no dodge chance, e.g. in mid-air, still has none)
 -- fire 0.999: their own dodge roll does not come out by itself at the limit, the counter picks (mostly an attack)
-local wielder = { limit = 9, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter }
+local wielder = { limit = 9, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter,
+                  answer = wielderAnswer }
 local wielders = { "b60ex00", "b62ex00", "b68ex00", "b69ex00", "b70ex00", "b72ex00", "b73ex00",
                    "b78ex00", "b79ex00", "b80ex00", "b82ex00", "b83ex00", "b88ex00", "b89ex00" }
 for i = 1, #wielders do
   cfg[wielders[i]] = wielder
 end
-local xehanort = { limit = 6, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter }
+local xehanort = { limit = 6, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter,
+                   answer = wielderAnswer }
 cfg.b50ex00 = xehanort
 cfg.b51ex00 = xehanort
 
@@ -488,6 +601,7 @@ cfg.b52ex00 = {
   attack = 1,
   active = wielderActive,
   counter = wielderCounter,     -- the shared-AI form only; his own AI has no EvasionAction and is covered by pre()
+  answer = wielderAnswer,       -- (nil for his own AI)
   fire = function(self) if ownAI(self) then return "real" end return 0 end,
   fireSeq = function(self) if ownAI(self) then return nil end return xehanort.fireSeq end,
   pre = function(self, firing)
@@ -523,7 +637,9 @@ local function zackCounter(self)
   self.stack:clear()
   self.stack:push("Move")
   local r = Script.Random()
-  if r < 0.4 then
+  if answers(self) then         -- the back-jump, then the attack picked when it ends
+    self.stack:push("BackJump_Short")
+  elseif r < 0.4 then
     self.stack:push("Climbhazard")
     self.stack:push("BackJump_Short")
   elseif r < 0.7 then
@@ -552,6 +668,7 @@ local zackStory = {}
 for k, v in pairs(zack) do zackStory[k] = v end
 zackStory.limit = 8
 zackStory.armorStates = { ComboAttack = true, Hakougeki = true }   -- story copies only (Arena: as it was)
+zackStory.answer = { close = { "ComboAttack", "Hakougeki", "Climbhazard" }, far = { "Climbhazard", "Hakougeki" } }
 cfg.b30he00 = zackStory
 cfg.b40he00 = zackStory
 
@@ -562,6 +679,12 @@ local function hadesCounter(self)
   local s = self:GetState()
   if s == "Watching" or s == "Dead" or s == "Freeze" or s == "Appear" or s == "BladesCrossing"
      or s == "MegaFire" or s == "FingernailofFire" or s == "NoRiaFingernailofFire" then return 0 end
+  if answers(self) then         -- no get-away: one of his attacks at once
+    if answerNow(self) then
+      if type(self.sameDamageCont) == "number" then self.sameDamageCont = 0 end
+      return 1
+    end
+  end
   if Script.Random() < 0.5 then
     self:GotoState("BladesCrossing")
   else
@@ -591,6 +714,7 @@ local hadesStory = {}
 for k, v in pairs(hades) do hadesStory[k] = v end
 hadesStory.limit = 8
 hadesStory.armorStates = { MegaFire = true, BladesCrossing = true, FingernailofFire = true }
+hadesStory.answer = { close = { "NoRiaFingernailofFire", "BladesCrossing" }, far = { "MegaFire", "BladesCrossing" }, noRet = true }
 cfg.b01he00 = hadesStory
 
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
@@ -600,10 +724,20 @@ cfg.b40ex00 = {
   limit = 7,
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },
+  -- his answer: his own attack patterns - close mostly his slashes (pattern 1: Attack0 / Attack1), else
+  -- his magic (pattern 2: Rising Ground / Blizzaga / Thundaga); never his specials
+  answer = function(self, near, ret, choose)
+    if type(self.StartAttackPattern) ~= "function" or self.phase == 100 then return nil end
+    local melee = near and Script.Random() < 0.65
+    if melee then self:StartAttackPattern(1, 0) else self:StartAttackPattern(2, 0) end
+    return true
+  end,
   counter = function(self)
     if type(self.QuickWarpStart) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
     if s == "Warp" or s == "UltimateFreeze" or s == "Dead" or s == "Appear" or self.phase == 100 then return 0 end
+    -- with an answer the quick warp lands in Idling (his param 101) and the answer picks the attack
+    if answers(self) and type(self.DamageWarpParam) == "number" then self.DamageWarpParam = 101 end
     self:QuickWarpStart()
     self.damageCombo = 0
     return 1

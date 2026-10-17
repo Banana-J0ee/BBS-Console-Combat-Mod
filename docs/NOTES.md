@@ -1108,3 +1108,32 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   Larxene atk_aero/turn/brush/jump, Saix atk_behave/normal_swing, Roxas atk_spotbeam_revenge_air/land; the warping
   bosses warp and attack as one answer (Xigbar move_warp -> atk_shot/drop_shot, Xemnas warp_target_near ->
   atk_counter/combo).  Never a bare escape.
+
+## Revenge answer: get-away, then an attack picked from a list (2026-10-17)
+* KH2: a boss's "revenge" act always starts an attack (a warp being part of it).  BBS break-outs were often a bare
+  get-away (all three Vanitas: Cartwheel then Idling).  Now, after a forced break-out the boss owes an attack
+  (st.owe, done(true)); the first time its get-away hands over to an idle / walk state (cfg.answerAt overrides, e.g.
+  Experiment 221's AirMove) the outermost GotoStateSub wrapper goes into an attack picked by cfg.answer instead -
+  close or far list by distance (RV.answerNear 4 m; Hook 3.5 m), never the move of the last answer (st.lastAnswer;
+  function answers are re-asked up to 4 times with the stack put back).  The return state is pushed for the attack's
+  own pop (noRet for bosses whose attacks leave by a literal GotoState).  Armour from the answer's first frame,
+  capped at RV.answerArmorMax 300 from its start (st.armorCap; the usual cap 180 otherwise).  An owed attack lapses
+  after RV.oweMax 300 frames, outside `active`, and when the boss starts an attack of its own first (armorStates,
+  answer lists, cfg.answerClear, names holding Attack / Combo / Shoot).
+* Answers: Masked Vanitas (his mode: SA1 or SA2 close, Warp1 / Warp2 far, Dark Firaga / Thundaga, Shadow Diving in
+  dark mode; none in the late fight's ride mode, none while Xehanort holds the turn); Ventus's Vanitas: his own
+  SelectAttackGround/AirBattle without the wait; Aqua's Vanitas SA2 / Dark Thundaga close, Warp2 / Shadow Diving /
+  Dark Thundaga far; Eraqus (Guard without Kagerou, then SA / Rush / Kagerou close, Rush / Oboro / Kasumi / Itsusen
+  far); Braig (Escape, then Round / Dash close, Warp / Dash / Charge far); MX (quick warp lands in Idling - param
+  101 - then his attack pattern 1 slashes or 2 magic); Zack story (BackJump_Short, then Combo / Hakougeki /
+  Climbhazard); Hades story and Peter Pan at once (counter -> st.answer); Hook (Guard / Evade, then Jump Cutting /
+  Rush Stab / Disturb Stab close, Rush X-Cutting / Present Bomb far); Maleficent (always the teleport, then Staff
+  Attack or her phase's spell); Experiment 221 (flee, then Electroshock - landing first - or Lightning close,
+  Lightning / Electric Ball far); wielders (attack share: answer at once, else dodge then answer; Combo /
+  short-range command close, the distance commands the copy has far).  Superbosses and Arena copies: unchanged.
+* NOTE: bundle_src/Factory_revenge.lub only reaches the DLL through src/bundle_gen.h - after genrevenge.py run
+  `BBS_EXE=.../bbs.exe BBS_EXE_COMBO=.../bbs_patched.exe python3 tools/genbundle.py`.  The three revenge commits
+  before this one (armour, Braig's idle floor, idle floor 15) had not been regenerated, so the game ran without
+  them (only the Aggression value, which the DLL patches into the script, was live).  Regenerated here.
+* Tests: extra.lua (each boss's close / far answers, no repeats, armour, lapses on its own attack; Hades / Peter Pan
+  at once; Aqua's Vanitas cartwheel -> attack), loop.lua (the owed answer is played out between strings).

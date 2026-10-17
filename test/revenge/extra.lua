@@ -50,6 +50,7 @@ do
   local grace = BBS_REVENGE.grace
   check(st.idle >= grace, "... and it drains from now on, while he acts")
   check(hit(h) == nil and e:GetState() == "Warp", "while he is warping nothing more is triggered")
+  st.owe = nil                                   -- (the attack owed after the warp: not this check)
   pcall(e.GotoState, e, "Idling"); st.rv = 0
   for i = 1, 2 do hit(h, ATK_KIND_DMG_SMALL, COMMAND_CATEGORY_FINISH) end
   check(st.rv == 6 and e:GetState() == "Idling", "finishers count 3 each (value " .. st.rv .. ")")
@@ -117,7 +118,8 @@ do
   for i = 1, 7 do r = hit(h) end
   check(r == nil and st.rv == 7, "Peter Pan: 7 hits land, no vanilla escape fires")
   r = hit(h)
-  check(r == "before" and st.rv == 8 and e:GetState() == "Attack3", "8th hit: his own attack as the revenge (" .. tostring(e:GetState()) .. "), value kept")
+  local s8 = e:GetState()
+  check(r == "before" and st.rv == 8 and (s8 == "Attack1" or s8 == "Attack2" or s8 == "Attack3"), "8th hit: one of his own attacks as the revenge (" .. tostring(s8) .. "), value kept")
   check(st.armor > 0, "the revenge has its armour window")
   for i = 1, 70 do e:OnUpdate() end
   check(st.armor > 0, "... held while his attack runs")
@@ -288,10 +290,13 @@ do
     pcall(e3.GotoState, e3, "Idling")
     st3.rv, st3.firing, st3.armor = 0, false, 0
     for i = 1, 10 do if hit(h3) ~= nil then break end end
-    local top = e3.stack ~= nil and e3.stack:pop(1) or nil
-    if e3:GetState() == "Escape" and (top == "DashShoot" or top == "RoundShoot") then shots = shots + 1 end
+    if e3:GetState() == "Escape" and e3.stack ~= nil then
+      pcall(e3.GotoState, e3, e3.stack:pop(1))     -- the escape warp ends
+      local s3 = e3:GetState()
+      if s3 == "WarpShoot" or s3 == "DashShoot" or s3 == "ChargeShoot" or s3 == "RoundShoot" then shots = shots + 1 end
+    end
   end
-  check(shots >= 10, "Braig: escape then his own shots in " .. shots .. " of 20 break-outs")
+  check(shots == 20, "Braig: escape, then one of his shots, in " .. shots .. " of 20 break-outs")
   check(st3.limit >= 6 and st3.limit <= 8, "Braig in the Keyblade Graveyard: limit 7 +- 1 (" .. st3.limit .. ")")
   -- his escape warp goes far, his other warps keep their range
   local got
@@ -439,6 +444,107 @@ do
   local top = e.stack:pop(1)
   check(ended == 1 and e:GetState() == "BackhandsSpringJump" and top == "StyleChange",
         "his limit's worth of hits: off the keyblades the way his script ends a ride (" .. tostring(e:GetState()) .. ", then " .. tostring(top) .. ")")
+end
+-- the revenge answer: after the get-away the boss attacks with a move picked from its list - by distance,
+-- never the same as last time - under armour (KH2: a break-out is always an attack)
+do
+  local function set(list) local t = {} for i = 1, #list do t[list[i]] = true end return t end
+  local rows = {
+    { "b10ex00", "b10ex00", "Idling", { "SuccessionAttack1", "DarkFiraga", "DarkThundaga" }, { "Warp1", "DarkFiraga", "DarkThundaga" } },
+    { "b11ex00", "b11ex00", "Idling", { "SuccessionAttack", "XDisCharge" }, { "DarkThundaga", "DarkAxisGroundBattle", "DarkSplicer1GroundBattle" } },
+    { "b63ex00", "b63ex00", "Idling", { "SuccessionAttack2", "DarkThundaga" }, { "Warp2", "ShadowDiving", "DarkThundaga" } },
+    { "b20ex00", "b20ex00", "Idling", { "SuccessionAttack", "RushAttack", "Kagerou" }, { "RushAttack", "Oboro", "Kasumi", "Itusen" } },
+    { "b30ex00", "b30ex00", "Idling", { "RoundShoot", "DashShoot" }, { "WarpShoot", "DashShoot", "ChargeShoot" } },
+    { "b40ex00", "b40ex00", "Idling", { "Attack0", "Attack1", "RisingGround", "Blizzaga", "Thundaga" }, { "RisingGround", "Blizzaga", "Thundaga" } },
+    { "b40he00", "b30he00", "Move", { "ComboAttack", "Hakougeki", "Climbhazard" }, { "Climbhazard", "Hakougeki" } },
+    { "b01pp00", "b01pp00", "Idling", { "JumpCutting", "RushStab", "DisturbStab" }, { "RushXCutting", "PresentBombSmall" } },
+    { "b20ls00", "b20ls00", "AirMove", { "Electroshock", "Lightning" }, { "Lightning", "ElectricBall" } },
+    { "b01sb00", "b01sb00", "IdlingA", { "StaffAttack", "Thundaga" }, { "StaffAttack", "Thundaga" } },
+    { "b60", "b60ex00", "BattleIdling", { "Combo", "ShortDistAttackCommand" }, { "DistanceAttackCommand2", "DistanceAttackCommand3", "Combo" } },
+  }
+  M.num["Enemy.SearchEnemy"] = function() return NULL_HANDLE end   -- (no Xehanort beside Vanitas)
+  for _, row in ipairs(rows) do
+    local script, name, ret = row[1], row[2], row[3]
+    M.script(script)
+    local e, h = M.create(name)
+    local st = BBS_REVENGE.ents[name]
+    if e == nil or st == nil then
+      check(false, name .. ": answer test could not create the boss")
+    else
+      rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+      for pass = 1, 2 do
+        local d = pass == 1 and 4 or 900
+        M.num["Entity.CalcDistanceSq"] = d
+        local want = set(pass == 1 and row[4] or row[5])
+        local okAll, rep, last, seen, n = true, false, nil, {}, 0
+        for k = 1, 16 do
+          st.owe = nil
+          pcall(e.GotoState, e, ret)
+          st.armor, st.mArmor = 0, 0
+          st.owe = st.t                                -- a forced break-out: the attack is owed
+          pcall(e.GotoState, e, ret)                   -- the get-away hands over
+          local cur = e:GetState()
+          local lab = st.lastAnswer
+          -- (the picked move; some moves' own start cannot run in the stand-in engine)
+          if not want[lab] or not (want[cur] or cur == ret or cur == "Landing") then okAll = false end
+          cur = lab or "?"
+          if lab == last then rep = true end
+          if not seen[cur] then seen[cur] = true n = n + 1 end
+          last = lab
+          if k == 1 and not (st.armor > 0 and st.armorCap ~= nil) then okAll = false end
+        end
+        local multi = (pass == 1 and #row[4] or #row[5]) > 1
+        if name == "b60ex00" and pass == 2 then multi = false end   -- (the stand-in has no command table)
+        check(okAll and not (multi and rep) and (n >= 2 or not multi),
+              name .. (pass == 1 and " close" or " far") .. ": after the get-away an attack from his list, armoured, " ..
+              n .. " different, never twice in a row" .. (okAll and "" or " (got " .. tostring(e:GetState()) .. ")"))
+      end
+      M.num["Entity.CalcDistanceSq"] = 4
+      -- an owed attack lapses when the boss attacks on its own first
+      st.owe = nil
+      pcall(e.GotoState, e, ret)
+      st.owe = st.t
+      pcall(e.GotoState, e, row[4][1])
+      check(st.owe == nil, name .. ": attacking on its own pays the owed attack")
+      st.owe = nil
+    end
+  end
+  -- no get-away: Hades and Peter Pan answer at once, from their lists
+  for _, row in ipairs({ { "b01he00", "b01he00", { "NoRiaFingernailofFire", "BladesCrossing", "MegaFire" } },
+                         { "b20pp00", "b20pp00", { "Attack1", "Attack2", "Attack3" } } }) do
+    M.script(row[1])
+    local e, h = M.create(row[2])
+    local st = BBS_REVENGE.ents[row[2]]
+    rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+    local want, okAll, last, rep = set(row[3]), true, nil, false
+    for k = 1, 12 do
+      pcall(e.GotoState, e, "Idling")
+      st.rv, st.firing, st.armor = st.limit + 1, true, 0
+      local c0 = st.count
+      for i = 1, 3 do if hit(h) ~= nil then break end end
+      if st.count == c0 or not want[e:GetState()] then okAll = false end
+      if st.lastAnswer == last then rep = true end
+      last = st.lastAnswer
+      if st.owe ~= nil then okAll = false end                 -- answered: nothing more owed
+    end
+    check(okAll and not rep, row[2] .. ": break-out = one of his attacks at once, never twice in a row")
+  end
+  -- the whole path: Vanitas breaks out with his cartwheel and attacks when it ends
+  M.script("b63ex00")
+  local e, h = M.create("b63ex00")
+  local st = BBS_REVENGE.ents.b63ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  M.num["Entity.CalcDistanceSq"] = 900            -- at range he breaks out with his cartwheel
+  pcall(e.GotoState, e, "Idling")
+  st.rv, st.firing, st.armor, st.owe = st.limit - 0.5, false, 0, nil
+  for i = 1, 3 do if hit(h) ~= nil then break end end
+  local s1 = e:GetState()
+  check(s1 == "Cartwheel" and st.owe ~= nil, "Aqua's Vanitas: break-out = his cartwheel, an attack owed (" .. tostring(s1) .. ")")
+  pcall(e.GotoState, e, e.stack:pop(1))          -- his cartwheel ends (its own pop)
+  local s2 = e:GetState()
+  M.num["Entity.CalcDistanceSq"] = 4
+  check((s2 == "Warp2" or s2 == "ShadowDiving" or s2 == "DarkThundaga") and st.armor > 0,
+        "... and when it ends he attacks at once, armoured (" .. tostring(s2) .. ")")
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

@@ -64,6 +64,14 @@ RV.iframes  = 45     -- armour after a forced break-out, so the answer cannot be
                        -- 0 = none).  It lasts until the boss is back in an idle or a walk - then the end of its
                        -- answer can be punished - and at most RV.armorMax frames.
 RV.armorMax = 180
+-- The revenge answer (KH2: a boss that breaks out of a combo always attacks - its "revenge" act starts an
+-- attack, a warp being part of it).  After a forced break-out the boss owes an attack: the first time its
+-- get-away hands over to an idle / walk state (or a state in cfg.answerAt), it goes into an attack picked
+-- by cfg.answer instead, under armour.  An owed attack lapses after RV.oweMax frames, and when the boss
+-- starts an attack of its own first.
+RV.oweMax = 300
+RV.answerArmorMax = 300   -- armour cap for an answer, from the attack's start
+RV.answerNear = 16        -- squared distance (4 m) under which the close list is used
 
 -- Boss pace ([Bosses] in bbskh2.ini).  KH2 bosses wait 0.25 .. 0.75 s between decisions and
 -- walk at most 1 .. 2 s before attacking (their AI files: idle_time 15..45 frames, move_target
@@ -271,6 +279,7 @@ local function attach(ent, name, handle)
   if st ~= nil then                         -- same object re-used: just clear
     st.rv, st.idle, st.firing, st.fireT, st.armor = 0, 0, false, 0, 0
     st.mArmor = 0
+    st.owe = nil
     st.limit = c.limit
     if st.pace ~= nil and handle ~= nil then P.by[handle] = st end
     return
@@ -346,6 +355,11 @@ local function attach(ent, name, handle)
     st.count = st.count + 1
     if fired then st.fcount = st.fcount + 1 end
     rollLimit()
+    st.armorCap = nil
+    if fired and c.answer ~= nil then
+      -- answered at once by the counter (st.answer), or owed until the get-away ends
+      if st.answeredT == st.t then st.armorCap = RV.answerArmorMax else st.owe = st.t end
+    end
     if fired then
       local n = c.iframes or RV.iframes
       if n ~= nil and n ~= false and n > 0 and type(Enemy.EnableNoDamageReaction) == "function" then
@@ -447,6 +461,121 @@ local function attach(ent, name, handle)
     end
   end
 
+  -- the revenge answer (see RV.oweMax): the get-away hands over to an attack
+  local ans = c.answer
+  if ans ~= nil then
+    local gss3 = ent.GotoStateSub
+    local function attackLike(n)
+      if type(n) ~= "string" then return false end
+      if (c.armorStates ~= nil and c.armorStates[n]) or (c.answerClear ~= nil and c.answerClear[n]) then return true end
+      if type(ans) == "table" then
+        for _, l in ipairs({ ans.close or {}, ans.far or {} }) do
+          for i = 1, #l do if l[i] == n then return true end end
+        end
+      end
+      return n:find("Attack") ~= nil or n:find("Combo") ~= nil or n:find("Shoot") ~= nil
+    end
+    local function real() if S.real ~= nil then return S.real() end return math.random() end
+    local function choose(list)
+      local pool = {}
+      for i = 1, #list do
+        if list[i] ~= st.lastAnswer then pool[#pool + 1] = list[i] end
+      end
+      if #pool == 0 then pool = list end
+      if #pool == 0 then return nil end
+      local k = math.floor(real() * #pool) + 1
+      if k > #pool then k = #pool end
+      st.pickLabel = pool[k]
+      return pool[k]
+    end
+    -- go into the answer instead of `ret` (the state the get-away hands over to; nil from a counter).
+    -- cfg.answer: { close = {...}, far = {...}, noRet = true } (ret is pushed on the boss's stack for the
+    -- attack's own pop, unless noRet), or function(self, near, ret, choose) -> a state name (it arranges the
+    -- stack itself), or true when it went into the attack itself.  Returns true when the boss attacks.
+    -- armour for the whole answer (KH2's revenge attacks cannot be stuffed), from its first frame
+    local function armorUp(self)
+      local fr = c.iframes or RV.iframes
+      if fr ~= nil and fr ~= false and fr > 0 then
+        st.armor = math.max(st.armor, fr)
+        st.armorT0 = st.t
+        st.armorCap = RV.answerArmorMax
+        if type(Enemy.EnableNoDamageReaction) == "function" then Enemy.EnableNoDamageReaction(myh(self), 1) end
+      end
+    end
+    local function enterAnswer(self, ret, a, b)
+      local h = myh(self)
+      local tgt = Enemy.SearchAttackEntity(h, SEARCH_TYPE_NEAR)
+      if tgt ~= nil and type(tgt) ~= "table" then self.targetHandle = tgt end
+      local d = Entity.CalcDistanceSq(h, self.targetHandle)
+      local near = type(d) == "number" and d < (c.answerNear or RV.answerNear)
+      local stk = self.stack
+      local base = (stk ~= nil and type(stk.getn) == "function") and stk:getn() or nil
+      local pd, ps = S.def, S.seq
+      S.def, S.seq = nil, nil                           -- the boss's own choices use real dice
+      st.answering = true
+      local ok, res = pcall(function()
+        for try = 1, 4 do
+          st.pickLabel = nil
+          local n
+          if type(ans) == "function" then
+            n = ans(self, near, ret, choose)
+          else
+            n = choose((near and ans.close or ans.far) or {})
+            if n ~= nil and stk ~= nil and ret ~= nil and not ans.noRet then stk:push(ret) end
+          end
+          if n == true then
+            local cur = self:GetState()
+            if cur ~= st.lastAnswer or try == 4 then st.lastAnswer = cur return true end
+          elseif type(n) == "string" and type(self.states) == "table" and self.states[n] ~= nil then
+            local label = st.pickLabel or n
+            if label ~= st.lastAnswer or try == 4 or base == nil then
+              st.lastAnswer = label
+              return n                                -- entered below, outside this pcall
+            end
+            while stk:getn() > base do stk:pop(1) end      -- the same as last time: once more
+          else
+            if base ~= nil then while stk:getn() > base do stk:pop(1) end end
+            return false
+          end
+        end
+        return false
+      end)
+      S.def, S.seq = pd, ps
+      if not ok or res == false or res == nil then st.answering = false return false end
+      if type(res) == "string" then
+        -- the attack itself: the boss's own state code, outside the pcall (its errors are its own)
+        armorUp(self)
+        local ok2, err = pcall(gss3, self, res, a, b)
+        st.answering = false
+        if not ok2 then error(err, 0) end
+        return true
+      end
+      st.answering = false
+      armorUp(self)
+      return true
+    end
+    st.answer = function(self, ret)               -- for counters: answer at once (no get-away)
+      st.owe = nil
+      if enterAnswer(self, ret) then st.answeredT = st.t return true end
+      return false
+    end
+    if type(gss3) == "function" then
+      rawset(ent, "GotoStateSub", function(self, s, a, b)
+        if st.owe ~= nil and not st.answering and type(s) == "string" then
+          if st.t - st.owe > RV.oweMax or not active(self) then
+            st.owe = nil
+          elseif (c.answerAt ~= nil and c.answerAt[s]) or (c.answerAt == nil and paceKind(s) ~= nil) then
+            st.owe = nil
+            if enterAnswer(self, s, a, b) then return nil end
+          elseif attackLike(s) then
+            st.owe = nil                          -- it attacks on its own: nothing owed
+          end
+        end
+        return gss3(self, s, a, b)
+      end)
+    end
+  end
+
   -- per-boss changes to the script's own states (the instance gets its own states table)
   if c.setup ~= nil then pcall(c.setup, ent) end
 
@@ -544,7 +673,7 @@ local function attach(ent, name, handle)
       st.armor = st.armor - dt
       local age = st.t - (st.armorT0 or 0)
       local idle = type(self.GetState) == "function" and paceKind(self:GetState()) ~= nil
-      local off = (idle and age > 6) or age > RV.armorMax
+      local off = (idle and age > 6) or age > (st.armorCap or RV.armorMax)
       if not off and st.armor <= 0 then st.armor = 1 end      -- the answer is still running
       if off then st.armor = 0 end
       if type(Enemy.EnableNoDamageReaction) == "function" then
