@@ -316,20 +316,67 @@ local armor = {
 cfg.b81vs00 = armor
 
 -- Braig: 30% escape on every hit.
+-- Braig's rest (asked for: his own idle timing, every attack fully armoured): 60-90 frames (1.0-1.5 s, random)
+-- after every attack, unarmoured - his window.  After Warp / Charge / Inverted Shoot his own wait (WaitIdling,
+-- a frame counter, then a warp) gets that length; after Dash / Round Shoot, whose Idling picked the next shot at
+-- once, Idling holds him in his idle pose (WaitIdling's own start) for that long first.  Hits during a rest put
+-- him back in Idling (his script): the rest goes on, it does not start over.
+local BRAIG_REST = { 60, 90 }
+local braigAttacks = { DashShoot = true, RoundShoot = true, WarpShoot = true, ChargeShoot = true,
+                       InvertedShoot = true, Sniper = true, ArutemaShoot = true }
+local function braigRestFrames()
+  local r = Script.Random()
+  if type(r) ~= "number" then r = 0.5 end
+  return BRAIG_REST[1] + (BRAIG_REST[2] - BRAIG_REST[1]) * r
+end
+local function braigRest(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.Idling) ~= "table" or type(states.WaitIdling) ~= "table" then return end
+  local own = {}
+  for k, v in pairs(states) do own[k] = v end
+  local idl, wai = {}, {}
+  for k, v in pairs(states.Idling) do idl[k] = v end
+  for k, v in pairs(states.WaitIdling) do wai[k] = v end
+  local iBegin, iUpdate, wBegin = states.Idling.OnBeginState, states.Idling.OnUpdate, states.WaitIdling.OnBeginState
+  wai.OnBeginState = function(self)
+    if wBegin ~= nil then wBegin(self) end
+    self.timer = braigRestFrames()
+  end
+  idl.OnBeginState = function(self)
+    local prev = self:GetState()                       -- (the FSM switches after OnBeginState)
+    if iBegin ~= nil then iBegin(self) end
+    if braigAttacks[prev] then
+      self.__rest = braigRestFrames()
+      if wBegin ~= nil then pcall(wBegin, self) end    -- his idle pose
+      self.step = 0
+    elseif prev ~= "Idling" then
+      self.__rest = 0
+    end
+  end
+  idl.OnUpdate = function(self)
+    if type(self.__rest) == "number" and self.__rest > 0 then
+      local dt = Entity.GetFrameRate(self.myHandle)
+      if type(dt) ~= "number" or dt <= 0 or dt > 6 then dt = 1 end
+      self.__rest = self.__rest - dt
+      pcall(Entity.TurnTargetYDegree, self.myHandle, self.targetHandle, 5)
+      return
+    end
+    if iUpdate ~= nil then return iUpdate(self) end
+  end
+  own.Idling, own.WaitIdling = idl, wai
+  rawset(ent, "states", own)
+end
 local braig = {
   limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
-  -- His shots are long shooting phases (a Dash Shoot ran ~10 s, an Inverted Shoot ~22 s in play), so a whole
-  -- phase under armour left him with no opening at all.  As KH2's Xigbar (his single shots armoured, his long
-  -- shooting strings not): armour for the first second of each shot, then hits stagger him and end it.
-  -- Charge Shoot is armoured whole (asked for: never staggered out of it, not even by its damage break);
-  -- Inverted Shoot keeps the game's own armour (its start and end); the warp to the centre is armoured whole.
-  -- (per move, asked for: Round Shoot 1.25 s, Dash Shoot 1.5 s, Warp Shoot 2 s - its warp and first volley)
-  armorStates = { RoundShoot = 75, DashShoot = 90, WarpShoot = 120, WarpCenter = true, ChargeShoot = true },
+  -- His shots are long shooting phases, and after Dash / Round Shoot his Idling picks the next one at once
+  -- (0-1 frame in play), so with his shots armoured he had no opening at all.  Asked for: every attack fully
+  -- armoured, and a rest of his own after each one (braigRest below) - that is where he can be staggered.
+  armorStates = { RoundShoot = true, DashShoot = true, WarpShoot = true, ChargeShoot = true, InvertedShoot = true,
+                  WarpCenter = true },
   answer = { close = { "RoundShoot", "DashShoot" }, far = { "WarpShoot", "DashShoot", "ChargeShoot" }, noRet = true },
   -- his OnDamageBefore sends every shot to Idling on any hit (30 % escape otherwise), armour or not, so an
-  -- armoured shot was still cut short.  Kept from the script while a shot's armour lasts (its first second,
-  -- or a revenge answer); after that a hit ends the shot as in vanilla.  His designed breaks stay: Sniper /
-  -- Charge Shot charging end after enough damage (AttackReleaseHP), Inverted Shot's dodge
+  -- armoured shot was still cut short: hits are kept from his script during his armoured shots (Charge
+  -- Shoot too: no damage break, asked for).  Kept: the Sniper's damage break, Inverted Shot's dodge
   answerClear = { Sniper = true, ArutemaShoot = true },   -- (his entrance may go straight into the Sniper)
   armorHit = function(self)
     local s = self:GetState()
@@ -338,18 +385,19 @@ local braig = {
   -- his escape warp lands 8-11 m out on each axis (vanilla 2-6): out of reach, the arena edge caps it
   setup = function(ent)
     local wt = ent.WarpToTarget
-    if type(wt) ~= "function" then return end
-    rawset(ent, "WarpToTarget", function(self, a, b)
-      if type(self.GetState) == "function" and self:GetState() == "Escape" and type(a) == "number" and type(b) == "number" then
-        if a < 8 then a = 8 end
-        if b < 11 then b = 11 end
-      end
-      return wt(self, a, b)
-    end)
+    if type(wt) == "function" then
+      rawset(ent, "WarpToTarget", function(self, a, b)
+        if type(self.GetState) == "function" and self:GetState() == "Escape" and type(a) == "number" and type(b) == "number" then
+          if a < 8 then a = 8 end
+          if b < 11 then b = 11 end
+        end
+        return wt(self, a, b)
+      end)
+    end
+    braigRest(ent)
   end,
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
-  paceFields = { WaitIdling = "timer" },   -- his wait between shots is a frame counter
-  -- his wait (.epd IdlLowTime..IdlHiTime: 30..90 frames, 30..60 in the first fight) x the boss pace: 30..45 frames
+  -- (no paceFields: his wait is braigRest's - 1.0-1.5 s after every attack)
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
     local s = self:GetState()

@@ -198,19 +198,14 @@ do
   rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
   pcall(e2.GotoState, e2, "TargetMove")
   check(log[h2] == 600, "Vanitas Remnant (superboss) keeps his 600 (" .. tostring(log[h2]) .. ")")
-  -- Braig: his wait is a field
+  -- Braig: his own rest, 60-90 frames (1.0-1.5 s), in his WaitIdling counter (no boss-pace cut)
   M.script("b30ex00")
   local e3, h3 = M.create("b30ex00")
   rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
   M.num["Script.RandomInRange"] = function(a, b) return 90 end
   pcall(e3.GotoState, e3, "WaitIdling")
   M.num["Script.RandomInRange"] = nil
-  check(math.abs(e3.timer - 45) < 0.01, "Braig WaitIdling: 90 -> 45 frames (" .. tostring(e3.timer) .. ")")
-  pcall(e3.GotoState, e3, "Idling")
-  M.num["Script.RandomInRange"] = function(a, b) return 30 end
-  pcall(e3.GotoState, e3, "WaitIdling")
-  M.num["Script.RandomInRange"] = nil
-  check(e3.timer == 30, "... 30 stays 30 (under the floor) (" .. tostring(e3.timer) .. ")")
+  check(type(e3.timer) == "number" and e3.timer >= 60 and e3.timer <= 90, "Braig WaitIdling: his rest, 1.0-1.5 s (" .. tostring(e3.timer) .. ")")
   -- keyblade wielder as an ally: untouched
   M.script("b60")
   local e4, h4 = M.create("b60ex00")
@@ -371,8 +366,8 @@ do
     if log[h5] ~= 1 then held5 = false end
   end
   check(held5 and n5 > 0, "Vanitas's Dark Splicer: armoured to its end (" .. n5 .. " frames)")
-  -- Braig: the first second of a shot is armoured and hits do not reach his script (it would end the shot);
-  -- after that hits stagger him and end it, as in vanilla (his shots are long shooting phases)
+  -- Braig: every shot armoured whole, hits kept from his script (it would end the shot); after a shot a rest
+  -- of 1.0-1.5 s in his idle, unarmoured, before his Idling picks the next one
   M.script("b30ex00")
   local e3, h3 = M.create("b30ex00")
   rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
@@ -381,19 +376,22 @@ do
   pcall(e3.GotoState, e3, "DashShoot")
   st3.rv, st3.firing, st3.armor = 0, false, 0
   for i = 1, 3 do hit(h3) end
-  check(e3:GetState() == "DashShoot" and log[h3] == 1, "Braig: hits early in his Dash Shoot do not cut it short (" .. tostring(e3:GetState()) .. ")")
-  for i = 1, 80 do pcall(e3.OnUpdate, e3) end
-  check(log[h3] == 1, "... still armoured at 1.33 s (Dash Shoot: 1.5 s)")
-  for i = 1, 15 do pcall(e3.OnUpdate, e3) end
-  local s3 = e3:GetState()
-  check(log[h3] == 0, "... after 1.5 s his armour is off (" .. tostring(s3) .. ")")
-  if s3 == "DashShoot" then
-    hit(h3)
-    check(e3:GetState() ~= "DashShoot", "... and a hit ends the shot (" .. tostring(e3:GetState()) .. ")")
-  end
+  for i = 1, 200 do pcall(e3.OnUpdate, e3) end
+  check(e3:GetState() == "DashShoot" and log[h3] == 1, "Braig: Dash Shoot armoured throughout, hits do not cut it (" .. tostring(e3:GetState()) .. ")")
+  e3.EnableAttack, e3.EnemyType, e3.RoundShoot, e3.ChargeShoot, e3.WarpShoot, e3.InvertedShoot = true, false, true, false, false, false
+  pcall(e3.GotoState, e3, "Idling")                        -- the shot ends
+  check(log[h3] == 0 and type(e3.__rest) == "number" and e3.__rest >= 60 and e3.__rest <= 90,
+        "... then a rest of 1.0-1.5 s, unarmoured (" .. tostring(e3.__rest) .. ")")
+  for i = 1, 30 do pcall(e3.states.Idling.OnUpdate, e3) end   -- (his state update)
+  check(e3:GetState() == "Idling", "... during it no new shot (" .. tostring(e3:GetState()) .. ")")
+  local r0 = e3.__rest
+  pcall(e3.GotoState, e3, "Idling")                        -- a hit: his script puts him back in Idling
+  check(e3.__rest == r0, "... a hit does not start the rest over")
+  for i = 1, 70 do pcall(e3.states.Idling.OnUpdate, e3) end   -- (his state update)
+  check(e3:GetState() ~= "Idling", "... after it his Idling picks the next shot (" .. tostring(e3:GetState()) .. ")")
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "InvertedShoot")
-  check(st3.mArmor == 0, "... Inverted Shoot keeps the game's own armour only")
+  check(st3.mArmor > 0, "... Inverted Shoot armoured whole")
   -- Charge Shoot: armoured whole, and no hit reaches his script (no damage break, no cut)
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "ChargeShoot")

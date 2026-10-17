@@ -1171,3 +1171,10 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   (AttackReleaseHP), no cut at step >= 4.  Test in extra.lua.
 * Braig's shot armour per move (asked for, slightly longer): Round Shoot 75 frames (1.25 s), Dash Shoot 90 (1.5 s),
   Warp Shoot 120 (2 s: its warp and first volley).  Charge Shoot whole, Inverted Shoot the game's own.
+* Braig, full armour + his own rest (asked for): every attack armoured whole (Dash / Round / Warp / Charge /
+  Inverted Shoot, Warp Center; hits kept from his script during them - only the Sniper's damage break and the
+  Inverted Shot dodge stay).  braigRest (setup, own states table): 60-90 frames (1.0-1.5 s, random) after every
+  attack, unarmoured - his WaitIdling counter gets that length (no paceFields any more); his Idling, entered
+  straight from a shot (Dash / Round Shoot used to pick the next one in 0-1 frame), first holds him in his idle
+  pose (WaitIdling's own start) for that long, turning to the player.  A hit during the rest (his script:
+  GotoState Idling) does not start it over.  Tests in extra.lua.
