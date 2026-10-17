@@ -1166,3 +1166,6 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   Shoot back to the game's own armour (charge until it fires; the inverted phase's start and end).  armorHit now
   also covers a revenge answer's armour (st.armor), and applies only while armour lasts - after that a hit ends
   the shot as in vanilla.  The hold test moved to Ventus's Vanitas's Dark Splicer.
+* Braig's Charge Shoot armoured whole again (asked for: never staggered out of it): armorStates true (held through
+  the script's own switch-off) and armorHit, so hits never reach his script there - no damage break
+  (AttackReleaseHP), no cut at step >= 4.  Test in extra.lua.

@@ -392,6 +392,18 @@ do
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "InvertedShoot")
   check(st3.mArmor == 0, "... Inverted Shoot keeps the game's own armour only")
+  -- Charge Shoot: armoured whole, and no hit reaches his script (no damage break, no cut)
+  pcall(e3.GotoState, e3, "Idling")
+  pcall(e3.GotoState, e3, "ChargeShoot")
+  st3.rv, st3.firing, st3.armor = 0, false, 0
+  local heldC = true
+  for i = 1, 150 do
+    pcall(e3.OnUpdate, e3)
+    if i % 10 == 0 then hit(h3) end
+    if e3:GetState() ~= "ChargeShoot" then break end
+    if log[h3] ~= 1 then heldC = false end
+  end
+  check(heldC, "Braig's Charge Shoot: armoured throughout, hits do not end it (" .. tostring(e3:GetState()) .. ")")
   -- a revenge answer's armour is not cut by the end of a listed move
   pcall(e.GotoState, e, "Idling")
   st.armor, st.armorT0 = 50, st.t
