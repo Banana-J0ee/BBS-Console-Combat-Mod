@@ -29,6 +29,7 @@
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
 --   idleFloor  shortest paced idle wait in frames for this boss (default RV.idleFloor 15)
+--   opening  false: no opening attack (default: a boss with an answer opens with one; openAt: states where)
 --   armorHit function(self) -> true: during an armoured move, hits are kept from the script's OnDamageBefore
 --   answer   the revenge answer (revenge.lua, RV.oweMax): after the get-away the boss goes into an attack
 --            picked from { close = {...}, far = {...} } (by distance, never the last one again), or chosen
@@ -323,6 +324,7 @@ local braig = {
   -- his OnDamageBefore sends every shot to Idling on any hit (30 % escape otherwise), armour or not, so an
   -- armoured shot was still cut short.  Kept from the script during his armoured shots; his designed breaks
   -- stay: Sniper / Charge Shot charging end after enough damage (AttackReleaseHP), Inverted Shot's dodge
+  answerClear = { Sniper = true, ArutemaShoot = true },   -- (his entrance may go straight into the Sniper)
   armorHit = function(self)
     local s = self:GetState()
     if s == "DashShoot" or s == "WarpShoot" or s == "RoundShoot" or s == "WarpCenter" then return true end
@@ -463,6 +465,7 @@ cfg.b20pp00 = {
   -- his three attacks are all picked at the same range in his script (BeforeAttackIdling); Attack4 is
   -- never used by it, so it stays out
   answer = { close = { "Attack1", "Attack2", "Attack3" }, far = { "Attack1", "Attack2", "Attack3" }, noRet = true },
+  openAt = { BattleStartState = true },   -- his opening hover (up to 500 frames) is where his fight starts
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()

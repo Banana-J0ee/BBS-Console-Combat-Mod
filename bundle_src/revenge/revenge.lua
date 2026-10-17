@@ -90,6 +90,9 @@ RV.armorMax = 180
 RV.oweMax = 300
 RV.answerArmorMax = 300   -- armour cap for an answer, from the attack's start
 RV.answerNear = 16        -- squared distance (4 m) under which the close list is used
+-- The opening: a boss with an answer list opens the fight with an attack from it instead of its first
+-- idle after the entrance (its first idle / walk state, or a state in cfg.openAt), then its own loop.
+RV.opening = true
 
 -- Boss pace ([Bosses] in bbskh2.ini).  KH2 bosses wait 0.25 .. 0.75 s between decisions and
 -- walk at most 1 .. 2 s before attacking (their AI files: idle_time 15..45 frames, move_target
@@ -298,6 +301,7 @@ local function attach(ent, name, handle)
     st.rv, st.idle, st.firing, st.fireT, st.armor = 0, 0, false, 0, 0
     st.mArmor = 0
     st.owe = nil
+    st.opening = RV.opening and c.answer ~= nil and c.opening ~= false
     st.limit = c.limit
     if st.pace ~= nil and handle ~= nil then P.by[handle] = st end
     return
@@ -305,6 +309,7 @@ local function attach(ent, name, handle)
   st = { rv = 0, idle = 0, firing = false, fireT = 0, armor = 0, count = 0, fcount = 0,
          t = 0, magT = -1e9, magSum = 0, hp = nil, sawHit = false, seen = -1e9, drop = -1e9,
          limit = c.limit, name = name, cfg = c }
+  st.opening = RV.opening and c.answer ~= nil and c.opening ~= false
   rawset(ent, "__rv", st)
   RV.ents[name] = st
 
@@ -527,7 +532,7 @@ local function attach(ent, name, handle)
         if type(Enemy.EnableNoDamageReaction) == "function" then Enemy.EnableNoDamageReaction(myh(self), 1) end
       end
     end
-    local function enterAnswer(self, ret, a, b)
+    local function enterAnswer(self, ret, a, b, opening)
       local h = myh(self)
       local tgt = Enemy.SearchAttackEntity(h, SEARCH_TYPE_NEAR)
       if tgt ~= nil and type(tgt) ~= "table" then self.targetHandle = tgt end
@@ -550,12 +555,12 @@ local function attach(ent, name, handle)
           end
           if n == true then
             local cur = self:GetState()
-            rlog(name, st.t, "ANSWER", cur, near and "(close)" or "(far)", "instead of", ret)
+            rlog(name, st.t, opening and "OPENING" or "ANSWER", cur, near and "(close)" or "(far)", "instead of", ret)
             if cur ~= st.lastAnswer or try == 4 then st.lastAnswer = cur return true end
           elseif type(n) == "string" and type(self.states) == "table" and self.states[n] ~= nil then
             local label = st.pickLabel or n
             if label ~= st.lastAnswer or try == 4 or base == nil then
-              rlog(name, st.t, "ANSWER", label, near and "(close)" or "(far)", "instead of", ret)
+              rlog(name, st.t, opening and "OPENING" or "ANSWER", label, near and "(close)" or "(far)", "instead of", ret)
               st.lastAnswer = label
               return n                                -- entered below, outside this pcall
             end
@@ -571,14 +576,14 @@ local function attach(ent, name, handle)
       if not ok or res == false or res == nil then st.answering = false return false end
       if type(res) == "string" then
         -- the attack itself: the boss's own state code, outside the pcall (its errors are its own)
-        armorUp(self)
+        if not opening then armorUp(self) end
         local ok2, err = pcall(gss3, self, res, a, b)
         st.answering = false
         if not ok2 then error(err, 0) end
         return true
       end
       st.answering = false
-      armorUp(self)
+      if not opening then armorUp(self) end
       return true
     end
     st.answer = function(self, ret)               -- for counters: answer at once (no get-away)
@@ -588,14 +593,19 @@ local function attach(ent, name, handle)
     end
     if type(gss3) == "function" then
       rawset(ent, "GotoStateSub", function(self, s, a, b)
-        if st.owe ~= nil and not st.answering and type(s) == "string" then
-          if st.t - st.owe > RV.oweMax or not active(self) then
-            st.owe = nil
-          elseif (c.answerAt ~= nil and c.answerAt[s]) or (c.answerAt == nil and paceKind(s) ~= nil) then
-            st.owe = nil
-            if enterAnswer(self, s, a, b) then return nil end
-          elseif attackLike(s) then
-            st.owe = nil                          -- it attacks on its own: nothing owed
+        if (st.owe ~= nil or st.opening) and not st.answering and type(s) == "string" then
+          if st.owe ~= nil and (st.t - st.owe > RV.oweMax or not active(self)) then st.owe = nil end
+          if st.opening and not active(self) then st.opening = false end
+          if st.owe ~= nil or st.opening then
+            local at = (c.answerAt ~= nil and c.answerAt[s]) or (c.answerAt == nil and paceKind(s) ~= nil)
+            if st.opening and c.openAt ~= nil and c.openAt[s] then at = true end
+            if at then
+              local opening = st.owe == nil
+              st.owe, st.opening = nil, false
+              if enterAnswer(self, s, a, b, opening) then return nil end
+            elseif attackLike(s) then
+              st.owe, st.opening = nil, false     -- it attacks on its own: nothing owed
+            end
           end
         end
         return gss3(self, s, a, b)

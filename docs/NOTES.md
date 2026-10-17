@@ -1148,3 +1148,9 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   lua_pushcclosure 5b9d80 / lua_setfield 5ba4b0 at the Factory.lub load) and revenge.lua logs every configured
   boss's state changes, hits (state, no-reaction flag, gauge), flinch checks, recoveries, break-outs and answers
   ("rv ..." lines in bbskh2_log.txt).  Without the file nothing is registered or written.
+* Opening attack (2026-10-17, "start with an attack, then the normal loop"): a boss with an answer list goes
+  from its entrance straight into an attack from it (st.opening; the first idle / walk state after Appear, or
+  cfg.openAt - Peter Pan's BattleStartState, a hover of up to 500 frames), with no revenge armour, once; then
+  its own loop.  Cleared when it attacks on its own first (Braig's entrance Sniper: answerClear) or outside
+  `active` (wielders as allies).  Masked Vanitas's late fight opens with his ride as before (no answer in ride
+  mode).  Superbosses: unchanged.  RV.opening = false in the stand-in tests except the opening check.

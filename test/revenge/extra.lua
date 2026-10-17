@@ -3,6 +3,7 @@ local M = require("emu")
 math.randomseed(7)
 M.common()
 BBS_REVENGE.vary = 0           -- deterministic limits for these checks (variance has its own check below)
+BBS_REVENGE.opening = false    -- (the opening attack has its own check at the end)
 local fails = 0
 local function check(c, msg) if not c then fails = fails + 1 io.write("  FAIL: ", msg, "\n") else io.write("  ok: ", msg, "\n") end end
 local function hit(h, kind, cat)
@@ -552,6 +553,39 @@ do
   M.num["Entity.CalcDistanceSq"] = 4
   check((s2 == "Warp2" or s2 == "ShadowDiving" or s2 == "DarkThundaga") and st.armor > 0,
         "... and when it ends he attacks at once, armoured (" .. tostring(s2) .. ")")
+end
+-- the opening: the first idle after the entrance is an attack from the boss's list (no armour of ours),
+-- then its own loop; bosses without a list (superbosses) as they were
+do
+  BBS_REVENGE.opening = true
+  M.num["Enemy.SearchEnemy"] = function() return NULL_HANDLE end
+  local rows = {
+    { "b63ex00", "b63ex00", "Idling", { SuccessionAttack2 = true, DarkThundaga = true } },
+    { "b20ex00", "b20ex00", "Idling", { SuccessionAttack = true, RushAttack = true, Kagerou = true } },
+    { "b20pp00", "b20pp00", "BattleStartState", { Attack1 = true, Attack2 = true, Attack3 = true } },
+    { "b01pp00", "b01pp00", "Idling", { JumpCutting = true, RushStab = true, DisturbStab = true } },
+  }
+  for _, row in ipairs(rows) do
+    M.script(row[1])
+    local e, h = M.create(row[2])
+    local st = BBS_REVENGE.ents[row[2]]
+    rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+    st.opening = true
+    pcall(e.GotoState, e, row[3])
+    local first = st.lastAnswer
+    check(row[4][first] == true and st.opening == false and st.armor == 0,
+          row[2] .. ": opens the fight with " .. tostring(first) .. " instead of " .. row[3] .. ", no armour of ours")
+    st.lastAnswer = nil
+    pcall(e.GotoState, e, row[3])
+    check(st.lastAnswer == nil, row[2] .. ": ... once - the next " .. row[3] .. " is his own")
+  end
+  M.script("b12ex00")
+  local e, h = M.create("b12ex00")
+  local st = BBS_REVENGE.ents.b12ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  check(st.opening == false and e:GetState() == "Idling", "Vanitas Remnant (superboss): no opening attack")
+  BBS_REVENGE.opening = false
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

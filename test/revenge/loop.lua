@@ -11,6 +11,7 @@ package.path = (os.getenv("RV_TEST") or "test/revenge") .. "/?.lua;" .. package.
 local M = require("emu")
 math.randomseed(20261009)
 M.common()
+BBS_REVENGE.opening = false     -- (the opening attack: extra.lua)
 
 local MAXRUN = 16        -- hits: every limit is <= 12 + variance, watchdog adds a frame or two
 local MINBREAKS = 3      -- in 80 hits
