@@ -129,16 +129,18 @@ local function rideSetup(ent)
   own.RideWaiting = rw
   rawset(ent, "states", own)
 end
-local vanitas = { limit = 9, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }
+-- KH2 armour (2026-10-17): every attack of his is armoured; the ride moves already are (RideWaiting)
+local vanitasArmor = { SuccessionAttack1 = true, SuccessionAttack2 = true, DarkFiraga = true, DarkThundaga = true }
+local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = { limit = 8, fire = 0.5, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }   -- the late one
+cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
   limit = 7.5,
   -- his specials are armoured in BBS already; his combo's opening is too here (it comes out,
   -- its end can be punished)
-  armorStates = { SuccessionAttack2 = 24 },
+  armorStates = { SuccessionAttack2 = true, WarpAttack2 = true, DarkThundaga = true },
   pre = dmgCountPre,
   counter = vanitasCounter,
   fire = function(self)
@@ -150,7 +152,11 @@ cfg.b63ex00 = {
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
 cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
-  armorStates = { XDisCharge = true, DarkBreaker = true, DarkCannon = true, DarkAxisAirBattle = true },
+  armorStates = { XDisCharge = true, DarkBreaker = true, DarkCannon = true, DarkAxisAirBattle = true,
+                  SuccessionAttack = true, DarkThundaga = true,
+                  -- the script drops its own armour part way through these: held to the end
+                  DarkSplicer1GroundBattle = true, DarkSplicer2GroundBattle = true,
+                  DarkSplicer1AirBattle = true, DarkSplicer2AirBattle = true },
   -- the last phase: while Ventus's Vanitas D-Link (DLink17) runs, his script takes every hit without an escape
   -- so he stays in place for the finisher (OnDamageBefore).  The mod leaves him alone then as well: no
   -- gauge, no forced break-out, no armour of ours - a forced cartwheel moved him away from the finisher.
@@ -196,7 +202,7 @@ cfg.b12ex00 = {
 -- Master Eraqus: guard (+ counter) chance on every hit.
 cfg.b20ex00 = {
   limit = 9,
-  armorStates = { RushAttack = true },
+  armorStates = { RushAttack = true, SuccessionAttack = true },
   pre = dmgCountPre,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -233,7 +239,8 @@ cfg.b81vs00 = armor
 -- Braig: 30% escape on every hit.
 local braig = {
   limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
-  armorStates = { WarpShoot = true, WarpCenter = true, RoundShoot = true, DashShoot = true },
+  armorStates = { WarpShoot = true, WarpCenter = true, RoundShoot = true, DashShoot = true,
+                  ChargeShoot = true, InvertedShoot = true },   -- these two: the script drops it part way
   -- his escape warp lands 8-11 m out on each axis (vanilla 2-6): out of reach, the arena edge caps it
   setup = function(ent)
     local wt = ent.WarpToTarget
@@ -331,7 +338,8 @@ local function hookSetup(ent)
 end
 cfg.b01pp00 = {
   limit = 8,
-  armorStates = { RushXCutting = true, PresentBombLarge = true },
+  armorStates = { RushXCutting = true, PresentBombLarge = true, RushStab = true, DisturbStab = true,
+                  PresentBombSmall = true },
   iframes = 40,
   setup = hookSetup,
   counter = function(self)
@@ -358,6 +366,7 @@ cfg.b01pp00 = {
 -- own attacks; after any combo he goes straight back on the offensive.
 cfg.b20pp00 = {
   limit = 8,
+  armorStates = { Attack1 = true, Attack2 = true, Attack3 = true, Attack4 = true },
   iframes = 48,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
@@ -383,6 +392,7 @@ cfg.b20pp00 = {
 -- Experiment 221: growing chance to flee per hit.
 cfg.b20ls00 = {
   limit = 7,
+  armorStates = { Electroshock = true, Lightning = true, ElectricBall = true, BlasterMode = true },
   fireSeq = { 0, "coin" },
   pre = dmgCountPre,
   counter = function(self)
@@ -409,7 +419,7 @@ cfg.b20ls00 = {
 -- moves, fired per hit / from the watchdog.
 cfg.b01sb00 = {
   limit = 9,
-  armorStates = { Teleport = true, StaffAttack = true },
+  armorStates = { Teleport = true, StaffAttack = true, Meteor = true },
   fire = "real",
   iframes = 40,
   counter = function(self)
@@ -539,6 +549,7 @@ cfg.b60vs00 = zack                                   -- Mirage Arena: as it was
 local zackStory = {}
 for k, v in pairs(zack) do zackStory[k] = v end
 zackStory.limit = 8
+zackStory.armorStates = { ComboAttack = true, Hakougeki = true }   -- story copies only (Arena: as it was)
 cfg.b30he00 = zackStory
 cfg.b40he00 = zackStory
 
@@ -577,7 +588,7 @@ cfg.b80vs00 = hades                                  -- Mirage Arena: as it was
 local hadesStory = {}
 for k, v in pairs(hades) do hadesStory[k] = v end
 hadesStory.limit = 8
-hadesStory.armorStates = { MegaFire = true, BladesCrossing = true }
+hadesStory.armorStates = { MegaFire = true, BladesCrossing = true, FingernailofFire = true }
 cfg.b01he00 = hadesStory
 
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
@@ -585,7 +596,8 @@ cfg.b01he00 = hadesStory
 -- of OnDamageBefore.  At the limit he uses it.
 cfg.b40ex00 = {
   limit = 7,
-  armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true },
+  armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
+                  Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },
   counter = function(self)
     if type(self.QuickWarpStart) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()

@@ -1079,3 +1079,21 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   route volumes listed at +0x200 sets +0x6a0 / +0x6a4 / +0x6a8) twice, at 4b8549 / 4b8647; a route found makes the
   move follow it (4b86d3..).  worldmap.c: both calls answer 0 ([WorldMap] FreeFlight).  Landing at a world is the
   landmarks' test, untouched.  Test: t_worldmap.  Not seen in the game by me.
+
+## KH2 armour on every boss attack (2026-10-17; bosses.lua armorStates, revenge.lua OnUpdate)
+* KH2 check (kh2.exe + the game's own KH2 files): a boss's flinch is not decided by damage.  Animation range trigger
+  36 (14040d810 case 0x24) sets a status bit at enemy+0xd14 for a frame span (cleared every frame, 14040e5c0); the
+  hit's reaction is remapped through 00battle.bin "patn" (1403ee9b0): bit 1 = no reaction at all, bit 3 = only the
+  heavy reaction types, bit 7/8 = push only.  Humanoid bosses carry bit 1/3 from frame 0 over nearly every attack
+  (Roxas B_EX390 atk_tate frames 0-240 against a hitbox at 32-39; Data Xemnas every attack); a flinch outside them
+  sends Roxas straight into an armoured answer (mode_revenge_boss -> rvg_*).  Open: idle / walk / recovery.
+* So every attack of the story humanoid bosses is armoured now (asked for: "keep everything armoured"), added to
+  armorStates: Masked Vanitas (b10ex00/01/02) SuccessionAttack1/2, DarkFiraga, DarkThundaga (ride moves are the
+  script's); Vanitas b11ex00 SuccessionAttack, DarkThundaga, DarkSplicer1/2 Ground/AirBattle (not DarkSplicerDuel,
+  the D-Link duel); b63ex00 SuccessionAttack2 whole move (was 24 frames), WarpAttack2, DarkThundaga; Eraqus
+  SuccessionAttack; Braig ChargeShoot, InvertedShoot; Master Xehanort Attack0/1, Thundaga, Blizzaga; Zack (story
+  copies) ComboAttack, Hakougeki; Hades (story) FingernailofFire; Hook RushStab, DisturbStab, PresentBombSmall;
+  Peter Pan Attack1-4; Maleficent Meteor; Experiment 221 Electroshock, Lightning, ElectricBall, BlasterMode.
+  Superbosses and Mirage Arena copies: as they were.
+* Moves whose own update switches the armour off part way (Braig ChargeShoot / InvertedShoot, Dark Splicer): the
+  OnUpdate wrapper sets it again after the script's update, so no frame is left open.  Test in extra.lua.

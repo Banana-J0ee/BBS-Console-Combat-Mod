@@ -592,6 +592,11 @@ local function attach(ent, name, handle)
     end
     local r
     if upd ~= nil then r = upd(self, a, b, c2, d) end
+    -- an armoured move whose own update switched "no damage reaction" off part way (Braig's
+    -- ChargeShoot, Vanitas's Dark Splicer): on again before the hits of this frame land
+    if st.mArmor ~= nil and st.mArmor > 0 and active(self) and type(Enemy.EnableNoDamageReaction) == "function" then
+      Enemy.EnableNoDamageReaction(myh(self), 1)
+    end
     -- break-outs that start from the boss's own update instead of from a hit
     if st.firing and c.fired ~= nil and c.fired(self) == true then done(false) end
     return r

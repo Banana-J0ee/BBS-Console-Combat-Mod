@@ -334,16 +334,31 @@ do
   pcall(e.GotoState, e, "Idling")
   check(log[h] == 0 and st.mArmor == 0, "back to idling: armour off")
   pcall(e.GotoState, e, "Attack0")
-  check(log[h] ~= 1, "his normal slash stays flinchable")
+  check(log[h] == 1, "his normal slash is armoured too (KH2: every attack)")
+  pcall(e.GotoState, e, "Move")
+  check(log[h] == 0, "... walking: flinchable")
   M.script("b63ex00")
   local e2, h2 = M.create("b63ex00")
   local st2 = BBS_REVENGE.ents.b63ex00
   rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
   pcall(e2.GotoState, e2, "Idling")
   pcall(e2.GotoState, e2, "SuccessionAttack2")
-  check(log[h2] == 1, "Ventus-Vanitas: his combo's opening is armoured")
+  check(log[h2] == 1, "Aqua's Vanitas: his combo is armoured")
   for i = 1, 30 do pcall(e2.OnUpdate, e2) end
-  check(log[h2] == 0, "... and flinchable again after 24 frames")
+  check(log[h2] == 1, "... for the whole move")
+  -- a move whose own update drops the armour part way is held (the script's off is undone)
+  M.script("b30ex00")
+  local e3, h3 = M.create("b30ex00")
+  rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
+  pcall(e3.GotoState, e3, "Idling")
+  pcall(e3.GotoState, e3, "ChargeShoot")
+  local held3 = true
+  for i = 1, 200 do
+    pcall(e3.OnUpdate, e3)
+    if e3:GetState() ~= "ChargeShoot" then break end
+    if log[h3] ~= 1 then held3 = false end
+  end
+  check(held3, "Braig's Charge Shot: armoured to its end")
   -- a revenge answer's armour is not cut by the end of a listed move
   pcall(e.GotoState, e, "Idling")
   st.armor, st.armorT0 = 50, st.t
