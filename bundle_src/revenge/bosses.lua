@@ -29,6 +29,7 @@
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
 --            (frames) instead of Entity.SetTimer, shortened when the state starts
 --   idleFloor  shortest paced idle wait in frames for this boss (default RV.idleFloor 15)
+--   armorHit function(self) -> true: during an armoured move, hits are kept from the script's OnDamageBefore
 --   answer   the revenge answer (revenge.lua, RV.oweMax): after the get-away the boss goes into an attack
 --            picked from { close = {...}, far = {...} } (by distance, never the last one again), or chosen
 --            by function(self, near, ret, choose).  answerAt / answerNear / answerClear: see revenge.lua
@@ -319,6 +320,14 @@ local braig = {
   armorStates = { WarpShoot = true, WarpCenter = true, RoundShoot = true, DashShoot = true,
                   ChargeShoot = true, InvertedShoot = true },   -- these two: the script drops it part way
   answer = { close = { "RoundShoot", "DashShoot" }, far = { "WarpShoot", "DashShoot", "ChargeShoot" }, noRet = true },
+  -- his OnDamageBefore sends every shot to Idling on any hit (30 % escape otherwise), armour or not, so an
+  -- armoured shot was still cut short.  Kept from the script during his armoured shots; his designed breaks
+  -- stay: Sniper / Charge Shot charging end after enough damage (AttackReleaseHP), Inverted Shot's dodge
+  armorHit = function(self)
+    local s = self:GetState()
+    if s == "DashShoot" or s == "WarpShoot" or s == "RoundShoot" or s == "WarpCenter" then return true end
+    return s == "ChargeShoot" and type(self.step) == "number" and self.step >= 4
+  end,
   -- his escape warp lands 8-11 m out on each axis (vanilla 2-6): out of reach, the arena edge caps it
   setup = function(ent)
     local wt = ent.WarpToTarget

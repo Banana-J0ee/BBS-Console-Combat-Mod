@@ -369,6 +369,13 @@ do
     if log[h3] ~= 1 then held3 = false end
   end
   check(held3, "Braig's Charge Shot: armoured to its end")
+  -- his script sends a shot to Idling on any hit; during an armoured shot that hit does not reach it
+  pcall(e3.GotoState, e3, "Idling")
+  pcall(e3.GotoState, e3, "DashShoot")
+  local st3 = BBS_REVENGE.ents.b30ex00
+  st3.rv, st3.firing = 0, false
+  for i = 1, 3 do hit(h3) end
+  check(e3:GetState() == "DashShoot", "Braig: hits during his Dash Shoot do not cut it short (" .. tostring(e3:GetState()) .. ")")
   -- a revenge answer's armour is not cut by the end of a listed move
   pcall(e.GotoState, e, "Idling")
   st.armor, st.armorT0 = 50, st.t

@@ -118,10 +118,38 @@ static void pace_config(void) {
     pace_patch(9002.5f, c_walkcap, "WalkCap");
 }
 
+/* Debug only: BBS_Log(...) for the revenge script, its arguments written to the log as one line.
+   The game's own Lua 5.1 API (from luaI_openlib 5bbd40 and luaB_print 5bca60): lua_gettop 5b9900,
+   lua_tolstring 5ba7f0, lua_pushcclosure 5b9d80, lua_setfield 5ba4b0. */
+#define LUA_GETTOP   0x5b9900
+#define LUA_TOLSTR   0x5ba7f0
+#define LUA_PUSHCCL  0x5b9d80
+#define LUA_SETFIELD 0x5ba4b0
+static int MSABI rv_log(void *L) {
+    int n = FN(int, LUA_GETTOP, void*)(L);
+    char line[600]; int p = 0; line[0] = 0;
+    for (int i = 1; i <= n && p < (int)sizeof line - 80; i++) {
+        size_t len = 0;
+        const char *s = FN(const char*, LUA_TOLSTR, void*, int, size_t*)(L, i, &len);
+        int w = snprintf(line + p, sizeof line - p, "%s%.*s", i > 1 ? " " : "", s ? (int)(len < 200 ? len : 200) : 1, s ? s : "?");
+        if (w > 0) p += w;
+    }
+    LOG("rv %s", line);
+    return 0;
+}
+static int lua_api_ok(void) {
+    static const u8 top[] = { 0x48, 0x8b, 0x41, 0x10, 0x48, 0x2b, 0x41, 0x18 };
+    return !memcmp(g_base + LUA_GETTOP, top, sizeof top);
+}
+
 /* luaL_loadbuffer(L, buf, size, name) at the game's script loader */
 static int MSABI lua_load_hook(void *L, const char *buf, size_t n, const char *name) {
     if (c_revenge && is_factory(buf, n)) {
         if (g_debug) LOG("bundle: Factory.lub replaced (%d bytes)", (int)sizeof rv_buf);
+        if (g_debug && lua_api_ok()) {             /* the revenge script's log (BBS_Log), debug builds of the run only */
+            FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_log, 0);
+            FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_Log");
+        }
         buf = (const char*)rv_buf; n = sizeof rv_buf;
     }
     return FN(int, LUA_LOAD, void*, const char*, size_t, const char*)(L, buf, n, name);

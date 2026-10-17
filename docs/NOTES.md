@@ -1137,3 +1137,14 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   them (only the Aggression value, which the DLL patches into the script, was live).  Regenerated here.
 * Tests: extra.lua (each boss's close / far answers, no repeats, armour, lapses on its own attack; Hades / Peter Pan
   at once; Aqua's Vanitas cartwheel -> attack), loop.lua (the owed answer is played out between strings).
+* Braig still comboed during his shots (reported after the answer build): his own OnDamageBefore sends every
+  shot to Idling on any hit (30 % Escape otherwise) without asking IsNoDamageReaction, so the armour stopped the
+  flinch but the script still cut the shot and stood him in Idling, unarmoured.  New cfg.armorHit: during an
+  armoured move the hit is kept from the script (runQuiet returns 0).  Braig: Dash / Warp / Round Shoot, Warp
+  Center, Charge Shoot's recovery (step >= 4).  Kept: Sniper / Charge Shot charging end after enough damage
+  (AttackReleaseHP - a damage break by design), Inverted Shot's 30 % dodge.  The other configured scripts ask
+  IsNoDamageReaction first (or only dodge by dice).
+* Debug log for the revenge layer: with bbskh2_debug.txt in the game folder the DLL registers BBS_Log (the game's
+  lua_pushcclosure 5b9d80 / lua_setfield 5ba4b0 at the Factory.lub load) and revenge.lua logs every configured
+  boss's state changes, hits (state, no-reaction flag, gauge), flinch checks, recoveries, break-outs and answers
+  ("rv ..." lines in bbskh2_log.txt).  Without the file nothing is registered or written.

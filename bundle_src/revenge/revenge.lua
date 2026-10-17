@@ -37,6 +37,24 @@ pcall(function()
 local RV = { version = "2.0", cfg = {}, ents = {} }
 BBS_REVENGE = RV
 
+-- Debug log: the DLL registers BBS_Log only when bbskh2_debug.txt is in the game folder (one line per
+-- call, in bbskh2_log.txt).  Otherwise nothing below writes anything.
+local LOGF = rawget(_G, "BBS_Log")
+if type(LOGF) ~= "function" then LOGF = nil end
+local function rlog(...)
+  if LOGF == nil then return end
+  local n = select("#", ...)
+  local t = { ... }
+  pcall(function()
+    for i = 1, n do
+      local v = t[i]
+      if type(v) == "number" then t[i] = string.format("%.1f", v) else t[i] = tostring(v) end
+    end
+    LOGF(unpack(t, 1, n))
+  end)
+end
+RV.log = rlog
+
 -- Revenge value added per hit.  Scaled to KH2's own attack data
 -- (00battle.bin atkp, "revenge damage", read from the game: a normal
 -- hit is 1.0, finishers ~3, multi-hit spells small amounts per tick).
@@ -297,6 +315,12 @@ local function attach(ent, name, handle)
     return v
   end
   local function runQuiet(f, self, kind, cat, attr, x)
+    -- an armoured move whose script would still cut it short on any hit (Braig: every hit sends his shots
+    -- to Idling, armour or not): the hit does not reach the script
+    if c.armorHit ~= nil and (st.mArmor or 0) > 0 and c.armorHit(self) == true then
+      rlog(name, st.t, "hit kept from the script: armoured move goes on")
+      return 0
+    end
     if c.pre ~= nil then c.pre(self, false) end
     local dice = pick(c.quiet, self, HIGH)
     if dice == "real" then           -- nothing to take away: pre() keeps the break-out off
@@ -355,6 +379,7 @@ local function attach(ent, name, handle)
     st.count = st.count + 1
     if fired then st.fcount = st.fcount + 1 end
     rollLimit()
+    rlog(name, st.t, fired and "BREAK-OUT (forced)" or "break-out (its own)", "count", st.count, "next limit", st.limit)
     st.armorCap = nil
     if fired and c.answer ~= nil then
       -- answered at once by the counter (st.answer), or owed until the get-away ends
@@ -525,10 +550,12 @@ local function attach(ent, name, handle)
           end
           if n == true then
             local cur = self:GetState()
+            rlog(name, st.t, "ANSWER", cur, near and "(close)" or "(far)", "instead of", ret)
             if cur ~= st.lastAnswer or try == 4 then st.lastAnswer = cur return true end
           elseif type(n) == "string" and type(self.states) == "table" and self.states[n] ~= nil then
             local label = st.pickLabel or n
             if label ~= st.lastAnswer or try == 4 or base == nil then
+              rlog(name, st.t, "ANSWER", label, near and "(close)" or "(far)", "instead of", ret)
               st.lastAnswer = label
               return n                                -- entered below, outside this pcall
             end
@@ -732,6 +759,43 @@ local function attach(ent, name, handle)
     if st.firing and c.fired ~= nil and c.fired(self) == true then done(false) end
     return r
   end)
+
+  -- debug log: state changes and hits of this boss (only with BBS_Log)
+  if LOGF ~= nil then
+    local function gs(self) local ok, v = pcall(self.GetState, self) if ok then return v end return "?" end
+    local function ndr(self) local ok, v = pcall(Enemy.IsNoDamageReaction, myh(self)) return ok and v == true end
+    rlog(name, "attached: limit", st.limit, "armour moves", c.armorStates ~= nil, "answer", c.answer ~= nil)
+    local gl = ent.GotoStateSub
+    if type(gl) == "function" then
+      rawset(ent, "GotoStateSub", function(self, s, a, b)
+        local from = gs(self)
+        local r = gl(self, s, a, b)
+        rlog(name, st.t, "state", from, "->", s, "now", gs(self), "noReaction", ndr(self), "armour", st.armor,
+             "move", st.mArmor or 0, "gauge", st.rv, "/", st.limit)
+        return r
+      end)
+    end
+    local function wrapHit(key, label)
+      local f = rawget(ent, key)
+      if type(f) ~= "function" then return end
+      rawset(ent, key, function(self, kind, cat, attr, x)
+        local s0, n0, rv0 = gs(self), ndr(self), st.rv
+        local r = f(self, kind, cat, attr, x)
+        rlog(name, st.t, label, "kind", kind, "cat", cat, "in", s0, "noReaction", n0, "->", r, "gauge", rv0, "->", st.rv,
+             "/", st.limit, "now", gs(self))
+        return r
+      end)
+    end
+    wrapHit("OnDamageBefore", "HIT")
+    wrapHit("OnDamage", "FLINCH? (0 = flinches)")
+    local fr = rawget(ent, "OnReturnDamage")
+    if type(fr) == "function" then
+      rawset(ent, "OnReturnDamage", function(self, a, b, c2, d)
+        rlog(name, st.t, "recovered from hit-stun in", gs(self))
+        return fr(self, a, b, c2, d)
+      end)
+    end
+  end
 end
 RV.attach = attach
 
