@@ -323,7 +323,8 @@ local braig = {
   -- shooting strings not): armour for the first second of each shot, then hits stagger him and end it.
   -- Charge Shoot is armoured whole (asked for: never staggered out of it, not even by its damage break);
   -- Inverted Shoot keeps the game's own armour (its start and end); the warp to the centre is armoured whole.
-  armorStates = { WarpShoot = 60, RoundShoot = 60, DashShoot = 60, WarpCenter = true, ChargeShoot = true },
+  -- (per move, asked for: Round Shoot 1.25 s, Dash Shoot 1.5 s, Warp Shoot 2 s - its warp and first volley)
+  armorStates = { RoundShoot = 75, DashShoot = 90, WarpShoot = 120, WarpCenter = true, ChargeShoot = true },
   answer = { close = { "RoundShoot", "DashShoot" }, far = { "WarpShoot", "DashShoot", "ChargeShoot" }, noRet = true },
   -- his OnDamageBefore sends every shot to Idling on any hit (30 % escape otherwise), armour or not, so an
   -- armoured shot was still cut short.  Kept from the script while a shot's armour lasts (its first second,

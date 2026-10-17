@@ -381,10 +381,12 @@ do
   pcall(e3.GotoState, e3, "DashShoot")
   st3.rv, st3.firing, st3.armor = 0, false, 0
   for i = 1, 3 do hit(h3) end
-  check(e3:GetState() == "DashShoot" and log[h3] == 1, "Braig: hits in his Dash Shoot's first second do not cut it short (" .. tostring(e3:GetState()) .. ")")
-  for i = 1, 70 do pcall(e3.OnUpdate, e3) end
+  check(e3:GetState() == "DashShoot" and log[h3] == 1, "Braig: hits early in his Dash Shoot do not cut it short (" .. tostring(e3:GetState()) .. ")")
+  for i = 1, 80 do pcall(e3.OnUpdate, e3) end
+  check(log[h3] == 1, "... still armoured at 1.33 s (Dash Shoot: 1.5 s)")
+  for i = 1, 15 do pcall(e3.OnUpdate, e3) end
   local s3 = e3:GetState()
-  check(log[h3] == 0, "... after a second his armour is off (" .. tostring(s3) .. ")")
+  check(log[h3] == 0, "... after 1.5 s his armour is off (" .. tostring(s3) .. ")")
   if s3 == "DashShoot" then
     hit(h3)
     check(e3:GetState() ~= "DashShoot", "... and a hit ends the shot (" .. tostring(e3:GetState()) .. ")")

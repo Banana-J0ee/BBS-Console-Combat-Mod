@@ -1169,3 +1169,5 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 * Braig's Charge Shoot armoured whole again (asked for: never staggered out of it): armorStates true (held through
   the script's own switch-off) and armorHit, so hits never reach his script there - no damage break
   (AttackReleaseHP), no cut at step >= 4.  Test in extra.lua.
+* Braig's shot armour per move (asked for, slightly longer): Round Shoot 75 frames (1.25 s), Dash Shoot 90 (1.5 s),
+  Warp Shoot 120 (2 s: its warp and first volley).  Charge Shoot whole, Inverted Shoot the game's own.
