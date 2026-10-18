@@ -36,6 +36,11 @@ __FACTORY_ORIGINAL__()
 pcall(function()
 local RV = { version = "2.0", cfg = {}, ents = {} }
 BBS_REVENGE = RV
+-- The game's Lua has no math library (only the engine's Math): these stand in for it.
+local function floor(x) local r = x % 1 return x - r end
+local function max(a, b) if a > b then return a end return b end
+local function rnd() return 0.5 end              -- (only when the engine's Script.Random is missing)
+RV.floor, RV.max = floor, max
 
 -- Debug log: the DLL registers BBS_Log only when bbskh2_debug.txt is in the game folder (one line per
 -- call, in bbskh2_log.txt).  Otherwise nothing below writes anything.
@@ -605,7 +610,7 @@ local function attach(ent, name, handle)
   -- ---------------------------------------------------------------------------------------------------------
   local tempo = c.tempo
   local function roll(lo, hi)
-    local r = (S.real ~= nil and S.real()) or math.random()
+    local r = (S.real ~= nil and S.real()) or rnd()
     return lo + (hi - lo) * r
   end
   if tempo ~= nil and st.pr ~= nil then
@@ -661,7 +666,7 @@ local function attach(ent, name, handle)
             f = 2
           elseif st.needBeat then
             st.needBeat = false
-            st.chainN = st.chainN or math.floor(roll(pr.chain[1], pr.chain[2] + 0.999))
+            st.chainN = st.chainN or floor(roll(pr.chain[1], pr.chain[2] + 0.999))
             if st.chain >= st.chainN and not st.answering then
               -- a reposition instead of the idle
               local list = {}
@@ -669,7 +674,7 @@ local function attach(ent, name, handle)
                 if type(self.states) == "table" and self.states[pr.repoList[i]] ~= nil then list[#list + 1] = pr.repoList[i] end
               end
               if #list > 0 then
-                local n = list[math.floor(roll(1, #list + 0.999))]
+                local n = list[floor(roll(1, #list + 0.999))]
                 local stk = self.stack
                 if tempo.pop ~= nil and tempo.pop[n] and stk ~= nil then stk:push(s) end
                 rlog(name, st.t, "chain", st.chain, "- repositions:", n)
@@ -747,7 +752,7 @@ local function attach(ent, name, handle)
       end
       return n:find("Attack") ~= nil or n:find("Combo") ~= nil or n:find("Shoot") ~= nil
     end
-    local function real() if S.real ~= nil then return S.real() end return math.random() end
+    local function real() if S.real ~= nil then return S.real() end return rnd() end
     local function choose(list)
       local pool = {}
       for i = 1, #list do
@@ -765,7 +770,7 @@ local function attach(ent, name, handle)
         if #ready > 0 then pool = ready else pool = { best } end
       end
       if #pool == 0 then return nil end
-      local k = math.floor(real() * #pool) + 1
+      local k = floor(real() * #pool) + 1
       if k > #pool then k = #pool end
       st.pickLabel = pool[k]
       return pool[k]
@@ -778,7 +783,7 @@ local function attach(ent, name, handle)
     local function armorUp(self)
       local fr = c.iframes or RV.iframes
       if fr ~= nil and fr ~= false and fr > 0 then
-        st.armor = math.max(st.armor, fr)
+        st.armor = max(st.armor, fr)
         st.armorT0 = st.t
         st.armorCap = RV.answerArmorMax
         if type(Enemy.EnableNoDamageReaction) == "function" then Enemy.EnableNoDamageReaction(myh(self), 1) end

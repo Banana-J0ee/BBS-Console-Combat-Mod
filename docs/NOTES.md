@@ -1208,3 +1208,11 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 * Braig's rest (braigRest, 1.0-1.5 s) is replaced by the beat.  Debug log: "armour window over", "chain .. repositions",
   "pause", "cooldown: .. swapped / decides again / goes ahead".  Tests: extra.lua (ini, window, beat, chain, pause,
   cooldown swap, all on cooldown, no answer, Inverted Shoot held open).
+* (2026-10-18) **The game's Lua has no math library** (nor io / os / debug; string works): the log showed "attempt to
+  index global 'math'" on every idle after an attack (gaps), and the answers' pick (math.floor) failed inside its
+  pcall, so revenge answers / openings / cooldown swaps never came out in the game since they were added (b11ex00's
+  own picker and the armour windows do not use math).  revenge.lua now has floor / max of its own; emu.lua runs the
+  mod's script without math / io / os / debug, so the tests fail as the game would (the old build: 20+ failures).
+  Also from that fight: hits during Masked Vanitas's keyblade ride build no revenge (rideHit -> vanilla), a state
+  change to nothing goes to the boss's idle, and an error in our state-change handling falls back to the game's own
+  (all logged with ERROR in debug).

@@ -76,7 +76,12 @@ function M.common()
   for _, n in ipairs{"common","stack","FSM","AtkKind","CommandKind","EnemyParam","CmnEneParam","GimmickKind","World","Collision","MotTrigger","2DDef","EntityMgr"} do
     load("common__" .. n .. ".lub")
   end
-  assert(loadfile(FACTORY))()
+  -- the mod's script runs as in the game: no math / io / os / debug library there (only the engine's Math)
+  local f = assert(loadfile(FACTORY))
+  local hidden = { math = true, io = true, os = true, debug = true }
+  setfenv(f, setmetatable({}, { __index = function(_, k) if hidden[k] then return nil end return _G[k] end,
+                                 __newindex = function(_, k, v) _G[k] = v end }))
+  f()
   local ge, extra = EntityManager.GetEntity, {}
   EntityManager.GetEntity = function(self, h)        -- helper objects the engine would have created
     local e = self.entities[h]
