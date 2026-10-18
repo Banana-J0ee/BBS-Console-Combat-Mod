@@ -64,7 +64,10 @@ def main():
     src = open(os.path.join(R, 'bundle_src', 'revenge', 'revenge.lua')).read()
     cfg = open(os.path.join(R, 'bundle_src', 'revenge', 'bosses.lua')).read()
     assert '__FACTORY_ORIGINAL__()' in src and '__BOSS_CONFIG__' in src
+    ini = open(os.path.join(R, 'dist', 'bbskh2_boss.ini')).read()
+    assert ']==]' not in ini and '__BOSS_INI__' in src
     src = src.replace('__FACTORY_ORIGINAL__()', '(function() end)()').replace('__BOSS_CONFIG__', cfg)
+    src = src.replace('__BOSS_INI__', '[==[' + ini + ']==]')
     orig = open(ORIG, 'rb').read()
     assert orig[:12] == HDR and proto_end(orig, 12) == len(orig), 'unexpected Factory.lub'
     with tempfile.TemporaryDirectory() as t:

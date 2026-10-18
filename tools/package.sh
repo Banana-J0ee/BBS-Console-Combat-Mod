@@ -11,6 +11,7 @@ python3 modmanager/make_images.py >/dev/null
 cp modmanager/mod.yml modmanager/README.md modmanager/icon.png modmanager/preview.png $P/
 cp out/dinput8.dll $P/dll/bbskh2.dll
 cp dist/bbskh2.ini $P/dll/bbskh2.ini
+cp dist/bbskh2_boss.ini $P/dll/bbskh2_boss.ini
 rm -f dist/BBS-KH2-Style.zip
 (cd $P && python3 -c "
 import zipfile, os

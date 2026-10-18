@@ -177,7 +177,7 @@ do
   local e, h = M.create("b10ex00")
   rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
   pcall(e.GotoState, e, "Idling")
-  check(math.abs(log[h] - 48) < 0.01, "Vanitas Idling: 120 -> 48 frames (" .. tostring(log[h]) .. ")")
+  check(log[h] >= 15 and log[h] <= 24, "Vanitas Idling: the beat of bbskh2_boss.ini, 15-24 frames (" .. tostring(log[h]) .. ")")
   pcall(e.GotoState, e, "TargetMove")
   check(log[h] == 120, "Vanitas TargetMove: 300 -> 120 frames (" .. tostring(log[h]) .. ")")
   pcall(e.GotoState, e, "KeyBladeRush")
@@ -198,14 +198,14 @@ do
   rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
   pcall(e2.GotoState, e2, "TargetMove")
   check(log[h2] == 600, "Vanitas Remnant (superboss) keeps his 600 (" .. tostring(log[h2]) .. ")")
-  -- Braig: his own rest, 60-90 frames (1.0-1.5 s), in his WaitIdling counter (no boss-pace cut)
+  -- Braig: the beat of bbskh2_boss.ini in his WaitIdling counter (no boss-pace cut)
   M.script("b30ex00")
   local e3, h3 = M.create("b30ex00")
   rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
   M.num["Script.RandomInRange"] = function(a, b) return 90 end
   pcall(e3.GotoState, e3, "WaitIdling")
   M.num["Script.RandomInRange"] = nil
-  check(type(e3.timer) == "number" and e3.timer >= 60 and e3.timer <= 90, "Braig WaitIdling: his rest, 1.0-1.5 s (" .. tostring(e3.timer) .. ")")
+  check(type(e3.timer) == "number" and e3.timer >= 15 and e3.timer <= 24, "Braig WaitIdling: the beat, 15-24 frames (" .. tostring(e3.timer) .. ")")
   -- keyblade wielder as an ally: untouched
   M.script("b60")
   local e4, h4 = M.create("b60ex00")
@@ -246,6 +246,7 @@ do
   M.num["Entity.IsGround"] = true
   local seen = {}
   for k = 1, 8 do
+    st.chain = 0                                             -- (no reposition of bbskh2_boss.ini in this check)
     pcall(e.GotoState, e, "BattleIdling")
     st.rv, st.firing, st.armor = 0, false, 0
     local r
@@ -258,6 +259,7 @@ do
   check(st.armor > 0, "the answer has its armour")
   for i = 1, 10 do e:OnUpdate() end
   check(st.armor > 0, "still armoured while attacking")
+  st.chain = 0
   pcall(e.GotoState, e, "BattleIdling")
   e:OnUpdate()
   check(st.armor == 0, "back to idling: armour off, he can be punished")
@@ -366,8 +368,8 @@ do
     if log[h5] ~= 1 then held5 = false end
   end
   check(held5 and n5 > 0, "Vanitas's Dark Splicer: armoured to its end (" .. n5 .. " frames)")
-  -- Braig: every shot armoured whole, hits kept from his script (it would end the shot); after a shot a rest
-  -- of 1.0-1.5 s in his idle, unarmoured, before his Idling picks the next one
+  -- Braig (bbskh2_boss.ini): Dash Shoot armoured for its first 56 frames (hits kept from his script, which would end
+  -- the shot), then open: a hit cuts it.  Then the beat (15-24 frames) in his Idling before the next shot
   M.script("b30ex00")
   local e3, h3 = M.create("b30ex00")
   rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
@@ -375,23 +377,29 @@ do
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "DashShoot")
   st3.rv, st3.firing, st3.armor = 0, false, 0
+  check(st3.mArmor == 56 and log[h3] == 1, "Braig: Dash Shoot armoured from its start, 56 frames (" .. tostring(st3.mArmor) .. ")")
   for i = 1, 3 do hit(h3) end
-  for i = 1, 200 do pcall(e3.OnUpdate, e3) end
-  check(e3:GetState() == "DashShoot" and log[h3] == 1, "Braig: Dash Shoot armoured throughout, hits do not cut it (" .. tostring(e3:GetState()) .. ")")
+  for i = 1, 30 do pcall(e3.OnUpdate, e3) end
+  check(e3:GetState() == "DashShoot" and log[h3] == 1, "... hits in the window do not cut it (" .. tostring(e3:GetState()) .. ")")
+  for i = 1, 30 do pcall(e3.OnUpdate, e3) end
+  check(log[h3] == 0 and st3.mArmor == 0 and st3.winOff, "... after 56 frames he can be staggered")
+  hit(h3)
+  check(e3:GetState() ~= "DashShoot", "... and a hit then cuts the shot (" .. tostring(e3:GetState()) .. ")")
   e3.EnableAttack, e3.EnemyType, e3.RoundShoot, e3.ChargeShoot, e3.WarpShoot, e3.InvertedShoot = true, false, true, false, false, false
+  st3.chain, st3.chainN = 0, 9
+  pcall(e3.GotoState, e3, "DashShoot")
   pcall(e3.GotoState, e3, "Idling")                        -- the shot ends
-  check(log[h3] == 0 and type(e3.__rest) == "number" and e3.__rest >= 60 and e3.__rest <= 90,
-        "... then a rest of 1.0-1.5 s, unarmoured (" .. tostring(e3.__rest) .. ")")
-  for i = 1, 30 do pcall(e3.states.Idling.OnUpdate, e3) end   -- (his state update)
+  check(log[h3] == 0 and st3.hold >= 15 and st3.hold <= 24, "... then the beat, 15-24 frames, unarmoured (" .. tostring(st3.hold) .. ")")
+  for i = 1, 10 do pcall(e3.states.Idling.OnUpdate, e3) end   -- (his state update)
   check(e3:GetState() == "Idling", "... during it no new shot (" .. tostring(e3:GetState()) .. ")")
-  local r0 = e3.__rest
+  local r0 = st3.hold
   pcall(e3.GotoState, e3, "Idling")                        -- a hit: his script puts him back in Idling
-  check(e3.__rest == r0, "... a hit does not start the rest over")
-  for i = 1, 70 do pcall(e3.states.Idling.OnUpdate, e3) end   -- (his state update)
+  check(st3.hold <= r0, "... a hit does not lengthen it")
+  for i = 1, 30 do pcall(e3.states.Idling.OnUpdate, e3) end   -- (his state update)
   check(e3:GetState() ~= "Idling", "... after it his Idling picks the next shot (" .. tostring(e3:GetState()) .. ")")
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "InvertedShoot")
-  check(st3.mArmor > 0, "... Inverted Shoot armoured whole")
+  check(st3.mArmor == 46, "... Inverted Shoot armoured for its first 46 frames (" .. tostring(st3.mArmor) .. ")")
   -- Charge Shoot: armoured whole, and no hit reaches his script (no damage break, no cut)
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "ChargeShoot")
@@ -629,6 +637,114 @@ do
   pcall(e.GotoState, e, "Idling")
   check(st.opening == false and e:GetState() == "Idling", "Vanitas Remnant (superboss): no opening attack")
   BBS_REVENGE.opening = false
+end
+-- bbskh2_boss.ini: armour windows, gaps between attacks, cooldowns (the shipped file, then the live one)
+do
+  local RVs = BBS_REVENGE
+  local log = {}
+  M.num["Enemy.EnableNoDamageReaction"] = function(h, v) log[h] = v end
+  M.num["Enemy.IsNoDamageReaction"] = function(h) return log[h] == 1 end
+  local tlog = {}
+  M.num["Entity.SetTimer"] = function(h, v) tlog[h] = v end
+  local pr = RVs.bossProfile("b10ex00")
+  check(pr ~= nil and pr.name == "Vanitas" and pr.moves.SuccessionAttack1 == 36 and pr.moves.ShadowDiving == true
+        and pr.moves.Cartwheel == "vanilla" and pr.cd.DarkFiraga == 180 and pr.cd.ShadowDiving == 2700
+        and pr.beat[1] == 15 and pr.beat[2] == 24 and pr.chain[1] == 2 and pr.chain[2] == 4 and pr.pause[1] == 25
+        and pr.repo.BackhandsSpringJump and pr.repoList[2] == "Cartwheel", "ini: Vanitas's section read")
+  check(RVs.bossProfile("b30ex00").name == "Braig" and RVs.bossProfile("b52ex00").moves.Attack3 == 166
+        and RVs.bossProfile("b52ex00").cd.Attack3 == 720 and RVs.bossProfile("b12ex00") == nil,
+        "ini: Braig, Terra-Xehanort by their ids; no section = nil (Vanitas Remnant)")
+  -- the live file wins per key (the DLL's BBS_BossIni), re-read for every boss created
+  BBS_BossIni = function(sec) if sec == "Vanitas" then return "SuccessionAttack1 = 20 ; shorter\nBeat=30-30\nDarkThundaga = all, cooldown 2\n" end end
+  local p2 = RVs.bossProfile("b10ex00")
+  check(p2.moves.SuccessionAttack1 == 20 and p2.beat[1] == 30 and p2.moves.DarkThundaga == true and p2.cd.DarkThundaga == 120
+        and p2.moves.DarkFiraga == 48, "ini: the file in the game folder overrides key by key")
+  BBS_BossIni = nil
+  -- Vanitas: his combo armoured for its first 36 frames (counted while he is visible), then open
+  M.script("b10ex00")
+  local e, h = M.create("b10ex00")
+  local st = RVs.ents.b10ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  pcall(e.GotoState, e, "SuccessionAttack1")
+  check(log[h] == 1 and st.mArmor == 36, "Vanitas's combo: armoured from its start (36 frames)")
+  M.num["Entity.GetAlpha"] = 0
+  for i = 1, 40 do pcall(e.OnUpdate, e) end
+  check(st.mArmor == 36 and log[h] == 1, "... not counted while he is hidden (a warp)")
+  M.num["Entity.GetAlpha"] = 1
+  for i = 1, 35 do pcall(e.OnUpdate, e) end
+  check(log[h] == 1, "... still armoured at frame 35")
+  for i = 1, 2 do pcall(e.OnUpdate, e) end
+  check(log[h] == 0 and st.winOff, "... open from frame 36 on")
+  -- the beat: his Idling timer
+  st.chain, st.chainN = 0, 9
+  pcall(e.GotoState, e, "Idling")
+  check(tlog[h] >= 15 and tlog[h] <= 24 and log[h] == 0, "... then the beat, 15-24 frames (" .. tostring(tlog[h]) .. ")")
+  -- after Chain attacks: a reposition instead of the idle, back through his stack
+  st.chain, st.chainN = 3, 3
+  pcall(e.GotoState, e, "DarkThundaga")
+  pcall(e.GotoState, e, "Idling")
+  local rs = e:GetState()
+  check((rs == "BackhandsSpringJump" or rs == "Cartwheel") and e.stack:getn() >= 1 and st.chain == 0,
+        "after his chain of attacks: " .. tostring(rs) .. " instead of Idling, Idling on his stack")
+  -- after a reposition: sometimes a pause, broken when the player comes close
+  local mr = M.rand
+  M.rand = function() return 0 end
+  pcall(e.GotoState, e, "Idling")
+  M.rand = mr
+  check(st.pauseOn and tlog[h] == 60, "after the reposition: a pause (" .. tostring(tlog[h]) .. " frames)")
+  M.num["Entity.CalcDistanceSq"] = 4
+  pcall(e.OnUpdate, e)
+  check(not st.pauseOn and tlog[h] == 0, "... broken when the player is within 3 m: he attacks")
+  M.num["Entity.CalcDistanceSq"] = nil
+  -- an attack on cooldown is swapped for another of his (answer pick); the answer itself ignores cooldowns
+  st.cdUntil.DarkFiraga = st.t + 1000
+  st.chain, st.chainN, st.reroll = 0, 9, 0
+  pcall(e.GotoState, e, "Idling")
+  pcall(e.GotoState, e, "DarkFiraga")
+  check(e:GetState() ~= "DarkFiraga" and e:GetState() ~= "Idling", "Dark Firaga on cooldown: another attack instead (" .. e:GetState() .. ")")
+  -- everything on cooldown: the one closest to ready
+  for _, n in ipairs{ "SuccessionAttack1", "DarkFiraga", "DarkThundaga", "Warp1" } do st.cdUntil[n] = st.t + 1000 end
+  st.cdUntil.DarkThundaga = st.t + 10
+  st.reroll = 0
+  pcall(e.GotoState, e, "Idling")
+  M.num["Entity.CalcDistanceSq"] = 100
+  pcall(e.GotoState, e, "DarkFiraga")
+  M.num["Entity.CalcDistanceSq"] = nil
+  check(e:GetState() == "DarkThundaga", "all on cooldown: the one closest to ready, never a stand-still (" .. e:GetState() .. ")")
+  -- no answer to swap with (riding): he decides again, twice; then he goes ahead
+  e.rideMode = true
+  st.reroll = 0
+  pcall(e.GotoState, e, "Idling")
+  pcall(e.GotoState, e, "DarkFiraga")
+  local s1 = e:GetState()
+  pcall(e.GotoState, e, "DarkFiraga")
+  local s2 = e:GetState()
+  pcall(e.GotoState, e, "DarkFiraga")
+  check(s1 == "Idling" and s2 == "Idling" and e:GetState() == "DarkFiraga" and tlog[h] <= 2,
+        "nothing to swap with: decides again (" .. s1 .. ", " .. s2 .. "), then goes ahead (" .. e:GetState() .. ")")
+  e.rideMode = false
+  -- Braig: Inverted Shoot is armoured by his own script; past its window it is held open
+  M.script("b30ex00")
+  local e3, h3 = M.create("b30ex00")
+  local st3 = RVs.ents.b30ex00
+  rawset(e3, "Update", function() end); rawset(e3, "Debug", function() end)
+  pcall(e3.GotoState, e3, "Idling")
+  pcall(e3.GotoState, e3, "InvertedShoot")
+  local open, n = false, 0
+  for i = 1, 80 do
+    pcall(e3.OnUpdate, e3)
+    if e3:GetState() ~= "InvertedShoot" then break end
+    n = n + 1
+    if i > 47 and log[h3] == 0 then open = true end
+    Enemy.EnableNoDamageReaction(h3, 1)                     -- (as if his script switched it on again)
+    pcall(e3.OnUpdate, e3)
+  end
+  check(open, "Braig's Inverted Shoot: open after its 46 frames although his script armours it (" .. n .. ")")
+  M.num["Enemy.EnableNoDamageReaction"] = nil
+  M.num["Enemy.IsNoDamageReaction"] = nil
+  M.num["Entity.SetTimer"] = nil
+  M.num["Entity.GetAlpha"] = nil
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

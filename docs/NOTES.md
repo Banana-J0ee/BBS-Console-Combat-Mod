@@ -1178,3 +1178,33 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   straight from a shot (Dash / Round Shoot used to pick the next one in 0-1 frame), first holds him in his idle
   pose (WaitIdling's own start) for that long, turning to the player.  A hit during the rest (his script:
   GotoState Idling) does not start it over.  Tests in extra.lua.
+
+## bbskh2_boss.ini: KH3-style armour windows, gaps between attacks, cooldowns (2026-10-18; first: Vanitas, Braig, Terra-Xehanort)
+* From the KH3 comparison (e_ex311 Vanitas, e_ex313 Terra-Xehanort, e_ex305 Xigbar: armour = ChangeBodyCollReaction
+  notifies from the wind-up through the hit, recovery open; no idle waits - cooldowns, combo limits, repositions).
+  Asked for: no attack fully open (every one keeps some armour), revenge values and break-outs unchanged.
+* File: dist/bbskh2_boss.ini is the source of the built-in values (genrevenge.py puts its text into the Lua as
+  RV.bossIniText).  In the game the DLL registers BBS_BossIni(section) (bundle.c; lua_pushlstring 5b9ee0): that
+  section of bbskh2_boss.ini in the game folder, else next to bbskh2.ini, read on every call (GetPrivateProfileSectionA)
+  - the revenge script asks once per boss created (attach), so edits apply at the next fight.  Keys of the file win.
+* Moves: `State = frames | all | vanilla [, cooldown s]`.  frames = armoured from the state's start, counted only while
+  the boss is visible (Entity.GetAlpha >= 0.5: a warp does not use it up), then open; where the boss's own script
+  armours the whole move (Braig's Inverted Shoot, Terra-Xehanort's Guardian attacks, wielder commands) the armour is
+  held off after the window (st.winOff, after the script's update).  Same mechanism as armorStates numbers.
+* Gaps (cfg.tempo.idle: "timer" = the idle's Entity.SetTimer, "hold" = our hold skipping its update, {field} = a frame
+  field of its own): the first idle after an attack gets Beat frames; after Chain attacks in a row (a move entered
+  straight from another counts once) a Reposition move instead of the idle (pushing the idle first for moves in
+  cfg.tempo.pop that return through the stack); after a reposition Pause% of the time a pause, broken when the player
+  is within PauseNear m.  An idle entered from another idle gets 2 frames.
+* Cooldowns: an attack entered while cooling down is swapped (stack back to its depth at the idle, then the revenge
+  answer's pick with only ready moves, by distance; none ready = the one closest to ready); bosses with no answer
+  for the moment decide again (their idle, 2 frames) up to twice, then go ahead.  Revenge answers and the opening
+  ignore cooldowns.
+* Values: from the script's own frame tests (GetMotionNowFrame thresholds, in 30 fps motion frames: x2) and the .aac
+  hit windows (boss arcs arc/boss/<id>d.arc in bbs_third / bbs_first.pkg; reader /home/claude/bbs/bossdata/aac.py,
+  motion use per state: bossdata/motions.py - its motion-index mapping is not settled, the frame tests are).
+  Terra-Xehanort's final fight: his Attack0..6 drive his Guardian (b56ex00: ATK0 300 hit 16-20, ATK1 310 wave at 26,
+  ATK3 330+331 souls 19/30/38, ATK4 340 hits 23-43, ATK6 360 blasts 19-38).  Wielder commands: first estimates.
+* Braig's rest (braigRest, 1.0-1.5 s) is replaced by the beat.  Debug log: "armour window over", "chain .. repositions",
+  "pause", "cooldown: .. swapped / decides again / goes ahead".  Tests: extra.lua (ini, window, beat, chain, pause,
+  cooldown swap, all on cooldown, no answer, Inverted Shoot held open).

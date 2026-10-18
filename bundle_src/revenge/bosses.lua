@@ -37,6 +37,9 @@
 --   setup    function(ent) run once when the boss is created (changes to its own states)
 --   armorStates { State = true | frames }: moves of KH2's "cannot be interrupted" class (specials,
 --            warps) the script leaves flinchable: armoured for the whole move, or its first frames
+--            (a boss with a section in bbskh2_boss.ini: the file's value wins for the moves it lists)
+--   tempo    { idle = { State = "timer" | "hold" | { field = "name" } }, pop = { State = true } }: how the boss's
+--            idle states wait, for the gaps of bbskh2_boss.ini (revenge.lua, "Gaps between attacks")
 --   haste    < 1 shortens the idle times the script reads through entity methods
 --            (hasteFns, default GetIdlingChangeTime); timers baked in as constants stay
 -- Large bosses are deliberately absent: they keep their vanilla behaviour.
@@ -197,10 +200,15 @@ local function rideSetup(ent)
 end
 -- KH2 armour (2026-10-17): every attack of his is armoured; the ride moves already are (RideWaiting)
 local vanitasArmor = { SuccessionAttack1 = true, SuccessionAttack2 = true, DarkFiraga = true, DarkThundaga = true }
-local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }
+-- bbskh2_boss.ini [Vanitas]: his armour windows, gaps and cooldowns; his Idling waits with Entity.SetTimer, and his
+-- back-handspring / cartwheel go back through his stack
+local vanitasTempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } }
+local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
+                  tempo = vanitasTempo }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup }   -- the late one
+cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
+                tempo = vanitasTempo }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
   limit = 7.5,
@@ -316,67 +324,20 @@ local armor = {
 cfg.b81vs00 = armor
 
 -- Braig: 30% escape on every hit.
--- Braig's rest (asked for: his own idle timing, every attack fully armoured): 60-90 frames (1.0-1.5 s, random)
--- after every attack, unarmoured - his window.  After Warp / Charge / Inverted Shoot his own wait (WaitIdling,
--- a frame counter, then a warp) gets that length; after Dash / Round Shoot, whose Idling picked the next shot at
--- once, Idling holds him in his idle pose (WaitIdling's own start) for that long first.  Hits during a rest put
--- him back in Idling (his script): the rest goes on, it does not start over.
-local BRAIG_REST = { 60, 90 }
-local braigAttacks = { DashShoot = true, RoundShoot = true, WarpShoot = true, ChargeShoot = true,
-                       InvertedShoot = true, Sniper = true, ArutemaShoot = true }
-local function braigRestFrames()
-  local r = Script.Random()
-  if type(r) ~= "number" then r = 0.5 end
-  return BRAIG_REST[1] + (BRAIG_REST[2] - BRAIG_REST[1]) * r
-end
-local function braigRest(ent)
-  local states = ent.states
-  if type(states) ~= "table" or type(states.Idling) ~= "table" or type(states.WaitIdling) ~= "table" then return end
-  local own = {}
-  for k, v in pairs(states) do own[k] = v end
-  local idl, wai = {}, {}
-  for k, v in pairs(states.Idling) do idl[k] = v end
-  for k, v in pairs(states.WaitIdling) do wai[k] = v end
-  local iBegin, iUpdate, wBegin = states.Idling.OnBeginState, states.Idling.OnUpdate, states.WaitIdling.OnBeginState
-  wai.OnBeginState = function(self)
-    if wBegin ~= nil then wBegin(self) end
-    self.timer = braigRestFrames()
-  end
-  idl.OnBeginState = function(self)
-    local prev = self:GetState()                       -- (the FSM switches after OnBeginState)
-    if iBegin ~= nil then iBegin(self) end
-    if braigAttacks[prev] then
-      self.__rest = braigRestFrames()
-      if wBegin ~= nil then pcall(wBegin, self) end    -- his idle pose
-      self.step = 0
-    elseif prev ~= "Idling" then
-      self.__rest = 0
-    end
-  end
-  idl.OnUpdate = function(self)
-    if type(self.__rest) == "number" and self.__rest > 0 then
-      local dt = Entity.GetFrameRate(self.myHandle)
-      if type(dt) ~= "number" or dt <= 0 or dt > 6 then dt = 1 end
-      self.__rest = self.__rest - dt
-      pcall(Entity.TurnTargetYDegree, self.myHandle, self.targetHandle, 5)
-      return
-    end
-    if iUpdate ~= nil then return iUpdate(self) end
-  end
-  own.Idling, own.WaitIdling = idl, wai
-  rawset(ent, "states", own)
-end
+-- bbskh2_boss.ini [Braig]: his armour windows (his shots armoured through the wind-up and the first volley; Charge
+-- Shoot whole), gaps and cooldowns.  His Idling picks the next shot at once (0-1 frame): the beat is a hold of ours
+-- there; after Warp / Charge / Inverted Shoot his WaitIdling counts its own frames (self.timer) before a warp.
 local braig = {
   limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
   -- His shots are long shooting phases, and after Dash / Round Shoot his Idling picks the next one at once
-  -- (0-1 frame in play), so with his shots armoured he had no opening at all.  Asked for: every attack fully
-  -- armoured, and a rest of his own after each one (braigRest below) - that is where he can be staggered.
+  -- (0-1 frame in play).  armorStates: the whole move where bbskh2_boss.ini has no window for it.
   armorStates = { RoundShoot = true, DashShoot = true, WarpShoot = true, ChargeShoot = true, InvertedShoot = true,
                   WarpCenter = true },
   answer = { close = { "RoundShoot", "DashShoot" }, far = { "WarpShoot", "DashShoot", "ChargeShoot" }, noRet = true },
   -- his OnDamageBefore sends every shot to Idling on any hit (30 % escape otherwise), armour or not, so an
-  -- armoured shot was still cut short: hits are kept from his script during his armoured shots (Charge
-  -- Shoot too: no damage break, asked for).  Kept: the Sniper's damage break, Inverted Shot's dodge
+  -- armoured shot was still cut short: hits are kept from his script while a shot is armoured (Charge
+  -- Shoot too: no damage break, asked for); past its window a hit reaches him and cuts the shot short.
+  -- Kept: the Sniper's damage break, Inverted Shot's dodge
   answerClear = { Sniper = true, ArutemaShoot = true },   -- (his entrance may go straight into the Sniper)
   armorHit = function(self)
     local s = self:GetState()
@@ -394,10 +355,10 @@ local braig = {
         return wt(self, a, b)
       end)
     end
-    braigRest(ent)
   end,
+  tempo = { idle = { Idling = "hold", WaitIdling = { field = "timer" } }, pop = { WarpCenter = true } },
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
-  -- (no paceFields: his wait is braigRest's - 1.0-1.5 s after every attack)
+  -- (no paceFields: his waits are bbskh2_boss.ini's beat)
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
     local s = self:GetState()
@@ -653,8 +614,11 @@ local wielders = { "b60ex00", "b62ex00", "b68ex00", "b69ex00", "b70ex00", "b72ex
 for i = 1, #wielders do
   cfg[wielders[i]] = wielder
 end
+-- bbskh2_boss.ini [Terra-Xehanort]: the wielder AI waits in BattleIdling (Entity.SetTimer), his own AI (b52ex00)
+-- counts AttackTimer down while he circles; the dodge roll and his side-step go straight back to his idle
+local xehanortTempo = { idle = { BattleIdling = "timer", Idling = { field = "AttackTimer" } } }
 local xehanort = { limit = 6, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter,
-                   answer = wielderAnswer }
+                   answer = wielderAnswer, tempo = xehanortTempo }
 cfg.b50ex00 = xehanort
 cfg.b51ex00 = xehanort
 
@@ -664,6 +628,7 @@ local function ownAI(self) return self.SetDmgCount ~= nil end
 cfg.b52ex00 = {
   limit = 6,
   attack = 1,
+  tempo = xehanortTempo,
   active = wielderActive,
   counter = wielderCounter,     -- the shared-AI form only; his own AI has no EvasionAction and is covered by pre()
   answer = wielderAnswer,       -- (nil for his own AI)

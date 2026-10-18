@@ -142,6 +142,38 @@ static int lua_api_ok(void) {
     return !memcmp(g_base + LUA_GETTOP, top, sizeof top);
 }
 
+/* BBS_BossIni(section): that section of bbskh2_boss.ini as "key=value" lines, or nothing when the file or the section
+   is missing.  Read from the file on every call (the revenge script asks once per boss it creates), so edits take
+   effect at the next boss without restarting.  The file is looked for in the game folder, then next to bbskh2.ini.
+   lua_pushlstring 5b9ee0 (luaC_checkGC 5c4910, luaS_newlstr 5c57c0, type 4). */
+#define LUA_PUSHLSTR 0x5b9ee0
+static int pushlstr_ok(void) {
+    static const u8 head[] = { 0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x6c, 0x24, 0x10 };
+    return !memcmp(g_base + LUA_PUSHLSTR, head, sizeof head);
+}
+static void boss_ini_path(char *out, size_t n) {
+    snprintf(out, n, "%sbbskh2_boss.ini", g_dir);
+    if (GetFileAttributesA(out) != INVALID_FILE_ATTRIBUTES) return;
+    snprintf(out, n, "%s", g_ini);
+    char *e = strrchr(out, '\\');
+    if (e) snprintf(e + 1, n - (size_t)(e + 1 - out), "bbskh2_boss.ini");
+}
+static char boss_buf[32768];
+static int MSABI rv_boss_ini(void *L) {
+    if (FN(int, LUA_GETTOP, void*)(L) < 1) return 0;
+    size_t len = 0;
+    const char *sec = FN(const char*, LUA_TOLSTR, void*, int, size_t*)(L, 1, &len);
+    if (!sec || !len || len > 64) return 0;
+    char path[MAX_PATH + 32];
+    boss_ini_path(path, sizeof path);
+    if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return 0;
+    DWORD n = GetPrivateProfileSectionA(sec, boss_buf, sizeof boss_buf, path);
+    if (n == 0) return 0;
+    for (DWORD i = 0; i < n; i++) if (boss_buf[i] == 0) boss_buf[i] = '\n';
+    FN(void, LUA_PUSHLSTR, void*, const char*, size_t)(L, boss_buf, n);
+    return 1;
+}
+
 /* luaL_loadbuffer(L, buf, size, name) at the game's script loader */
 static int MSABI lua_load_hook(void *L, const char *buf, size_t n, const char *name) {
     if (c_revenge && is_factory(buf, n)) {
@@ -150,6 +182,10 @@ static int MSABI lua_load_hook(void *L, const char *buf, size_t n, const char *n
             FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_log, 0);
             FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_Log");
         }
+        if (lua_api_ok() && pushlstr_ok()) {        /* bbskh2_boss.ini for the revenge script (BBS_BossIni) */
+            FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_boss_ini, 0);
+            FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_BossIni");
+        } else if (g_debug) LOG("bundle: Lua API does not match: bbskh2_boss.ini not read (built-in values)");
         buf = (const char*)rv_buf; n = sizeof rv_buf;
     }
     return FN(int, LUA_LOAD, void*, const char*, size_t, const char*)(L, buf, n, name);

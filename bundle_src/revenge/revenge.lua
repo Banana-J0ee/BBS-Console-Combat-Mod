@@ -105,6 +105,89 @@ if RV.walkCap > 100 or RV.walkCap < 0 then RV.walkCap = 2.0 end
 RV.idleFloor = 45      -- 0.75 s, KH2's longest wait between decisions: shorter waits stay as they are
 
 -- ---------------------------------------------------------------------
+-- bbskh2_boss.ini: per boss and move, how long the move is armoured (KH3: from the wind-up through the hit, the
+-- recovery open), the gaps between attacks (a short beat instead of the idle wait, a reposition after a few
+-- attacks in a row, sometimes a pause) and cooldowns.  The text below is the shipped file (genrevenge.py puts it
+-- in); the DLL's BBS_BossIni(section) reads the file in the game / mod folder each time a boss is created, and
+-- its keys win.  Bosses without a section keep the behaviour of their config alone.
+-- ---------------------------------------------------------------------
+RV.bossIniText = __BOSS_INI__
+local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
+local function iniParse(text, into)
+  local out, cur = into or {}, nil
+  for line in (text .. "\n"):gmatch("([^\r\n]*)\r?\n") do
+    line = line:gsub("[;#].*$", "")
+    local sec = line:match("^%s*%[(.-)%]")
+    if sec ~= nil then
+      cur = trim(sec)
+      out[cur] = out[cur] or {}
+    elseif cur ~= nil then
+      local k, v = line:match("^%s*([^=]-)%s*=%s*(.-)%s*$")
+      if k ~= nil and k ~= "" then out[cur][k] = v end
+    end
+  end
+  return out
+end
+RV.iniParse = iniParse
+local INI = {}
+pcall(iniParse, RV.bossIniText, INI)
+RV.ini = INI
+local INI_IDS = {}
+for sname, sec in pairs(INI) do
+  for id in (sec.Ids or ""):gmatch("[%w_]+") do INI_IDS[id] = sname end
+end
+local function numRange(v, d1, d2)
+  if type(v) ~= "string" then return d1, d2 end
+  local a, b = v:match("^%s*([%d%.]+)%s*%-%s*([%d%.]+)")
+  if a ~= nil then
+    a, b = tonumber(a), tonumber(b)
+    if a > b then a, b = b, a end
+    return a, b
+  end
+  a = tonumber((v:match("^%s*([%d%.]+)")))
+  if a ~= nil then return a, a end
+  return d1, d2
+end
+-- the profile of a boss: { name, moves = { State = true | frames | "vanilla" }, cd = { State = frames },
+--   repo = { State = true }, repoList, beat = {a, b}, chain = {a, b}, pause = {pct, a, b}, near (m) }
+local function bossProfile(id)
+  local sname = INI_IDS[id]
+  if sname == nil then return nil end
+  local sec = {}
+  for k, v in pairs(INI[sname]) do sec[k] = v end
+  local live = rawget(_G, "BBS_BossIni")
+  if type(live) == "function" then
+    local ok, txt = pcall(live, sname)
+    if ok and type(txt) == "string" then
+      local p = iniParse("[" .. sname .. "]\n" .. txt)
+      for k, v in pairs(p[sname] or {}) do sec[k] = v end
+    end
+  end
+  local pr = { name = sname, moves = {}, cd = {}, repo = {}, repoList = {}, near = 3 }
+  pr.beat = { numRange(sec.Beat, 15, 24) }
+  pr.chain = { numRange(sec.Chain, 2, 4) }
+  local pct, rest = (sec.Pause or "0"):match("^%s*([%d%.]+)%s*,?%s*(.*)$")
+  pr.pause = { tonumber(pct) or 0, numRange(rest, 60, 120) }
+  pr.near = tonumber(sec.PauseNear or "") or 3
+  for n in (sec.Reposition or ""):gmatch("[%w_]+") do pr.repo[n] = true; pr.repoList[#pr.repoList + 1] = n end
+  for k, v in pairs(sec) do
+    if k ~= "Ids" and k ~= "Beat" and k ~= "Chain" and k ~= "Pause" and k ~= "PauseNear" and k ~= "Reposition" then
+      local a, rest2 = v:match("^%s*([^,]+)%s*,?(.*)$")
+      if a ~= nil then
+        a = trim(a):lower()
+        local m
+        if a == "all" then m = true elseif a == "vanilla" then m = "vanilla" else m = tonumber(a) end
+        if m ~= nil then pr.moves[k] = m end
+        local cd = (rest2 or ""):lower():match("cooldown%s*([%d%.]+)")
+        if cd ~= nil then pr.cd[k] = tonumber(cd) * 60 end
+      end
+    end
+  end
+  return pr
+end
+RV.bossProfile = bossProfile
+
+-- ---------------------------------------------------------------------
 -- Controlled dice.  While one of our wrapped callbacks runs, the boss
 -- script sees the values we choose instead of real random numbers.
 -- ---------------------------------------------------------------------
@@ -303,12 +386,16 @@ local function attach(ent, name, handle)
     st.owe = nil
     st.opening = RV.opening and c.answer ~= nil and c.opening ~= false
     st.limit = c.limit
+    st.pr = bossProfile(name)
+    st.chain, st.chainN, st.cdUntil, st.hold, st.pauseOn, st.winOff = 0, nil, {}, 0, false, false
     if st.pace ~= nil and handle ~= nil then P.by[handle] = st end
     return
   end
   st = { rv = 0, idle = 0, firing = false, fireT = 0, armor = 0, count = 0, fcount = 0,
          t = 0, magT = -1e9, magSum = 0, hp = nil, sawHit = false, seen = -1e9, drop = -1e9,
          limit = c.limit, name = name, cfg = c }
+  st.pr = bossProfile(name)
+  st.chain, st.cdUntil, st.hold, st.pauseOn, st.winOff, st.reroll = 0, {}, 0, false, false, 0
   st.opening = RV.opening and c.answer ~= nil and c.opening ~= false
   rawset(ent, "__rv", st)
   RV.ents[name] = st
@@ -439,6 +526,7 @@ local function attach(ent, name, handle)
       local mh = rawget(ent, "myHandle")
       if mh ~= nil and mh ~= h then return v end        -- a stale entry: another object owns h now
       if not active(ent) then return v end
+      if st.tempoSet ~= nil then return st.tempoSet end  -- the gap of bbskh2_boss.ini (an idle being entered)
       return paceValue(paceKind(st.state), v, c.idleFloor)
     end
     if h0 ~= nil then P.by[h0] = st end
@@ -467,8 +555,21 @@ local function attach(ent, name, handle)
   -- interrupted once started (0x10000 in its act table), normal attacks can.  armorStates lists
   -- the BBS moves of that class that the scripts leave flinchable: true = the whole move,
   -- a number = its first frames only.  Off again when the move ends, so its end is punishable.
+  -- bbskh2_boss.ini (st.pr) overrides it per move: a number there is the KH3 window - armoured for that many
+  -- frames from the start of the move (counted while the boss is visible), then open, also where the game's
+  -- own script armours the whole move (st.winOff: held off until the move ends); "vanilla" = the script alone.
   local as = c.armorStates
-  if as ~= nil then
+  local function moveArmor(s)
+    local pr = st.pr
+    if pr ~= nil and pr.moves[s] ~= nil then
+      local v = pr.moves[s]
+      if v == "vanilla" then return nil end
+      return v
+    end
+    if as ~= nil then return as[s] end
+    return nil
+  end
+  if as ~= nil or st.pr ~= nil then
     local function setNDR(h, on)
       if type(Enemy.EnableNoDamageReaction) == "function" then Enemy.EnableNoDamageReaction(h, on and 1 or 0) end
     end
@@ -476,19 +577,159 @@ local function attach(ent, name, handle)
     if type(gss2) == "function" then
       rawset(ent, "GotoStateSub", function(self, s, a, b)
         local h = myh(self)
+        st.winOff, st.winState = false, nil
         if st.mArmor ~= nil and st.mArmor > 0 then         -- leaving an armoured move
           st.mArmor = 0
           if not (st.armor > 0) and active(self) then setNDR(h, false) end
         end
         local r = gss2(self, s, a, b)
-        local v = as[s]
+        local v = moveArmor(s)
         if v ~= nil and v ~= false and active(self) and type(self.GetState) == "function" and self:GetState() == s then
-          if v == true then st.mArmor = 1e9 else st.mArmor = v end
-          setNDR(h, true)
+          if v == true then st.mArmor = 1e9 else st.mArmor = v st.winState = s end
+          if st.mArmor > 0 then setNDR(h, true) else st.winOff = true end
         end
         return r
       end)
     end
+  end
+
+  -- ---------------------------------------------------------------------------------------------------------
+  -- Gaps between attacks (bbskh2_boss.ini; KH3: no idle waits - recoveries, repositions, cooldowns).  cfg.tempo:
+  --   idle = { State = "timer" | "hold" | { field = "name" } }: the boss's idle states and how each one waits:
+  --     its Entity.SetTimer, a hold of ours (its update is skipped while it lasts), or a frame field of its own
+  --   pop = { State = true }: Reposition moves that return through the boss's stack (the idle is pushed first)
+  -- On the first idle after an attack: the Beat (a pause instead, now and then, after a reposition).  After Chain
+  -- attacks in a row: a Reposition move instead of the idle.  An attack on cooldown is swapped for another (the
+  -- revenge answer's pick, by distance) or the boss decides again; with nothing else to pick it goes ahead.
+  -- ---------------------------------------------------------------------------------------------------------
+  local tempo = c.tempo
+  local function roll(lo, hi)
+    local r = (S.real ~= nil and S.real()) or math.random()
+    return lo + (hi - lo) * r
+  end
+  if tempo ~= nil and st.pr ~= nil then
+    local idles = tempo.idle or {}
+    local function isAttack(s)
+      local pr = st.pr
+      if pr == nil or pr.repo[s] then return false end
+      return pr.moves[s] ~= nil
+    end
+    local gssT = ent.GotoStateSub
+    if type(gssT) == "function" then
+      rawset(ent, "GotoStateSub", function(self, s, a, b)
+        local pr = st.pr
+        if pr == nil or type(s) ~= "string" or not active(self) then return gssT(self, s, a, b) end
+        local prev = st.tstate
+        local mode = idles[s]
+        local f = nil
+        if isAttack(s) then
+          local cdu = st.cdUntil[s]
+          if cdu ~= nil and cdu > st.t and not st.answering and not st.subbing then
+            if st.reroll < 2 then
+              -- on cooldown: another attack (the answer's pick) or a new decision
+              st.reroll = st.reroll + 1
+              local stk = self.stack
+              if stk ~= nil and type(stk.getn) == "function" and st.idleBase ~= nil then
+                while stk:getn() > st.idleBase do stk:pop(1) end
+              end
+              st.subbing = true
+              local ok, done = pcall(function()
+                if st.enterSub ~= nil and st.enterSub(self, st.idleName or prev) then return true end
+                return false
+              end)
+              st.subbing = false
+              if ok and done then rlog(name, st.t, "cooldown:", s, "swapped") return nil end
+              if st.idleName ~= nil and self.states ~= nil and self.states[st.idleName] ~= nil then
+                rlog(name, st.t, "cooldown:", s, "decides again")
+                st.rerollIdle = true
+                local r = self:GotoStateSub(st.idleName)
+                st.rerollIdle = false
+                return r
+              end
+            end
+            rlog(name, st.t, "cooldown:", s, "nothing else to pick - goes ahead")
+          end
+          st.reroll = 0
+          if pr.cd[s] ~= nil then st.cdUntil[s] = st.t + pr.cd[s] end
+          if not isAttack(prev) then st.chain = st.chain + 1 end    -- (a move that follows on from another counts once)
+          st.needBeat, st.pauseOn = true, false
+        elseif pr.repo[s] then
+          st.chain, st.chainN, st.afterRepo, st.needBeat, st.pauseOn = 0, nil, true, true, false
+        elseif mode ~= nil then
+          if st.rerollIdle then
+            f = 2
+          elseif st.needBeat then
+            st.needBeat = false
+            st.chainN = st.chainN or math.floor(roll(pr.chain[1], pr.chain[2] + 0.999))
+            if st.chain >= st.chainN and not st.answering then
+              -- a reposition instead of the idle
+              local list = {}
+              for i = 1, #pr.repoList do
+                if type(self.states) == "table" and self.states[pr.repoList[i]] ~= nil then list[#list + 1] = pr.repoList[i] end
+              end
+              if #list > 0 then
+                local n = list[math.floor(roll(1, #list + 0.999))]
+                local stk = self.stack
+                if tempo.pop ~= nil and tempo.pop[n] and stk ~= nil then stk:push(s) end
+                rlog(name, st.t, "chain", st.chain, "- repositions:", n)
+                st.tstate = n
+                return self:GotoStateSub(n)
+              end
+            end
+            f = roll(pr.beat[1], pr.beat[2])
+            if st.afterRepo and roll(0, 100) < pr.pause[1] then
+              f = roll(pr.pause[2], pr.pause[3])
+              st.pauseOn = true
+              rlog(name, st.t, "pause", f)
+            end
+            st.afterRepo = false
+          elseif idles[prev] ~= nil then
+            f = 2                       -- idle after idle: the beat was had already
+          else
+            f = roll(pr.beat[1], pr.beat[2])
+          end
+        end
+        st.tstate = s
+        if f ~= nil and mode == "timer" then st.tempoSet = f end
+        local ok, r = pcall(gssT, self, s, a, b)
+        st.tempoSet = nil
+        if not ok then error(r, 0) end
+        if f ~= nil and type(self.GetState) == "function" and self:GetState() == s then
+          st.idleName = s
+          local stk = self.stack
+          st.idleBase = (stk ~= nil and type(stk.getn) == "function") and stk:getn() or nil
+          if mode == "hold" then st.hold = f
+          elseif type(mode) == "table" and mode.field ~= nil and type(self[mode.field]) == "number" then self[mode.field] = f end
+        end
+        return r
+      end)
+    end
+    -- holds: the idle's own update waits while it lasts (turning to the target)
+    local own = nil
+    for sname, mode in pairs(idles) do
+      if mode == "hold" and type(ent.states) == "table" and type(ent.states[sname]) == "table" then
+        if own == nil then
+          own = {}
+          for k, v in pairs(ent.states) do own[k] = v end
+        end
+        local orig = ent.states[sname]
+        local copy = {}
+        for k, v in pairs(orig) do copy[k] = v end
+        local up = orig.OnUpdate
+        copy.OnUpdate = function(self, x, y)
+          if st.hold > 0 and active(self) then
+            local dt = Entity.GetFrameRate(myh(self))
+            if type(dt) ~= "number" or dt <= 0 or dt > 6 then dt = 1 end
+            st.hold = st.hold - dt
+            pcall(Entity.TurnTargetYDegree, myh(self), self.targetHandle, 5)
+            return
+          end
+          if up ~= nil then return up(self, x, y) end
+        end
+        own[sname] = copy
+      end
+    end
+    if own ~= nil then rawset(ent, "states", own) end
   end
 
   -- the revenge answer (see RV.oweMax): the get-away hands over to an attack
@@ -512,6 +753,16 @@ local function attach(ent, name, handle)
         if list[i] ~= st.lastAnswer then pool[#pool + 1] = list[i] end
       end
       if #pool == 0 then pool = list end
+      if st.subbing then
+        -- swapping an attack on cooldown: only moves that are ready; none ready = the one closest to ready
+        local ready, best, bestT = {}, nil, nil
+        for i = 1, #list do
+          local u = st.cdUntil[list[i]] or -1e9
+          if u <= st.t then ready[#ready + 1] = list[i] end
+          if bestT == nil or u < bestT then best, bestT = list[i], u end
+        end
+        if #ready > 0 then pool = ready else pool = { best } end
+      end
       if #pool == 0 then return nil end
       local k = math.floor(real() * #pool) + 1
       if k > #pool then k = #pool end
@@ -555,12 +806,12 @@ local function attach(ent, name, handle)
           end
           if n == true then
             local cur = self:GetState()
-            rlog(name, st.t, opening and "OPENING" or "ANSWER", cur, near and "(close)" or "(far)", "instead of", ret)
-            if cur ~= st.lastAnswer or try == 4 then st.lastAnswer = cur return true end
+            rlog(name, st.t, type(opening) == "string" and opening or (opening and "OPENING" or "ANSWER"), cur, near and "(close)" or "(far)", "instead of", ret)
+            if cur ~= st.lastAnswer or try == 4 or st.subbing then st.lastAnswer = cur return true end
           elseif type(n) == "string" and type(self.states) == "table" and self.states[n] ~= nil then
             local label = st.pickLabel or n
-            if label ~= st.lastAnswer or try == 4 or base == nil then
-              rlog(name, st.t, opening and "OPENING" or "ANSWER", label, near and "(close)" or "(far)", "instead of", ret)
+            if label ~= st.lastAnswer or try == 4 or base == nil or st.subbing then
+              rlog(name, st.t, type(opening) == "string" and opening or (opening and "OPENING" or "ANSWER"), label, near and "(close)" or "(far)", "instead of", ret)
               st.lastAnswer = label
               return n                                -- entered below, outside this pcall
             end
@@ -586,6 +837,8 @@ local function attach(ent, name, handle)
       if not opening then armorUp(self) end
       return true
     end
+    -- an attack on cooldown swapped for one of these (tempo, above): no armour of the answer's
+    st.enterSub = function(self, ret) return enterAnswer(self, ret, nil, nil, "SWAP") end
     st.answer = function(self, ret)               -- for counters: answer at once (no get-away)
       st.owe = nil
       if enterAnswer(self, ret) then st.answeredT = st.t return true end
@@ -706,9 +959,38 @@ local function attach(ent, name, handle)
     st.t = st.t + dt
     -- an armoured move (armorStates): held while it runs; a timed one lets go after its frames
     if st.mArmor ~= nil and st.mArmor > 0 and type(Enemy.EnableNoDamageReaction) == "function" then
-      st.mArmor = st.mArmor - dt
+      -- (a window of bbskh2_boss.ini counts while the boss can be seen: not while a warp hides him)
+      local vis = true
+      if st.winState ~= nil and type(Entity.GetAlpha) == "function" then
+        local ok, al = pcall(Entity.GetAlpha, myh(self))
+        if ok and type(al) == "number" and al < 0.5 then vis = false end
+      end
+      if vis then st.mArmor = st.mArmor - dt end
       if st.mArmor > 0 then Enemy.EnableNoDamageReaction(myh(self), 1)
-      else st.mArmor = 0 if not (st.armor > 0) then Enemy.EnableNoDamageReaction(myh(self), 0) end end
+      else
+        st.mArmor = 0
+        if not (st.armor > 0) then Enemy.EnableNoDamageReaction(myh(self), 0) end
+        if st.winState ~= nil then
+          st.winOff = true
+          rlog(name, st.t, "armour window over:", st.winState)
+        end
+      end
+    end
+    -- a pause (bbskh2_boss.ini) ends when the player comes close: he attacks
+    if st.pauseOn and st.pr ~= nil then
+      local cur = type(self.GetState) == "function" and self:GetState() or nil
+      local mode = c.tempo and c.tempo.idle and c.tempo.idle[cur]
+      if mode == nil then st.pauseOn = false
+      else
+        local d = Entity.CalcDistanceSq(myh(self), self.targetHandle)
+        if type(d) == "number" and d < st.pr.near * st.pr.near then
+          st.pauseOn = false
+          rlog(name, st.t, "pause broken: player close")
+          if mode == "timer" then pcall(Entity.SetTimer, myh(self), 0)
+          elseif mode == "hold" then st.hold = 0
+          elseif type(mode) == "table" and mode.field ~= nil and type(self[mode.field]) == "number" then self[mode.field] = 0 end
+        end
+      end
     end
     -- armour window after a forced revenge.  Held every frame: the boss's own
     -- states switch "no damage reaction" off when they end (a counter's
@@ -769,14 +1051,20 @@ local function attach(ent, name, handle)
       end
     end
     local r
-    if upd ~= nil then r = upd(self, a, b, c2, d) end
+    local uok, uerr = true, nil
+    if upd ~= nil then uok, uerr = pcall(upd, self, a, b, c2, d) if uok then r = uerr end end
     -- an armoured move whose own update switched "no damage reaction" off part way (Braig's
     -- ChargeShoot, Vanitas's Dark Splicer): on again before the hits of this frame land
     if st.mArmor ~= nil and st.mArmor > 0 and active(self) and type(Enemy.EnableNoDamageReaction) == "function" then
       Enemy.EnableNoDamageReaction(myh(self), 1)
     end
+    -- past its window a move stays open, also where the boss's own script armours the whole move
+    if st.winOff and not (st.armor > 0) and active(self) and type(Enemy.EnableNoDamageReaction) == "function" then
+      Enemy.EnableNoDamageReaction(myh(self), 0)
+    end
     -- break-outs that start from the boss's own update instead of from a hit
     if st.firing and c.fired ~= nil and c.fired(self) == true then done(false) end
+    if not uok then error(uerr, 0) end              -- the script's own error, as it would have been
     return r
   end)
 
