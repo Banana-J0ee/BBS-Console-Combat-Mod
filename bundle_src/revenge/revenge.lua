@@ -376,6 +376,7 @@ local function attach(ent, name, handle)
   local c = RV.cfg[name]
   if c == nil or type(ent) ~= "table" then return end
   local odb, od, ord, upd = ent.OnDamageBefore, ent.OnDamage, ent.OnReturnDamage, ent.OnUpdate
+  local gssOrig = ent.GotoStateSub                -- the game's own state change, before any wrapper of ours
   if odb == nil and od == nil then return end     -- nothing to steer (helper object, clone, ...)
   if not installRandom() then return end
 
@@ -866,6 +867,26 @@ local function attach(ent, name, handle)
     end
   end
 
+  -- a state change to nothing (a stack popped empty: "state not found [nil]" leaves the boss frozen in the move
+  -- that ended) goes to the boss's idle instead: its first tempo idle, or Idling / BattleIdling
+  local gssN = ent.GotoStateSub
+  if type(gssN) == "function" then
+    rawset(ent, "GotoStateSub", function(self, s, a, b)
+      if (s == nil or (type(self.states) == "table" and self.states[s] == nil)) and active(self) and type(self.states) == "table" then
+        local home = nil
+        if c.tempo ~= nil and c.tempo.idle ~= nil then
+          for n, m in pairs(c.tempo.idle) do if m == "timer" or m == "hold" then home = n end end
+        end
+        if home == nil or self.states[home] == nil then home = self.states.Idling and "Idling" or (self.states.BattleIdling and "BattleIdling") end
+        if home ~= nil then
+          rlog(name, st.t, "state", tostring(s), "does not exist: goes to", home)
+          return gssN(self, home, a, b)
+        end
+      end
+      return gssN(self, s, a, b)
+    end)
+  end
+
   -- per-boss changes to the script's own states (the instance gets its own states table)
   if c.setup ~= nil then pcall(c.setup, ent) end
 
@@ -1064,9 +1085,31 @@ local function attach(ent, name, handle)
     end
     -- break-outs that start from the boss's own update instead of from a hit
     if st.firing and c.fired ~= nil and c.fired(self) == true then done(false) end
-    if not uok then error(uerr, 0) end              -- the script's own error, as it would have been
+    if not uok then
+      rlog(name, st.t, "ERROR in the update of", type(self.GetState) == "function" and tostring(self:GetState()) or "?", ":", tostring(uerr))
+      error(uerr, 0)                                -- the script's own error, as it would have been
+    end
     return r
   end)
+
+  -- safety net: if anything of ours fails during a state change, the game's own state change is done instead
+  -- (an error here used to leave the boss in the move that was ending - repeating its end, frozen)
+  local gTop = ent.GotoStateSub
+  if type(gTop) == "function" and type(gssOrig) == "function" and gTop ~= gssOrig then
+    rawset(ent, "GotoStateSub", function(self, s, a, b)
+      local before = self.current_state
+      local ok, r = pcall(gTop, self, s, a, b)
+      if ok then return r end
+      rlog(name, st.t, "ERROR in a state change to", tostring(s), ":", tostring(r))
+      st.answering, st.subbing, st.tempoSet, st.rerollIdle = false, false, nil, false
+      if self.current_state == before and s ~= nil and type(self.states) == "table" and self.states[s] ~= nil then
+        local ok2, r2 = pcall(gssOrig, self, s, a, b)
+        if not ok2 then rlog(name, st.t, "ERROR in the game's own state change to", tostring(s), ":", tostring(r2)) error(r2, 0) end
+        return r2
+      end
+      return nil
+    end)
+  end
 
   -- debug log: state changes and hits of this boss (only with BBS_Log)
   if LOGF ~= nil then

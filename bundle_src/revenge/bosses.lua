@@ -166,6 +166,10 @@ local function rideHit(self, kind, cat)
       self.__rideHitT = t
       self.__rideHits = (self.__rideHits or 0) + 1
     end
+    -- the ride is his script's alone: no revenge gauge there (a hit that knocks him off, after his script's
+    -- EndRideMode switched the armour off, filled the gauge and forced his warp counter straight out of the
+    -- ride, which then had no state to go back to and stood still)
+    return true
   end
   return false                  -- the hit itself goes the usual way
 end

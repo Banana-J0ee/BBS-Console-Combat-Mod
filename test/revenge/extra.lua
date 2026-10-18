@@ -746,5 +746,27 @@ do
   M.num["Entity.SetTimer"] = nil
   M.num["Entity.GetAlpha"] = nil
 end
+-- Masked Vanitas's late fight: hits during the ride never fill the gauge; a move ending into an empty stack goes idle
+local okL, errL = xpcall(function()
+  M.script("b10ex00")
+  local e, h = M.create("b10ex02")
+  local st = BBS_REVENGE.ents.b10ex02
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "RideMode")
+  e.rideMode = false                                  -- (his knock-off test needs positions this stand-in lacks)
+  M.num["Entity.CalcDistanceSq"] = 4
+  st.rv, st.firing, st.armor = 0, false, 0
+  local mr = M.rand
+  M.rand = function() return 0.99 end               -- (his own dice: no escape)
+  e.dmgCount = -100                                  -- (his own growing escape chance kept low for this check)
+  for i = 1, 20 do hit(h) end
+  M.rand = mr
+  check(st.rv == 0 and not st.firing and e:GetState() ~= "WarpAttack2", "late Vanitas: hits on his ride build no revenge (" .. tostring(st.rv) .. ", " .. e:GetState() .. ")")
+  pcall(e.GotoState, e, "WarpAttack2")
+  e.stack:clear()
+  pcall(e.GotoState, e, e.stack:pop(1))
+  check(e:GetState() == "Idling", "a move that ends into an empty stack goes to his Idling (" .. e:GetState() .. ")")
+end, debug.traceback)
+check(okL, "late Vanitas checks ran (" .. tostring(errL) .. ")")
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
