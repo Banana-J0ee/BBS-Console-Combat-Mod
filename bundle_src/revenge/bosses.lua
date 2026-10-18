@@ -138,8 +138,9 @@ local function maskedAnswer(self, near, ret, choose)
   if near then
     list = { dark and "SuccessionAttack2" or "SuccessionAttack1", "DarkFiraga", "DarkThundaga" }
   else
+    -- (not Shadow Diving: each dive counts towards his script's two dives that end the dark mode / start the
+    -- keyblade ride - answered with dives, the late fight went ride, dive, ride without his dark-mode attacks)
     list = { dark and "Warp2" or "Warp1", "DarkFiraga", "DarkThundaga" }
-    if dark then list[#list + 1] = "ShadowDiving" end
   end
   local n = choose(list)
   if n ~= nil and self.stack ~= nil then self.stack:push(dark and "CheckDarkModeAttackCount" or ret or "Idling") end
@@ -167,6 +168,17 @@ local function rideHit(self, kind, cat)
     end
   end
   return false                  -- the hit itself goes the usual way
+end
+-- debug log: his mode fields (dark mode, ride, dives) at every state change of his
+local function vanitasModeLog(ent)
+  if RV.log == nil then return end
+  local g = ent.GotoStateSub
+  if type(g) ~= "function" then return end
+  rawset(ent, "GotoStateSub", function(self, s, a, b)
+    RV.log(rawget(self, "__rv") and rawget(self, "__rv").name or "vanitas", "mode before", s, "dark", tostring(self.darkMode),
+           "ride", tostring(self.rideMode), "dives", tostring(self.shadowDivingCount), "attacks", tostring(self.attackCount))
+    return g(self, s, a, b)
+  end)
 end
 local function rideSetup(ent)
   local states = ent.states
@@ -197,6 +209,7 @@ local function rideSetup(ent)
   own.RideMode = rm
   own.RideWaiting = rw
   rawset(ent, "states", own)
+  vanitasModeLog(ent)
 end
 -- KH2 armour (2026-10-17): every attack of his is armoured; the ride moves already are (RideWaiting)
 local vanitasArmor = { SuccessionAttack1 = true, SuccessionAttack2 = true, DarkFiraga = true, DarkThundaga = true }

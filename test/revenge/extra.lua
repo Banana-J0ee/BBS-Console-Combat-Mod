@@ -647,8 +647,8 @@ do
   local tlog = {}
   M.num["Entity.SetTimer"] = function(h, v) tlog[h] = v end
   local pr = RVs.bossProfile("b10ex00")
-  check(pr ~= nil and pr.name == "Vanitas" and pr.moves.SuccessionAttack1 == 36 and pr.moves.ShadowDiving == true
-        and pr.moves.Cartwheel == "vanilla" and pr.cd.DarkFiraga == 180 and pr.cd.ShadowDiving == 2700
+  check(pr ~= nil and pr.name == "Vanitas" and pr.moves.SuccessionAttack1 == 36 and pr.moves.ShadowDiving == "vanilla"
+        and pr.moves.Cartwheel == "vanilla" and pr.cd.DarkFiraga == 180 and pr.cd.ShadowDiving == nil
         and pr.beat[1] == 15 and pr.beat[2] == 24 and pr.chain[1] == 2 and pr.chain[2] == 4 and pr.pause[1] == 25
         and pr.repo.BackhandsSpringJump and pr.repoList[2] == "Cartwheel", "ini: Vanitas's section read")
   check(RVs.bossProfile("b30ex00").name == "Braig" and RVs.bossProfile("b52ex00").moves.Attack3 == 166
