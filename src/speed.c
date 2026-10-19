@@ -719,7 +719,42 @@ static void air_log(u8 *pl) {
     LOG("air: t %5.1f  state %2x part %d  rec %4d  frame %5.1f  vy %+.4f  y %+.3f  g %.5f%s", g_air_t, *(u16*)(pl + 0x304), *(s16*)(pl + 0x310),
         rec ? (int)patk_index(rec) : -1, frame_of(pl), vy, g_air_y, *(float*)(pl + 0x508), (*(u32*)(pl + 0x318) & 0x800000) ? " aerial" : "");
 }
+/* ---- long-action log (debug only): an action of the player's (states 0x10..0x14) that runs over 2 s gets a line
+   every 10 ticks - what it is, where its animation is, its speed and flags - and one when it ends.  For the report
+   "stuck in an attack, no buttons work" (No Heart, 2026-10-19). */
+static float g_act_t, g_act_next, g_act_lastfr; static u32 g_act_st; static u16 g_act_cmd; static const u8 *g_act_rec;
+static int g_act_logged, g_act_still;
+static void long_action_log(u8 *pl) {
+    if (!g_debug || pl != local_player()) return;
+    u32 st = *(u16*)(pl + 0x304);
+    float dt = *(float*)(pl + 0x20); if (!(dt >= 0.0f) || dt > 6.0f) dt = 1.0f;
+    if (st < 0x10 || st > 0x14) {
+        if (g_act_logged) LOG("long action: over after %.1f s (state now %x)", g_act_t / 60.0f, st);
+        g_act_t = 0; g_act_logged = 0; g_act_st = 0; return;
+    }
+    u16 cmd = *(u16*)(pl + 0x312);
+    if (st != g_act_st || cmd != g_act_cmd) {
+        if (g_act_logged) LOG("long action: state %x command %x over after %.1f s, now state %x command %x", g_act_st, g_act_cmd, g_act_t / 60.0f, st, cmd);
+        g_act_st = st; g_act_cmd = cmd; g_act_t = 0; g_act_next = 120; g_act_logged = 0; g_act_still = 0; g_act_rec = NULL;
+    }
+    g_act_t += dt;
+    float fr = frame_of(pl);
+    const u8 *rec = *(u8**)(pl + 0x5b8);
+    if (g_act_t < g_act_next) return;
+    g_act_next = g_act_t + 10;
+    g_act_still = (fr == g_act_lastfr && rec == g_act_rec) ? g_act_still + 1 : 0;
+    g_act_lastfr = fr; g_act_rec = rec;
+    u8 *mot = *(u8**)(pl + 0x78);
+    LOG("long action: %.1f s  state %x part %d/%d command %x rec %d  frame %.1f%s  mot flags %x  speed %.2f (ours %.2f)  dt %.2f  "
+        "318 %x 31c %x 320 %x  vy %+.4f g %.5f  air %d  buttons %x",
+        g_act_t / 60.0f, st, *(s16*)(pl + 0x310), *(s16*)(pl + 0x314), cmd, rec ? (int)patk_index(rec) : -1, fr,
+        g_act_still ? " (not moving)" : "", mot ? *(u32*)(mot + 8) : 0, *(float*)(pl + 0x1a8), g_mine, dt,
+        *(u32*)(pl + 0x318), *(u32*)(pl + 0x31c), *(u32*)(pl + 0x320), *(float*)(pl + 0x50c), *(float*)(pl + 0x508),
+        (*(u32*)(pl + 0x318) & 0x400000) != 0, G(u32, 0x8f64930) & 0xf0ff);
+    g_act_logged = 1;
+}
 static void MSABI tick_hook(u8 *pl) {
+    long_action_log(pl);
     if (c_on) cc_after(pl);
     if (pl == local_player()) g_tick++;
     if (c_on) speed_frame(pl);

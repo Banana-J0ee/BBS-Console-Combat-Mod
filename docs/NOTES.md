@@ -1216,3 +1216,8 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   Also from that fight: hits during Masked Vanitas's keyblade ride build no revenge (rideHit -> vanilla), a state
   change to nothing goes to the boss's idle, and an error in our state-change handling falls back to the game's own
   (all logged with ERROR in debug).
+* (2026-10-19) Debug: "long action" lines (speed.c long_action_log, from the tick hook, debug only): a player action
+  (states 0x10..0x14) running over 2 s gets a line every 10 ticks (state / parts 0x310 0x314, command, PAtk record,
+  animation frame and whether it moved, motion flags, pl+0x1a8 speed and ours, dt, 0x318 / 0x31c / 0x320, vy / g,
+  air, buttons held) and one when it ends.  For "stuck in an attack, no buttons work" against No Heart (the long
+  log gaps in that report were the game paused).
