@@ -1979,6 +1979,16 @@ static void t_shortcut(void) {
     /* rebinding: circle -> slot 5 (Mega Flare); a button without a slot does nothing */
     CHECK(sc_assign(0, 4) == 1 && sc_slot(0) == 4 && sc_assign(0, 4) == 0, "assign");
     CHECK(sc_assign(1, -1) == 1 && sc_slot(1) == -1, "clear");
+    {   /* kept in the save in memory (abilities 1..4, top byte): only a saved game keeps them */
+        u8 *sv = g_base + 0x10fa3d08 + 0x18cc;
+        CHECK((sv[1 * 4 + 3] & 0xf) == 5 && (sv[1 * 4 + 3] >> 4) == 0xf && (sv[1 * 4 + 2] | sv[1 * 4 + 1] | sv[1 * 4]) == 0,
+              "circle 5 and triangle none are in the save's ability 1 top byte (%02x), its own bits untouched", sv[1 * 4 + 3]);
+        u8 keep[4]; for (int i = 0; i < 4; i++) keep[i] = sv[(1 + i) * 4 + 3];
+        for (int i = 0; i < 4; i++) sv[(1 + i) * 4 + 3] = 0;     /* another save loaded, made before: never set */
+        CHECK(sc_slot(0) == 0 && sc_slot(1) == 1, "a save without them: the old file's / default slots (%d %d)", sc_slot(0), sc_slot(1));
+        for (int i = 0; i < 4; i++) sv[(1 + i) * 4 + 3] = keep[i];   /* back to this save */
+        CHECK(sc_slot(0) == 4 && sc_slot(1) == -1, "this save again: its own");
+    }
     *test_mp() = 100;
     pad(PAD_L1, 0); pad(PAD_L1 | PAD_CIR, PAD_CIR); test_menu_step(cmd);
     CHECK(*(u16*)(cmd + 0x80) == 0xac && *test_mp() == 50, "Mega Flare from circle, MP %.0f", *test_mp());

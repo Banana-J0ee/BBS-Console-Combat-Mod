@@ -1226,3 +1226,14 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   The revenge script gets BBS_Ms() (debug only; lua_pushinteger 5b9ea0, ms since load) and logs "update gap" (a boss
   not updated for over 300 ms) and "SLOW update" (a boss callback over 30 ms).  For the No Heart stalls: the log
   showed his updates slowing to ~2 a second for 22 s (during Sonic Impact, twice), the player unable to move.
+
+## Shortcuts kept in the save (2026-10-19; shortcut.c)
+* Reported: shortcuts stayed changed without saving the game.  They were written to bbskh2_shortcuts.ini at once,
+  per character.  Asked for: tied to the save, kept only when the game is saved.
+* Now in the save in memory, as Combo Master's bit: the top byte of abilities 1..4's u32 (150fa3d08 + 0x18cc +
+  (1..4) * 4 + 3), one nibble per button (set * 4 + row): 1..8 slot, 0xf none, 0 never set.  The game's users of
+  those u32 keep their own fields (bits 0-20: 41d426/447/463, 419645 btr/bts, 422e12 `and -0x40`); 41f44f writes
+  0x3e00 into every ability (a give-all, not seen in play) and would clear them back to "never set".  A change is
+  in the save data at once and in the file when the game is saved; loading a save brings back that save's.
+* Never set (saves made before): the binding of bbskh2_shortcuts.ini for that character, which is now only read,
+  else the default slots 1..4 / 5..8.  Test in t_shortcut.

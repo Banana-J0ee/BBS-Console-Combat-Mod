@@ -1,8 +1,16 @@
 /* Shortcuts, as in KH2: hold L1 and press a face button to use the command in a chosen deck slot.
 
    A shortcut belongs to a deck SLOT (1..8), not to a command: change what is in the slot and the shortcut uses
-   the new command.  The four shortcuts are kept per character in bbskh2_shortcuts.ini next to the game exe and
-   are edited in the menu (sccamp.c).  This file: the bindings, and the controller side.
+   the new command.  The shortcuts are edited in the menu (sccamp.c).  This file: the bindings, and the controller
+   side.
+
+   Where they are kept (2026-10-19, asked for: "tied to the save, kept only if you save the game"): in the save
+   itself, in memory - the top byte of four abilities' u32 (save 150fa3d08 + 0x18cc, abilities 1..4: bits 24-31;
+   the game's users of those u32 mask their own fields, bits 0-20 - see combomaster.c, which keeps its bit 23 of
+   ability 5 the same way).  So a change is in the game's save data at once, goes into the file when the game is
+   saved, and is gone if it is not (loading a save brings back that save's).  One nibble per button: 1..8 = deck
+   slot, 0xf = none, 0 = never set - then the binding of bbskh2_shortcuts.ini for that character (where they were
+   kept before, read only now), or the default slots 1..4 / 5..8.
 
    Pad.  The game keeps the pad as bit words in the PS2 layout (0x400 L1, 0x800 R1, 0x1000 triangle, 0x2000
    circle, 0x4000 cross, 0x8000 square): [148f64930] held, [..34] edge, [..38] changed, [..3c] repeat, written once
@@ -61,25 +69,33 @@ u32 sc_row_mask(int row) { return row_bit[row & 3]; }
 const char *sc_row_icon(int row) { static char t[SC_ROWS][4]; t[row & 3][0] = (char)0xf5; t[row & 3][1] = (char)row_icon[row & 3]; t[row & 3][2] = 0; return t[row & 3]; }
 int sc_sets(void) { return c_sets; }
 int sc_page(void) { return c_sets > 1 ? g_page : 0; }
-int sc_slot_in(int set, int row) { return g_bind[chara()][set & 1][row & 3]; }
-int sc_slot(int row) { return sc_slot_in(sc_page(), row); }
-static void save(int c) {
-    static const char *const sec[3] = { "Character0", "Character1", "Character2" };
-    for (int s = 0; s < SC_SETS; s++)
-        for (int r = 0; r < SC_ROWS; r++) {
-            char v[8]; snprintf(v, sizeof v, "%d", g_bind[c][s][r] + 1);
-            WritePrivateProfileStringA(sec[c], row_key[s][r], v, g_file);
-        }
+/* the save's byte for buttons n, n + 1 (n = set * 4 + row): low nibble even n, high nibble odd n */
+#define SAVE_SC(i)  G(u8, 0x10fa3d08 + 0x18cc + (1 + (i)) * 4 + 3)
+static int saved_nibble(int set, int row) {
+    int n = (set & 1) * SC_ROWS + (row & 3);
+    u8 b = SAVE_SC(n >> 1);
+    return (n & 1) ? b >> 4 : b & 0xf;
 }
-/* one slot per button; slot < 0 clears.  Returns 1 if something changed. */
+int sc_slot_in(int set, int row) {
+    int v = saved_nibble(set, row);
+    if (v == 0) return g_bind[chara()][set & 1][row & 3];         /* never set in this save */
+    if (v >= 1 && v <= 8) return v - 1;
+    return -1;
+}
+int sc_slot(int row) { return sc_slot_in(sc_page(), row); }
+/* one slot per button; slot < 0 clears.  Returns 1 if something changed.  Written into the save in memory: it
+   stays only if the game is saved. */
 int sc_assign_in(int set, int row, int slot) {
-    int c = chara(); row &= 3; set &= 1;
+    row &= 3; set &= 1;
     if (slot > 7) return 0;
     if (slot < 0) slot = -1;
-    if (g_bind[c][set][row] == slot) return 0;
-    g_bind[c][set][row] = (s8)slot;
-    save(c);
-    return 1;
+    if (sc_slot_in(set, row) == slot && saved_nibble(set, row) != 0) return 0;
+    int changed = sc_slot_in(set, row) != slot;
+    int n = set * SC_ROWS + row;
+    u8 v = (u8)(slot < 0 ? 0xf : slot + 1);
+    u8 b = SAVE_SC(n >> 1);
+    SAVE_SC(n >> 1) = (n & 1) ? (u8)((b & 0x0f) | (v << 4)) : (u8)((b & 0xf0) | v);
+    return changed;
 }
 int sc_assign(int row, int slot) { return sc_assign_in(sc_page(), row, slot); }
 static void load(void) {
