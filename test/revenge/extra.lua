@@ -369,7 +369,7 @@ do
     if log[h5] ~= 1 then held5 = false end
   end
   check(held5 and n5 > 0, "Vanitas's Dark Splicer: armoured to its end (" .. n5 .. " frames)")
-  -- Braig (bbskh2_boss.ini): Dash Shoot armoured for its first 56 frames (hits kept from his script, which would end
+  -- Braig (bbskh2_boss.ini): Dash Shoot armoured for its first 68 frames (final fight) (hits kept from his script, which would end
   -- the shot), then open: a hit cuts it.  Then the beat (15-24 frames) in his Idling before the next shot
   M.script("b30ex00")
   local e3, h3 = M.create("b30ex00")
@@ -378,12 +378,14 @@ do
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "DashShoot")
   st3.rv, st3.firing, st3.armor = 0, false, 0
-  check(st3.mArmor == 56 and log[h3] == 1, "Braig: Dash Shoot armoured from its start, 56 frames (" .. tostring(st3.mArmor) .. ")")
+  check(st3.mArmor == 68 and log[h3] == 1, "Braig (final): Dash Shoot armoured from its start, 68 frames (" .. tostring(st3.mArmor) .. ")")
   for i = 1, 3 do hit(h3) end
   for i = 1, 30 do pcall(e3.OnUpdate, e3) end
   check(e3:GetState() == "DashShoot" and log[h3] == 1, "... hits in the window do not cut it (" .. tostring(e3:GetState()) .. ")")
-  for i = 1, 30 do pcall(e3.OnUpdate, e3) end
-  check(log[h3] == 0 and st3.mArmor == 0 and st3.winOff, "... after 56 frames he can be staggered")
+  for i = 1, 37 do pcall(e3.OnUpdate, e3) end
+  check(log[h3] == 1, "... still armoured at frame 67")
+  pcall(e3.OnUpdate, e3)
+  check(log[h3] == 0 and st3.mArmor == 0 and st3.winOff, "... after 68 frames he can be staggered")
   hit(h3)
   check(e3:GetState() ~= "DashShoot", "... and a hit then cuts the shot (" .. tostring(e3:GetState()) .. ")")
   e3.EnableAttack, e3.EnemyType, e3.RoundShoot, e3.ChargeShoot, e3.WarpShoot, e3.InvertedShoot = true, false, true, false, false, false
@@ -400,7 +402,7 @@ do
   check(e3:GetState() ~= "Idling", "... after it his Idling picks the next shot (" .. tostring(e3:GetState()) .. ")")
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "InvertedShoot")
-  check(st3.mArmor == 46, "... Inverted Shoot armoured for its first 46 frames (" .. tostring(st3.mArmor) .. ")")
+  check(st3.mArmor == 58, "... Inverted Shoot armoured for its first 58 frames (" .. tostring(st3.mArmor) .. ")")
   -- Charge Shoot: armoured whole, and no hit reaches his script (no damage break, no cut)
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "ChargeShoot")
@@ -652,7 +654,8 @@ do
         and pr.moves.Cartwheel == "vanilla" and pr.cd.DarkFiraga == 180 and pr.cd.ShadowDiving == nil
         and pr.beat[1] == 15 and pr.beat[2] == 24 and pr.chain[1] == 2 and pr.chain[2] == 4 and pr.pause[1] == 25
         and pr.repo.BackhandsSpringJump and pr.repoList[2] == "Cartwheel", "ini: Vanitas's section read")
-  check(RVs.bossProfile("b30ex00").name == "Braig" and RVs.bossProfile("b52ex00").moves.Attack3 == 166
+  check(RVs.bossProfile("b30ex00").name == "Braig (final)" and RVs.bossProfile("b30ex00").moves.DashShoot == 68
+        and RVs.bossProfile("b32ex00").name == "Braig" and RVs.bossProfile("b32ex00").moves.DashShoot == 56 and RVs.bossProfile("b52ex00").moves.Attack3 == 166
         and RVs.bossProfile("b52ex00").cd.Attack3 == 720 and RVs.bossProfile("b85vs00") == nil and RVs.bossProfile("b12ex00").name == "Vanitas Remnant",
         "ini: Braig, Terra-Xehanort, Vanitas Remnant by their ids; no section = nil (No Heart)")
   -- the live file wins per key (the DLL's BBS_BossIni), re-read for every boss created
@@ -741,7 +744,7 @@ do
     Enemy.EnableNoDamageReaction(h3, 1)                     -- (as if his script switched it on again)
     pcall(e3.OnUpdate, e3)
   end
-  check(open, "Braig's Inverted Shoot: open after its 46 frames although his script armours it (" .. n .. ")")
+  check(open, "Braig's Inverted Shoot: open after its 58 frames (final fight) although his script armours it (" .. n .. ")")
   M.num["Enemy.EnableNoDamageReaction"] = nil
   M.num["Enemy.IsNoDamageReaction"] = nil
   M.num["Entity.SetTimer"] = nil
