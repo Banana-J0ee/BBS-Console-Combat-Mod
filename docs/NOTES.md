@@ -1253,3 +1253,11 @@ emulator BBS_AtkState is missing, so "hit" falls back to N. Debug log: "armour o
 Tempo `repoAt` limits repositioning to the listed idle states (Ventus's-final Vanitas and Mysterious Figure have more
 than one idle). Superbosses use Beat 10-18 and Pause 20, 45-90. Zack and Hades in the Mirage Arena are copies of the
 story configs with revenge limit 9.
+
+## Keyblade wielders as bosses (2026-10-19)
+
+The shared wielder AI (b60 script) sets friendFlag 1 for b68/b69 (Ventus), b78/b79 (Terra) and b88/b89 (Aqua): those are
+allies and keep the plain `wielder` config (the boss system is off for them).  The enemy copies b60/b62, b70/b72/b73,
+b80/b82/b83 use `wielderBoss` (tempo: BattleIdling timer) and bbskh2_boss.ini [Keyblade wielders] (Terra-Xehanort's
+keyblade numbers, plus LimitCommando whole with cooldown 30; KealCommand, EvasionAction, StateReflect vanilla).
+Answers now reroll up to 8 times against repeating the last one (was 4; MX's own pattern picker could repeat).

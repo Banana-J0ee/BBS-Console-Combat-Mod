@@ -280,6 +280,23 @@ do
   end
   M.num["Entity.IsGround"] = nil
   check(na > nd and nd > 0, "Terra (practice): " .. na .. " attacks, " .. nd .. " dodges out of 80 break-outs")
+  -- bbskh2_boss.ini [Keyblade wielders]: the enemy wielders get the combo window and the gaps, the allies nothing
+  local e6 = M.create("b82ex00")
+  local st6 = BBS_REVENGE.ents.b82ex00
+  rawset(e6, "Update", function() end); rawset(e6, "Debug", function() end)
+  pcall(e6.GotoState, e6, "BattleIdling")
+  pcall(e6.GotoState, e6, "Combo")
+  check(st6.mArmor == 36, "Aqua (enemy): her combo armoured 36 frames (" .. tostring(st6.mArmor) .. ")")
+  pcall(e6.GotoState, e6, "SpecialCommandAttack0")
+  check(st6.mArmor == 1e9 and (st6.cdUntil.SpecialCommandAttack0 or 0) > st6.t, "... a special whole, on its 15 s cooldown")
+  local e7 = M.create("b88ex00")
+  local st7 = BBS_REVENGE.ents.b88ex00
+  rawset(e7, "Update", function() end); rawset(e7, "Debug", function() end)
+  e7.friendFlag = 1
+  pcall(e7.GotoState, e7, "BattleIdling")
+  pcall(e7.GotoState, e7, "Combo")
+  check((st7 == nil or (st7.mArmor or 0) == 0) and BBS_REVENGE.bossProfile("b88ex00") == nil and BBS_REVENGE.bossProfile("b68ex00") == nil
+        and BBS_REVENGE.bossProfile("b78ex00") == nil, "Aqua (ally): no section, no armour window")
   -- Braig: warps away and shoots from there
   local e3, h3 = M.create("b30ex00")
   local st3 = BBS_REVENGE.ents.b30ex00

@@ -826,7 +826,7 @@ local function attach(ent, name, handle)
       S.def, S.seq = nil, nil                           -- the boss's own choices use real dice
       st.answering = true
       local ok, res = pcall(function()
-        for try = 1, 4 do
+        for try = 1, 8 do                               -- (8: a boss's own pattern picker can roll the same move a few times)
           st.pickLabel = nil
           local n
           if type(ans) == "function" then
@@ -838,10 +838,10 @@ local function attach(ent, name, handle)
           if n == true then
             local cur = self:GetState()
             rlog(name, st.t, type(opening) == "string" and opening or (opening and "OPENING" or "ANSWER"), cur, near and "(close)" or "(far)", "instead of", ret)
-            if cur ~= st.lastAnswer or try == 4 or st.subbing then st.lastAnswer = cur return true end
+            if cur ~= st.lastAnswer or try == 8 or st.subbing then st.lastAnswer = cur return true end
           elseif type(n) == "string" and type(self.states) == "table" and self.states[n] ~= nil then
             local label = st.pickLabel or n
-            if label ~= st.lastAnswer or try == 4 or base == nil or st.subbing then
+            if label ~= st.lastAnswer or try == 8 or base == nil or st.subbing then
               rlog(name, st.t, type(opening) == "string" and opening or (opening and "OPENING" or "ANSWER"), label, near and "(close)" or "(far)", "instead of", ret)
               st.lastAnswer = label
               return n                                -- entered below, outside this pcall

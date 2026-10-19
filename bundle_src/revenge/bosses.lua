@@ -642,6 +642,15 @@ local wielders = { "b60ex00", "b62ex00", "b68ex00", "b69ex00", "b70ex00", "b72ex
 for i = 1, #wielders do
   cfg[wielders[i]] = wielder
 end
+-- bbskh2_boss.ini [Keyblade wielders]: the enemy Ventus / Terra / Aqua fights (not the allies b68/b69, b78/b79,
+-- b88/b89) get the gaps, waiting in BattleIdling (Entity.SetTimer) like Terra-Xehanort's first two fights
+local wielderBoss = {}
+for k, v in pairs(wielder) do wielderBoss[k] = v end
+wielderBoss.tempo = { idle = { BattleIdling = "timer" } }
+local wielderBosses = { "b60ex00", "b62ex00", "b70ex00", "b72ex00", "b73ex00", "b80ex00", "b82ex00", "b83ex00" }
+for i = 1, #wielderBosses do
+  cfg[wielderBosses[i]] = wielderBoss
+end
 -- bbskh2_boss.ini [Terra-Xehanort]: the wielder AI waits in BattleIdling (Entity.SetTimer), his own AI (b52ex00)
 -- counts AttackTimer down while he circles; the dodge roll and his side-step go straight back to his idle
 local xehanortTempo = { idle = { BattleIdling = "timer", Idling = { field = "AttackTimer" } } }
