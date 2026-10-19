@@ -396,6 +396,17 @@ local braig = {
     end
   end,
   tempo = { idle = { Idling = "hold", WaitIdling = { field = "timer" } }, pop = { WarpCenter = true } },
+  -- Inverted Shoot is 2-5 rounds in the air: wait, volley, reload, warp - and after a combo (his OnReturnDamage)
+  -- or his 30 % dodge he warps and starts the next round.  Each round (step 3, after the jump or a warp) gets the
+  -- window of bbskh2_boss.ini again; before, only the first round had one and the later ones could be staggered
+  -- as they started.
+  rearm = function(self, st)
+    local s, step = self:GetState(), self.step
+    local prev = st.braigStep
+    st.braigStep = step
+    if s ~= "InvertedShoot" then st.braigStep = nil return false end
+    return step == 3 and prev ~= nil and prev ~= 3
+  end,
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
   -- (no paceFields: his waits are bbskh2_boss.ini's beat)
   counter = function(self)
@@ -418,7 +429,7 @@ local braig = {
 cfg.b32ex00 = braig
 local braigLate = {}
 for k, v in pairs(braig) do braigLate[k] = v end
-braigLate.limit = 7
+braigLate.limit = 6                 -- (2026-10-19: 7 -> 6, a full combo usually brings his break-out)
 cfg.b30ex00 = braigLate
 
 -- Mysterious Figure: guard / warp counter / time-slip rolls on every hit.

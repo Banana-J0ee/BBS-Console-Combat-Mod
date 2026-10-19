@@ -313,7 +313,7 @@ do
     end
   end
   check(shots == 20, "Braig: escape, then one of his shots, in " .. shots .. " of 20 break-outs")
-  check(st3.limit >= 6 and st3.limit <= 8, "Braig in the Keyblade Graveyard: limit 7 +- 1 (" .. st3.limit .. ")")
+  check(st3.limit >= 5 and st3.limit <= 7, "Braig in the Keyblade Graveyard: limit 6 +- 1 (" .. st3.limit .. ")")
   -- his escape warp goes far, his other warps keep their range
   local got
   rawset(e3, "__wt", nil)
@@ -419,7 +419,24 @@ do
   check(e3:GetState() ~= "Idling", "... after it his Idling picks the next shot (" .. tostring(e3:GetState()) .. ")")
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "InvertedShoot")
-  check(st3.mArmor == 58, "... Inverted Shoot armoured for its first 58 frames (" .. tostring(st3.mArmor) .. ")")
+  check(st3.mArmor == 1e9 and st3.hitWin ~= nil and st3.hitWin.fallback == 60,
+        "... Inverted Shoot (final fight) armoured until his first arrow, 60 frames without one (" .. tostring(st3.mArmor) .. ")")
+  -- each round of it (step 3: after the jump, or after the warp that follows a volley / a combo) gets that again
+  do
+    local steps, i = { 1, 2, 3, 4, 5, 5, 6, 7, 7, 3, 4 }, 0
+    rawset(e3, "Update", function(self) i = i + 1 self.step = steps[i] or 4 end)   -- (his state update: the rounds)
+    rawset(e3, "CheckPlayerPos", function() end)                                     -- (needs real positions)
+    st3.hitWin, st3.mArmor, st3.winOff = nil, 0, true
+    local armed = {}
+    for k = 1, #steps do
+      pcall(e3.OnUpdate, e3)
+      if st3.hitWin ~= nil and st3.hitWin.t == 0 then armed[#armed + 1] = k end
+      if k == 5 then st3.hitWin, st3.mArmor, st3.winOff = nil, 0, true end    -- (as if he had shot: the window is over)
+    end
+    check(#armed == 2 and armed[1] == 3 and armed[2] == 10 and not st3.winOff,
+          "Braig's Inverted Shoot: a new window for each round, at step 3 (rounds armed at updates " .. table.concat(armed, ",") .. ")")
+    rawset(e3, "Update", function() end)
+  end
   -- Charge Shoot: armoured whole, and no hit reaches his script (no damage break, no cut)
   pcall(e3.GotoState, e3, "Idling")
   pcall(e3.GotoState, e3, "ChargeShoot")
@@ -761,7 +778,7 @@ do
     Enemy.EnableNoDamageReaction(h3, 1)                     -- (as if his script switched it on again)
     pcall(e3.OnUpdate, e3)
   end
-  check(open, "Braig's Inverted Shoot: open after its 58 frames (final fight) although his script armours it (" .. n .. ")")
+  check(open, "Braig's Inverted Shoot: open after its window (final fight: no arrow in the stand-in -> 60 frames) although his script armours it (" .. n .. ")")
   M.num["Enemy.EnableNoDamageReaction"] = nil
   M.num["Enemy.IsNoDamageReaction"] = nil
   M.num["Entity.SetTimer"] = nil

@@ -607,20 +607,26 @@ local function attach(ent, name, handle)
           if not (st.armor > 0) and active(self) then setNDR(h, false) end
         end
         local r = gss2(self, s, a, b)
-        local v = moveArmor(s)
         st.hitWin = nil
-        if v ~= nil and v ~= false and active(self) and type(self.GetState) == "function" and self:GetState() == s then
-          if v == true then st.mArmor = 1e9
-          elseif type(v) == "table" then
-            -- "hit": armoured until the move's hit windows have all closed (or it has shot something), checked
-            -- every frame through the DLL; with neither, its fallback frames
-            st.mArmor = 1e9
-            st.hitWin = { state = s, fallback = v.fallback, t = 0, seen = false, shots0 = nil }
-          else st.mArmor = v st.winState = s end
-          if st.mArmor > 0 then setNDR(h, true) else st.winOff = true end
-        end
+        if type(self.GetState) == "function" and self:GetState() == s then st.armMove(self, s) end
         return r
       end)
+    end
+    -- the window of move s from now (its start, or a new round of a move that repeats inside one state: cfg.rearm)
+    st.armMove = function(self, s)
+      local h = myh(self)
+      local v = moveArmor(s)
+      if v == nil or v == false or not active(self) then return false end
+      st.winOff, st.winState, st.hitWin = false, nil, nil
+      if v == true then st.mArmor = 1e9
+      elseif type(v) == "table" then
+        -- "hit": armoured until the move's hit windows have all closed (or it has shot something), checked
+        -- every frame through the DLL; with neither, its fallback frames
+        st.mArmor = 1e9
+        st.hitWin = { state = s, fallback = v.fallback, t = 0, seen = false, shots0 = nil }
+      else st.mArmor = v st.winState = s end
+      if st.mArmor > 0 then setNDR(h, true) else st.winOff = true end
+      return true
     end
   end
 
@@ -1138,6 +1144,15 @@ local function attach(ent, name, handle)
     local r
     local uok, uerr = true, nil
     if upd ~= nil then uok, uerr = pcall(upd, self, a, b, c2, d) if uok then r = uerr end end
+    -- a move that starts a new round inside the same state (Braig's Inverted Shoot: volley, warp, volley ...):
+    -- each round gets the move's window again, so its start cannot be staggered once the first round's is spent
+    if c.rearm ~= nil and st.armMove ~= nil and uok then
+      local ok, again = pcall(c.rearm, self, st)
+      if ok and again == true and type(self.GetState) == "function" then
+        local s = self:GetState()
+        if st.armMove(self, s) then rlog(name, st.t, "armour of", s, "again: a new round of the move") end
+      end
+    end
     -- an armoured move whose own update switched "no damage reaction" off part way (Braig's
     -- ChargeShoot, Vanitas's Dark Splicer): on again before the hits of this frame land
     if st.mArmor ~= nil and st.mArmor > 0 and active(self) and type(Enemy.EnableNoDamageReaction) == "function" then

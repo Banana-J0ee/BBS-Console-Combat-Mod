@@ -1269,3 +1269,13 @@ His break-out (vanilla roll forced) is Aurora / MikiriV/T/A within NEAR_DIST (3 
 into the next one.  `armorGuardDash` (from the counter and from `post` when his own break-out fired) pushes
 GodspeedCutting<style> on his stack while he is in Guard: the guard pops it when it ends, the cut pops the idle
 that was under it.  Styles: 1/2 Z, 3 V, 4 T, 5 A.  Tests in extra.lua (far: guard then the cut; close: unchanged).
+
+## Braig's Inverted Shoot rounds; final Braig limit 6 (2026-10-19)
+
+Inverted Shoot (b30/b32 script) is 2-5 rounds in the air: step 3 wait for the motion, step 4 ISIdling1 (20 frames),
+step 5 volley (arrows at motion frames 11-19 and 36-44), 6 reload, 7 warp, then step 3 again.  His OnReturnDamage
+(out of hit-stun in steps 3-7) and his 30 % dodge on a hit jump to step 7: he warps and starts the next round.
+Only the first round had a window, so after one combo every later round could be staggered as it started (log of
+2026-10-19).  New: cfg.rearm(self, st) -> true re-applies the current state's bbskh2_boss.ini window (st.armMove,
+the code the state start uses); Braig's fires on the step change into 3.  [Braig (final)] InvertedShoot = hit 60
+(armoured until his first arrow of the round); [Braig] keeps 46 frames per round.  b30ex00 limit 7 -> 6.
