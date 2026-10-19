@@ -329,6 +329,18 @@ cfg.b20ex00 = {
 
 -- Armor of the Master: 30% counter per hit in his own style, and only a
 -- 30% chance to flinch at all while he copies Ventus / Terra / Aqua.
+-- His break-out is an attack when you are close (Aurora / the copied style's counter) but only a guard when
+-- you are farther than ~3 m - and a guard alone could be punished into the next guard over and over.  So a
+-- break-out guard is followed by his dash cut in the style he is in (it pops off his stack when the guard
+-- ends, then the stack carries on as before: back to his idle).
+local ARMOR_DASH = { [1] = "GodspeedCuttingZ", [2] = "GodspeedCuttingZ", [3] = "GodspeedCuttingV",
+                     [4] = "GodspeedCuttingT", [5] = "GodspeedCuttingA" }
+local function armorGuardDash(self)
+  if type(self.GetState) ~= "function" or self:GetState() ~= "Guard" or self.stack == nil then return end
+  local dash = ARMOR_DASH[self.style] or "GodspeedCuttingZ"
+  if type(self.states) == "table" and self.states[dash] == nil then return end
+  self.stack:push(dash)
+end
 local armor = {
   limit = 9,
   iframes = 0,                  -- Final Mix superboss: as he was
@@ -341,7 +353,11 @@ local armor = {
     if s == "Dead" or s == "Appear" or s == "Guard" then return 0 end
     if s ~= nil then self.stack:push(s) end
     self:GotoState("Guard")
+    armorGuardDash(self)
     return 1
+  end,
+  post = function(self, fired)            -- (his own break-out: the copied styles guard by themselves when far)
+    if fired then armorGuardDash(self) end
   end,
 }
 cfg.b81vs00 = armor

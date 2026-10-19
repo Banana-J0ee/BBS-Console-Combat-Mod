@@ -789,5 +789,35 @@ local okL, errL = xpcall(function()
   check(e:GetState() == "Idling", "a move that ends into an empty stack goes to his Idling (" .. e:GetState() .. ")")
 end, debug.traceback)
 check(okL, "late Vanitas checks ran (" .. tostring(errL) .. ")")
+-- Armor of the Master: a break-out far away is his guard, then his dash cut in the style he is in
+local okA, errA = xpcall(function()
+  M.script("b81vs00")
+  local e, h = M.create("b81vs00")
+  local st = BBS_REVENGE.ents.b81vs00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  M.num["Entity.CalcDistanceSq"] = 900; M.num["Entity.CalcDistanceXZSq"] = 900
+  for _, row in ipairs({ { 4, "IdlingT", "GodspeedCuttingT" }, { 2, "IdlingZ", "GodspeedCuttingZ" }, { 5, "IdlingA", "GodspeedCuttingA" } }) do
+    pcall(e.GotoState, e, row[2])
+    e.style = row[1]
+    if e.stack.clear then e.stack:clear() end
+    st.rv, st.firing, st.armor, st.mArmor = 0, false, 0, 0
+    local r
+    for i = 1, 14 do r = hit(h) if r ~= nil then break end end
+    local top = e.stack:pop(1)
+    check(e:GetState() == "Guard" and top == row[3],
+          "Armor of the Master (style " .. row[1] .. ", far): break-out guard, then " .. row[3] .. " (" .. tostring(e:GetState()) .. ", next " .. tostring(top) .. ")")
+  end
+  M.num["Entity.CalcDistanceSq"] = 4; M.num["Entity.CalcDistanceXZSq"] = 4
+  for _, row in ipairs({ { 4, "IdlingT", "MikiriT" }, { 2, "IdlingZ", "Aurora" } }) do
+    pcall(e.GotoState, e, row[2])
+    e.style = row[1]
+    if e.stack.clear then e.stack:clear() end
+    st.rv, st.firing, st.armor, st.mArmor = 0, false, 0, 0
+    for i = 1, 14 do if hit(h) ~= nil then break end end
+    check(e:GetState() == row[3], "Armor of the Master (style " .. row[1] .. ", close): break-out " .. row[3] .. " as before (" .. tostring(e:GetState()) .. ")")
+  end
+  M.num["Entity.CalcDistanceSq"] = nil; M.num["Entity.CalcDistanceXZSq"] = nil
+end, debug.traceback)
+check(okA, "Armor of the Master checks ran (" .. tostring(errA) .. ")")
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

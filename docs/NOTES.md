@@ -1261,3 +1261,11 @@ allies and keep the plain `wielder` config (the boss system is off for them).  T
 b80/b82/b83 use `wielderBoss` (tempo: BattleIdling timer) and bbskh2_boss.ini [Keyblade wielders] (Terra-Xehanort's
 keyblade numbers, plus LimitCommando whole with cooldown 30; KealCommand, EvasionAction, StateReflect vanilla).
 Answers now reroll up to 8 times against repeating the last one (was 4; MX's own pattern picker could repeat).
+
+## Armor of the Master: far break-out guard -> dash cut (2026-10-19)
+
+His break-out (vanilla roll forced) is Aurora / MikiriV/T/A within NEAR_DIST (3 m), but only Guard beyond it
+(his own style through our counter, the copied styles through their own script).  A guard alone could be punished
+into the next one.  `armorGuardDash` (from the counter and from `post` when his own break-out fired) pushes
+GodspeedCutting<style> on his stack while he is in Guard: the guard pops it when it ends, the cut pops the idle
+that was under it.  Styles: 1/2 Z, 3 V, 4 T, 5 A.  Tests in extra.lua (far: guard then the cut; close: unchanged).
