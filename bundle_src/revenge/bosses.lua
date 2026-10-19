@@ -229,6 +229,7 @@ cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, answer = mask
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
   limit = 7.5,
+  tempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } },
   -- his specials are armoured in BBS already; his combo's opening is too here (it comes out,
   -- its end can be punished)
   armorStates = { SuccessionAttack2 = true, WarpAttack2 = true, DarkThundaga = true },
@@ -244,6 +245,9 @@ cfg.b63ex00 = {
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
 cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
+  -- gaps: his Idling (ground) and Hovering (air phase) wait with SetTimer; repositions only on the ground
+  tempo = { idle = { Idling = "timer", Hovering = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true },
+            repoAt = { Idling = true } },
   -- the answer: his own attack pick for the phase (ground / air), without its wait
   answer = function(self, near, ret, choose)
     if self.stack == nil then return nil end
@@ -280,7 +284,8 @@ cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
 cfg.b12ex00 = {
   limit = 8,
   iframes = 0,                  -- Final Mix superboss: as he was
-  pace = false,                 -- Final Mix superboss: already hard enough
+  -- (2026-10-19: superbosses get the gaps of bbskh2_boss.ini like everyone else - his pace is no longer his own)
+  tempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } },
   fireSeq = { 0, "coin" },
   pre = dmgCountPre,
   vanilla = function(self, kind, cat) return cat == COMMAND_CATEGORY_SHOOTLOCK end,
@@ -303,6 +308,7 @@ cfg.b12ex00 = {
 -- Master Eraqus: guard (+ counter) chance on every hit.
 cfg.b20ex00 = {
   limit = 9,
+  tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
   answer = { close = { "SuccessionAttack", "RushAttack", "Kagerou" }, far = { "RushAttack", "Oboro", "Kasumi", "Itusen" } },
   pre = dmgCountPre,
@@ -326,7 +332,7 @@ cfg.b20ex00 = {
 local armor = {
   limit = 9,
   iframes = 0,                  -- Final Mix superboss: as he was
-  pace = false,                 -- Final Mix superboss
+  tempo = { idle = { Idling = "timer", IdlingV = "timer", IdlingT = "timer", IdlingA = "timer", IdlingZ = "timer" } },
   quiet = function(self) if self.style == 2 then return 0.999 end return 0 end,
   fire  = function(self) if self.style == 2 then return 0 end return 0.5 end,
   counter = function(self)
@@ -403,7 +409,8 @@ cfg.b30ex00 = braigLate
 cfg.b01ex00 = {
   limit = 9,
   iframes = 0,                  -- Final Mix superboss: as he was
-  pace = false,                 -- Final Mix superboss
+  -- his Idling hands over to BattleIdling, which decides (from his stack); his warp move goes back through it
+  tempo = { idle = { Idling = "timer", BattleIdling = "timer" }, pop = { WarpMove = true }, repoAt = { BattleIdling = true } },
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
     local s = self:GetState()
@@ -461,6 +468,7 @@ local function hookSetup(ent)
 end
 cfg.b01pp00 = {
   limit = 8,
+  tempo = { idle = { Idling = "timer" }, pop = { Evade = true } },
   armorStates = { RushXCutting = true, PresentBombLarge = true, RushStab = true, DisturbStab = true,
                   PresentBombSmall = true },
   iframes = 40,
@@ -491,6 +499,7 @@ cfg.b01pp00 = {
 -- own attacks; after any combo he goes straight back on the offensive.
 cfg.b20pp00 = {
   limit = 8,
+  tempo = { idle = { Idling = "timer", BeforeAttackIdling = "timer" } },
   armorStates = { Attack1 = true, Attack2 = true, Attack3 = true, Attack4 = true },
   iframes = 48,
   -- his three attacks are all picked at the same range in his script (BeforeAttackIdling); Attack4 is
@@ -522,6 +531,7 @@ cfg.b20pp00 = {
 -- Experiment 221: growing chance to flee per hit.
 cfg.b20ls00 = {
   limit = 7,
+  tempo = { idle = { Idling = "timer", AirIdling = "timer", Waiting = "timer" } },
   armorStates = { Electroshock = true, Lightning = true, ElectricBall = true, BlasterMode = true },
   -- his answer once he has fled: close his shock (he lands for it, as his script does), far his air shots
   answerAt = { AirMove = true, AirIdling = true, Idling = true, Wander = true },
@@ -567,6 +577,7 @@ cfg.b20ls00 = {
 -- moves, fired per hit / from the watchdog.
 cfg.b01sb00 = {
   limit = 9,
+  tempo = { idle = { IdlingA = "timer", IdlingB = "timer", IdlingC = "timer", Idling = "timer" } },
   armorStates = { Teleport = true, StaffAttack = true, Meteor = true },
   fire = "real",
   iframes = 40,
@@ -710,14 +721,19 @@ local zack = {
     end
   end,
 }
-cfg.b60vs00 = zack                                   -- Mirage Arena: as it was
 local zackStory = {}
 for k, v in pairs(zack) do zackStory[k] = v end
 zackStory.limit = 8
-zackStory.armorStates = { ComboAttack = true, Hakougeki = true }   -- story copies only (Arena: as it was)
+zackStory.armorStates = { ComboAttack = true, Hakougeki = true }
 zackStory.answer = { close = { "ComboAttack", "Hakougeki", "Climbhazard" }, far = { "Climbhazard", "Hakougeki" } }
+zackStory.tempo = { idle = { Idling = "timer" }, pop = { BackJump_Short = true } }
 cfg.b30he00 = zackStory
 cfg.b40he00 = zackStory
+-- Mirage Arena (2026-10-19, asked for: as his story fights); his limit stays the Arena's
+local zackArena = {}
+for k, v in pairs(zackStory) do zackArena[k] = v end
+zackArena.limit = 9
+cfg.b60vs00 = zackArena
 
 -- Hades (story and Mirage Arena).  vanilla: counters at the 7th hit in a row on the
 -- same spot.  (While he burns red he ignores hits; that stays.)
@@ -756,19 +772,24 @@ local hades = {
     end
   end,
 }
-cfg.b80vs00 = hades                                  -- Mirage Arena: as it was
 local hadesStory = {}
 for k, v in pairs(hades) do hadesStory[k] = v end
 hadesStory.limit = 8
 hadesStory.armorStates = { MegaFire = true, BladesCrossing = true, FingernailofFire = true }
 hadesStory.answer = { close = { "NoRiaFingernailofFire", "BladesCrossing" }, far = { "MegaFire", "BladesCrossing" }, noRet = true }
 cfg.b01he00 = hadesStory
+-- Mirage Arena (2026-10-19, asked for: as his story fight - armour windows, his own pace); the Arena's limit
+local hadesArena = {}
+for k, v in pairs(hadesStory) do hadesArena[k] = v end
+hadesArena.limit = 9
+cfg.b80vs00 = hadesArena
 
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
 -- warp, from idle into a warp attack) is still there but switched off at the first line
 -- of OnDamageBefore.  At the limit he uses it.
 cfg.b40ex00 = {
   limit = 7,
+  tempo = { idle = { Idling = "timer" } },
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },
   -- his answer: his own attack patterns - close mostly his slashes (pattern 1: Attack0 / Attack1), else

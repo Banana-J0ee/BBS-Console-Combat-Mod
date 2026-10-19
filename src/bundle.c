@@ -170,6 +170,68 @@ static int MSABI rv_ms(void *L) {
     FN(void, LUA_PUSHINT, void*, long long)(L, (long long)(GetTickCount() - g_ms0));
     return 1;
 }
+/* BBS_AtkState(handle): what the boss's attack is doing, for the armour windows of bbskh2_boss.ini ("hit").
+   The handle (light userdata, lua_touserdata 5ba960) gives the entity through 1401d45c0 - as Entity.IsAttacking
+   does [2bc400 -> 1d5900].  Its hit windows are its collision controller's (entity+0x88: +0x20 count, +0x28
+   entries of 0x90: +0x28 / +0x2a state of the two shapes, 0 not yet / 1 on / 2 on to the end / 3 over; +0x48
+   description, +0x30 second shape's on, -1 = none - as speed.c reads the player's), and its children's (entity+0x40
+   list: node +8 entity, +0x10 next; characters only, vtable+0x28 bit 0x10).  Its shots: the objects of list 0xb
+   (1401128b0) of kind 0x10005 whose owner (+0x204) is its id (vtable+0x38).
+   Returns windows + 64 x windows not over + 4096 x shots (0 when the entity is not found). */
+#define LUA_TOUDATA 0x5ba960
+#define ENT_OF      0x1d45c0
+#define OBJ_LIST    0x1128b0
+static int atk_ok(void) {
+    static const u8 a[] = { 0x48, 0x83, 0xec, 0x28, 0xe8 }, b[] = { 0x40, 0x53, 0x48, 0x83, 0xec, 0x20, 0x8b, 0xd9 },
+                    c[] = { 0x83, 0xf9, 0x1b, 0x77, 0x0f };
+    return !memcmp(g_base + LUA_TOUDATA, a, sizeof a) && !memcmp(g_base + ENT_OF, b, sizeof b) && !memcmp(g_base + OBJ_LIST, c, sizeof c);
+}
+#define VCALL_U32(obj, off) (((u32 (MSABI *)(u8*))*(void**)(*(u8**)(obj) + (off)))(obj))   /* a virtual of the object */
+static void atk_windows(u8 *ent, int *n, int *open, int depth) {
+    if (!ent || depth > 3) return;
+    u8 *ctl = *(u8**)(ent + 0x88);
+    if (ctl) {
+        int cnt = *(s32*)(ctl + 0x20); u8 *e = *(u8**)(ctl + 0x28);
+        if (e && cnt > 0 && cnt <= 64)
+            for (int i = 0; i < cnt; i++, e += 0x90) {
+                u8 *d = *(u8**)(e + 0x48); if (!d) continue;
+                for (int k = 0; k < 2; k++) {
+                    if (k && *(s16*)(d + 0x30) < 0) break;
+                    (*n)++;
+                    if (*(s16*)(e + 0x28 + 2 * k) != 3) (*open)++;
+                }
+            }
+    }
+    for (u8 *node = *(u8**)(ent + 0x40); node; node = *(u8**)(node + 0x10)) {
+        u8 *ch = *(u8**)(node + 8);
+        if (!ch) continue;
+        u32 kind = VCALL_U32(ch, 0x28);
+        if (kind & 0x10000) atk_windows(ch, n, open, depth + 1);
+    }
+}
+static int MSABI rv_atk(void *L) {
+    void *h = FN(void*, LUA_TOUDATA, void*, int)(L, 1);
+    u8 *ent = h ? FN(u8*, ENT_OF, u32)((u32)(uintptr_t)h) : NULL;
+    long long r = 0;
+    if (ent) {
+        int n = 0, open = 0, shots = 0;
+        atk_windows(ent, &n, &open, 0);
+        u32 id = VCALL_U32(ent, 0x38);
+        u8 *list = FN(u8*, OBJ_LIST, int)(0xb);
+        int guard = 0;
+        for (u8 *node = list ? *(u8**)(list + 0x10) : NULL; node && guard < 512; node = *(u8**)(node + 0x10), guard++) {
+            u8 *o = *(u8**)(node + 8);
+            if (!o) continue;
+            if (VCALL_U32(o, 0x28) == 0x10005 && *(u32*)(o + 0x204) == id) shots++;
+        }
+        if (n > 63) n = 63;
+        if (open > 63) open = 63;
+        if (shots > 255) shots = 255;
+        r = n + 64 * open + 4096LL * shots;
+    }
+    FN(void, LUA_PUSHINT, void*, long long)(L, r);
+    return 1;
+}
 static char boss_buf[32768];
 static int MSABI rv_boss_ini(void *L) {
     if (FN(int, LUA_GETTOP, void*)(L) < 1) return 0;
@@ -202,6 +264,10 @@ static int MSABI lua_load_hook(void *L, const char *buf, size_t n, const char *n
         if (lua_api_ok() && pushlstr_ok()) {        /* bbskh2_boss.ini for the revenge script (BBS_BossIni) */
             FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_boss_ini, 0);
             FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_BossIni");
+            if (pushint_ok() && atk_ok()) {           /* a boss's hit windows and shots (BBS_AtkState) */
+                FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_atk, 0);
+                FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_AtkState");
+            }
         } else if (g_debug) LOG("bundle: Lua API does not match: bbskh2_boss.ini not read (built-in values)");
         buf = (const char*)rv_buf; n = sizeof rv_buf;
     }

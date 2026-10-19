@@ -41,6 +41,9 @@ local function floor(x) local r = x % 1 return x - r end
 local function max(a, b) if a > b then return a end return b end
 local function rnd() return 0.5 end              -- (only when the engine's Script.Random is missing)
 RV.floor, RV.max = floor, max
+-- the DLL's BBS_AtkState(handle): hit windows + 64 x windows not over + 4096 x shots of that entity (moves "hit")
+local ATKF = rawget(_G, "BBS_AtkState")
+if type(ATKF) ~= "function" then ATKF = nil end
 
 -- Debug log: the DLL registers BBS_Log only when bbskh2_debug.txt is in the game folder (one line per
 -- call, in bbskh2_log.txt).  Otherwise nothing below writes anything.
@@ -194,7 +197,9 @@ local function bossProfile(id)
       if a ~= nil then
         a = trim(a):lower()
         local m
-        if a == "all" then m = true elseif a == "vanilla" then m = "vanilla" else m = tonumber(a) end
+        if a == "all" then m = true elseif a == "vanilla" then m = "vanilla"
+        elseif a:match("^hit") then m = { hit = true, fallback = tonumber(a:match("^hit%s*([%d%.]+)")) or 60 }
+        else m = tonumber(a) end
         if m ~= nil then pr.moves[k] = m end
         local cd = (rest2 or ""):lower():match("cooldown%s*([%d%.]+)")
         if cd ~= nil then pr.cd[k] = tonumber(cd) * 60 end
@@ -603,8 +608,15 @@ local function attach(ent, name, handle)
         end
         local r = gss2(self, s, a, b)
         local v = moveArmor(s)
+        st.hitWin = nil
         if v ~= nil and v ~= false and active(self) and type(self.GetState) == "function" and self:GetState() == s then
-          if v == true then st.mArmor = 1e9 else st.mArmor = v st.winState = s end
+          if v == true then st.mArmor = 1e9
+          elseif type(v) == "table" then
+            -- "hit": armoured until the move's hit windows have all closed (or it has shot something), checked
+            -- every frame through the DLL; with neither, its fallback frames
+            st.mArmor = 1e9
+            st.hitWin = { state = s, fallback = v.fallback, t = 0, seen = false, shots0 = nil }
+          else st.mArmor = v st.winState = s end
           if st.mArmor > 0 then setNDR(h, true) else st.winOff = true end
         end
         return r
@@ -680,7 +692,7 @@ local function attach(ent, name, handle)
           elseif st.needBeat then
             st.needBeat = false
             st.chainN = st.chainN or floor(roll(pr.chain[1], pr.chain[2] + 0.999))
-            if st.chain >= st.chainN and not st.answering then
+            if st.chain >= st.chainN and not st.answering and (tempo.repoAt == nil or tempo.repoAt[s]) then
               -- a reposition instead of the idle
               local list = {}
               for i = 1, #pr.repoList do
@@ -1002,6 +1014,35 @@ local function attach(ent, name, handle)
     if type(dt) ~= "number" or dt <= 0 or dt > 6 then dt = 1 end
     st.t = st.t + dt
     -- an armoured move (armorStates): held while it runs; a timed one lets go after its frames
+    local hw = st.hitWin
+    if hw ~= nil then
+      local vis = true
+      if type(Entity.GetAlpha) == "function" then
+        local ok, al = pcall(Entity.GetAlpha, myh(self))
+        if ok and type(al) == "number" and al < 0.5 then vis = false end
+      end
+      if vis then hw.t = hw.t + dt end
+      local over, why = false, nil
+      if ATKF ~= nil then
+        local ok, code = pcall(ATKF, myh(self))
+        if ok and type(code) == "number" then
+          local n = code % 64
+          local open = floor(code / 64) % 64
+          local shots = floor(code / 4096)
+          if hw.shots0 == nil then hw.shots0 = shots end
+          if open > 0 then hw.seen = true end            -- (windows already over at the start are the last move's)
+          if hw.seen and open == 0 then over, why = true, "its hits are over" end
+          if shots > hw.shots0 then over, why = true, "it has shot" end
+        end
+      end
+      if not over and not hw.seen and hw.t >= hw.fallback then over, why = true, "no hit windows: fallback frames" end
+      if not over and hw.t >= 600 then over, why = true, "10 s cap" end
+      if over then
+        st.hitWin = nil
+        st.mArmor, st.winState = 4, hw.state                -- a few frames more, then the window ends as a timed one
+        rlog(name, st.t, "armour of", hw.state, "ends at", hw.t, "frames:", why)
+      end
+    end
     if st.mArmor ~= nil and st.mArmor > 0 and type(Enemy.EnableNoDamageReaction) == "function" then
       -- (a window of bbskh2_boss.ini counts while the boss can be seen: not while a warp hides him)
       local vis = true

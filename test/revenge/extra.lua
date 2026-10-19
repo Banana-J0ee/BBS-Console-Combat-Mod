@@ -83,6 +83,7 @@ do
   check(st.armor > 0, "the counter got its armour window")
   for i = 1, 60 do e:OnUpdate() end
   local held = st.armor > 0 or e:GetState() == "Move"
+  st.owe = nil                                        -- (his answer attack, owed after the counter, is checked elsewhere)
   pcall(e.GotoState, e, "Move")
   e:OnUpdate(); e:OnUpdate()
   check(held and st.armor == 0, "... held through his counter, off once he walks again")
@@ -197,7 +198,7 @@ do
   local e2, h2 = M.create("b12ex00")
   rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
   pcall(e2.GotoState, e2, "TargetMove")
-  check(log[h2] == 600, "Vanitas Remnant (superboss) keeps his 600 (" .. tostring(log[h2]) .. ")")
+  check(log[h2] == 120, "Vanitas Remnant (superboss, since 2026-10-19 paced like the others): walk capped at 120 (" .. tostring(log[h2]) .. ")")
   -- Braig: the beat of bbskh2_boss.ini in his WaitIdling counter (no boss-pace cut)
   M.script("b30ex00")
   local e3, h3 = M.create("b30ex00")
@@ -229,7 +230,7 @@ do
     return e5:GetState()
   end
   local s1 = walk(100, true)
-  check(s1 == "Idling" and log[h5] == 0, "Hook: time out 10 m away -> no stab, decides again at once (" .. s1 .. ", timer " .. tostring(log[h5]) .. ")")
+  check(s1 == "Idling" and log[h5] <= 24, "Hook: time out 10 m away -> no stab, decides again after the beat (" .. s1 .. ", timer " .. tostring(log[h5]) .. ")")
   local s2 = walk(3, false)
   check(s2 == "DisturbStab", "Hook: in range -> his planned stab (" .. s2 .. ")")
   local s3 = walk(100, false)
@@ -652,8 +653,8 @@ do
         and pr.beat[1] == 15 and pr.beat[2] == 24 and pr.chain[1] == 2 and pr.chain[2] == 4 and pr.pause[1] == 25
         and pr.repo.BackhandsSpringJump and pr.repoList[2] == "Cartwheel", "ini: Vanitas's section read")
   check(RVs.bossProfile("b30ex00").name == "Braig" and RVs.bossProfile("b52ex00").moves.Attack3 == 166
-        and RVs.bossProfile("b52ex00").cd.Attack3 == 720 and RVs.bossProfile("b12ex00") == nil,
-        "ini: Braig, Terra-Xehanort by their ids; no section = nil (Vanitas Remnant)")
+        and RVs.bossProfile("b52ex00").cd.Attack3 == 720 and RVs.bossProfile("b85vs00") == nil and RVs.bossProfile("b12ex00").name == "Vanitas Remnant",
+        "ini: Braig, Terra-Xehanort, Vanitas Remnant by their ids; no section = nil (No Heart)")
   -- the live file wins per key (the DLL's BBS_BossIni), re-read for every boss created
   BBS_BossIni = function(sec) if sec == "Vanitas" then return "SuccessionAttack1 = 20 ; shorter\nBeat=30-30\nDarkThundaga = all, cooldown 2\n" end end
   local p2 = RVs.bossProfile("b10ex00")

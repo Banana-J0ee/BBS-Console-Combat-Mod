@@ -1237,3 +1237,19 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   in the save data at once and in the file when the game is saved; loading a save brings back that save's.
 * Never set (saves made before): the binding of bbskh2_shortcuts.ini for that character, which is now only read,
   else the default slots 1..4 / 5..8.  Test in t_shortcut.
+
+## Boss rollout to every remaining boss (2026-10-19)
+
+bbskh2_boss.ini now has sections for Vanitas (Aqua's and Ventus's finals), Eraqus, Master Xehanort, Zack (story and
+Mirage Arena), Hades (armour only, his pace untouched), Hook, Peter Pan, Maleficent, Experiment 221 and the superbosses
+Mysterious Figure, Vanitas Remnant and Armor of the Master. Left alone: No Heart, the wielder fights, Masked Vanitas /
+Braig / Terra-Xehanort (done earlier).
+
+New armour mode `hit [N]`: armoured until the move's hit windows have opened and closed again or it has fired a
+bullet, read live through `BBS_AtkState(handle)` (bundle.c: n + 64*open + 4096*shots over the entity, its children and
+its bullets). N (default 60) is the fallback for a move that never opens a window; 600 frames is the hard cap. In the
+emulator BBS_AtkState is missing, so "hit" falls back to N. Debug log: "armour of X ends at ...".
+
+Tempo `repoAt` limits repositioning to the listed idle states (Ventus's-final Vanitas and Mysterious Figure have more
+than one idle). Superbosses use Beat 10-18 and Pause 20, 45-90. Zack and Hades in the Mirage Arena are copies of the
+story configs with revenge limit 9.
