@@ -1292,3 +1292,9 @@ the window used to run out before the first dash); Armor of the Master GodspeedC
 Left for playtesting (user's doc "BBS KH2-Style: Boss Moves to Playtest"): MF Random_Laser, Maleficent Thundaga,
 MX Thundaga, Peter Attack3, Hook RushXCutting, Braig RoundShoot, b11ex00 XDisCharge, b52 Guardian repeats,
 MF RashAttack, 221 ElectricBall.
+
+## Final Braig's extra armour undone (2026-10-19)
+
+The +12 frames for final Braig (own [Braig (final)] section) were an attempt at the "stagger on start-up" problem
+that the per-round windows fixed; at the user's request both fights share [Braig] again (Dash 56, Round 60, Warp 48,
+Inverted 46 per round).  Kept: final Braig's revenge limit 6 (bosses.lua braigLate).
