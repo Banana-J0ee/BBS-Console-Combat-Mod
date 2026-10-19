@@ -158,6 +158,18 @@ static void boss_ini_path(char *out, size_t n) {
     char *e = strrchr(out, '\\');
     if (e) snprintf(e + 1, n - (size_t)(e + 1 - out), "bbskh2_boss.ini");
 }
+/* Debug only: BBS_Ms() - milliseconds since the DLL loaded, for the revenge script's timing of boss callbacks.
+   lua_pushinteger 5b9ea0 (the number type is float: kept small by counting from the start). */
+#define LUA_PUSHINT 0x5b9ea0
+static DWORD g_ms0;
+static int pushint_ok(void) {
+    static const u8 head[] = { 0x48, 0x8b, 0x41, 0x10, 0x0f, 0x57, 0xc0, 0xf3, 0x48, 0x0f, 0x2a, 0xc2 };
+    return !memcmp(g_base + LUA_PUSHINT, head, sizeof head);
+}
+static int MSABI rv_ms(void *L) {
+    FN(void, LUA_PUSHINT, void*, long long)(L, (long long)(GetTickCount() - g_ms0));
+    return 1;
+}
 static char boss_buf[32768];
 static int MSABI rv_boss_ini(void *L) {
     if (FN(int, LUA_GETTOP, void*)(L) < 1) return 0;
@@ -181,6 +193,11 @@ static int MSABI lua_load_hook(void *L, const char *buf, size_t n, const char *n
         if (g_debug && lua_api_ok()) {             /* the revenge script's log (BBS_Log), debug builds of the run only */
             FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_log, 0);
             FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_Log");
+            if (pushint_ok()) {
+                if (!g_ms0) g_ms0 = GetTickCount();
+                FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_ms, 0);
+                FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_Ms");
+            }
         }
         if (lua_api_ok() && pushlstr_ok()) {        /* bbskh2_boss.ini for the revenge script (BBS_BossIni) */
             FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_boss_ini, 0);

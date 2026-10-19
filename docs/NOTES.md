@@ -1221,3 +1221,8 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
   animation frame and whether it moved, motion flags, pl+0x1a8 speed and ours, dt, 0x318 / 0x31c / 0x320, vy / g,
   air, buttons held) and one when it ends.  For "stuck in an attack, no buttons work" against No Heart (the long
   log gaps in that report were the game paused).
+* (2026-10-19) Debug: "frame gap" lines (speed.c frame_gap_log): time between two updates of the local player over
+  150 ms (with the player's state), runs of frames over 40 ms once a second, and our own per-frame work over 20 ms.
+  The revenge script gets BBS_Ms() (debug only; lua_pushinteger 5b9ea0, ms since load) and logs "update gap" (a boss
+  not updated for over 300 ms) and "SLOW update" (a boss callback over 30 ms).  For the No Heart stalls: the log
+  showed his updates slowing to ~2 a second for 22 s (during Sonic Impact, twice), the player unable to move.

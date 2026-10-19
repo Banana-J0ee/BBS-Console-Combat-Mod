@@ -753,13 +753,44 @@ static void long_action_log(u8 *pl) {
         (*(u32*)(pl + 0x318) & 0x400000) != 0, G(u32, 0x8f64930) & 0xf0ff);
     g_act_logged = 1;
 }
+/* ---- frame-gap log (debug only): the time between two updates of the local player, from the clock.  A gap over
+   150 ms is logged with the player's state (a pause shows as one big gap; a slowed game as many); a run of slow
+   frames once a second with their count.  Also our own per-frame work here, when it takes over 20 ms. */
+static DWORD g_fg_last, g_fg_slow_since, g_fg_slow_n;
+static void frame_gap_log(u8 *pl, DWORD t0) {
+    if (!g_debug || pl != local_player()) return;
+    DWORD gap = g_fg_last ? t0 - g_fg_last : 0;
+    g_fg_last = t0;
+    if (gap > 150) {
+        u8 *mot = *(u8**)(pl + 0x78);
+        LOG("frame gap: %lu ms  state %x part %d/%d command %x  frame %.1f speed %.2f dt %.2f  318 %x  mot flags %x  buttons %x",
+            (unsigned long)gap, *(u16*)(pl + 0x304), *(s16*)(pl + 0x310), *(s16*)(pl + 0x314), *(u16*)(pl + 0x312),
+            frame_of(pl), *(float*)(pl + 0x1a8), *(float*)(pl + 0x20), *(u32*)(pl + 0x318), mot ? *(u32*)(mot + 8) : 0,
+            G(u32, 0x8f64930) & 0xf0ff);
+    }
+    if (gap > 40) {
+        if (!g_fg_slow_since) g_fg_slow_since = t0;
+        g_fg_slow_n++;
+        if (t0 - g_fg_slow_since >= 1000) {
+            LOG("slow frames: %lu over 40 ms in the last %lu ms (state %x command %x)", (unsigned long)g_fg_slow_n,
+                (unsigned long)(t0 - g_fg_slow_since), *(u16*)(pl + 0x304), *(u16*)(pl + 0x312));
+            g_fg_slow_since = t0; g_fg_slow_n = 0;
+        }
+    } else if (g_fg_slow_since && t0 - g_fg_slow_since > 2000) { g_fg_slow_since = 0; g_fg_slow_n = 0; }
+}
 static void MSABI tick_hook(u8 *pl) {
+    DWORD t0 = g_debug ? GetTickCount() : 0;
+    frame_gap_log(pl, t0);
     long_action_log(pl);
     if (c_on) cc_after(pl);
     if (pl == local_player()) g_tick++;
     if (c_on) speed_frame(pl);
     if (c_on) { hop_frame(pl); air_log(pl); }
     g_fall = NULL;
+    if (g_debug && pl == local_player()) {
+        DWORD own = GetTickCount() - t0;
+        if (own > 20) LOG("frame gap: our per-frame work took %lu ms", (unsigned long)own);
+    }
     FN(void, 0x23b3a0, u8*)(pl);
 }
 

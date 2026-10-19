@@ -59,6 +59,19 @@ local function rlog(...)
   end)
 end
 RV.log = rlog
+-- debug: milliseconds (BBS_Ms, debug builds only) - a boss callback that takes long is logged
+local MSF = rawget(_G, "BBS_Ms")
+if type(MSF) ~= "function" or LOGF == nil then MSF = nil end
+local function slowCheck(name, what, t0, self)
+  if MSF == nil or t0 == nil then return end
+  local ok, t1 = pcall(MSF)
+  if ok and type(t1) == "number" and t1 - t0 > 30 then
+    local s = "?"
+    pcall(function() s = tostring(self:GetState()) end)
+    rlog(name, "SLOW", what, "took", t1 - t0, "ms in", s)
+  end
+end
+local function msNow() if MSF == nil then return nil end local ok, t = pcall(MSF) if ok then return t end return nil end
 
 -- Revenge value added per hit.  Scaled to KH2's own attack data
 -- (00battle.bin atkp, "revenge damage", read from the game: a normal
@@ -980,6 +993,11 @@ local function attach(ent, name, handle)
   end
 
   rawset(ent, "OnUpdate", function(self, a, b, c2, d)
+    local tms = msNow()
+    if tms ~= nil then
+      if st.lastMs ~= nil and tms - st.lastMs > 300 then rlog(name, "update gap", tms - st.lastMs, "ms") end
+      st.lastMs = tms
+    end
     local dt = Entity.GetFrameRate(myh(self))
     if type(dt) ~= "number" or dt <= 0 or dt > 6 then dt = 1 end
     st.t = st.t + dt
@@ -1090,6 +1108,7 @@ local function attach(ent, name, handle)
     end
     -- break-outs that start from the boss's own update instead of from a hit
     if st.firing and c.fired ~= nil and c.fired(self) == true then done(false) end
+    slowCheck(name, "update", tms, self)
     if not uok then
       rlog(name, st.t, "ERROR in the update of", type(self.GetState) == "function" and tostring(self:GetState()) or "?", ":", tostring(uerr))
       error(uerr, 0)                                -- the script's own error, as it would have been
