@@ -56,6 +56,33 @@ end
 
 -- The revenge answer (KH2: a break-out is always an attack).  answers(self): this boss's config has one,
 -- so its counter only does the get-away and the attack is picked when that ends; answerNow: at once.
+-- Moves that run several rounds inside one state (a rush repeated, a swing repeated, volley-warp-volley): the
+-- window of bbskh2_boss.ini is given again to each new round (cfg.rearm).  spec[state] = { step = n } (a round
+-- starts when his step counter turns n), { up = "field" } / { down = "field" } (when that counter goes up / down
+-- while he stays in the move).
+local function rounds(spec)
+  return function(self, st)
+    if type(self.GetState) ~= "function" then return false end
+    local s = self:GetState()
+    local r = spec[s]
+    local again = false
+    if r ~= nil and s == st.rrS then
+      if r.step ~= nil then
+        again = self.step == r.step and st.rrStep ~= r.step
+      else
+        local f = r.up or r.down
+        local v, pv = self[f], st.rrVal
+        if type(v) == "number" and type(pv) == "number" then
+          if r.up then again = v > pv else again = v < pv end
+        end
+      end
+    end
+    st.rrS, st.rrStep = s, self.step
+    if r ~= nil and (r.up or r.down) then st.rrVal = self[r.up or r.down] else st.rrVal = nil end
+    return again
+  end
+end
+
 local function answers(self)
   local st = rawget(self, "__rv")
   return st ~= nil and st.cfg ~= nil and st.cfg.answer ~= nil and st.answer ~= nil
@@ -308,6 +335,7 @@ cfg.b12ex00 = {
 -- Master Eraqus: guard (+ counter) chance on every hit.
 cfg.b20ex00 = {
   limit = 9,
+  rearm = rounds({ RushAttack = { up = "count" } }),           -- his rush runs 3 times in one move
   tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
   answer = { close = { "SuccessionAttack", "RushAttack", "Kagerou" }, far = { "RushAttack", "Oboro", "Kasumi", "Itusen" } },
@@ -343,6 +371,7 @@ local function armorGuardDash(self)
 end
 local armor = {
   limit = 9,
+  rearm = rounds({ GodspeedCuttingVFinish = { up = "count" } }),   -- the Ventus-style finish dashes again and again
   iframes = 0,                  -- Final Mix superboss: as he was
   tempo = { idle = { Idling = "timer", IdlingV = "timer", IdlingT = "timer", IdlingA = "timer", IdlingZ = "timer" } },
   quiet = function(self) if self.style == 2 then return 0.999 end return 0 end,
@@ -396,17 +425,11 @@ local braig = {
     end
   end,
   tempo = { idle = { Idling = "hold", WaitIdling = { field = "timer" } }, pop = { WarpCenter = true } },
-  -- Inverted Shoot is 2-5 rounds in the air: wait, volley, reload, warp - and after a combo (his OnReturnDamage)
-  -- or his 30 % dodge he warps and starts the next round.  Each round (step 3, after the jump or a warp) gets the
-  -- window of bbskh2_boss.ini again; before, only the first round had one and the later ones could be staggered
-  -- as they started.
-  rearm = function(self, st)
-    local s, step = self:GetState(), self.step
-    local prev = st.braigStep
-    st.braigStep = step
-    if s ~= "InvertedShoot" then st.braigStep = nil return false end
-    return step == 3 and prev ~= nil and prev ~= 3
-  end,
+  -- Rounds inside one move: Inverted Shoot is 2-5 rounds in the air (wait, volley, reload, warp - after a combo
+  -- or his 30 % dodge he warps and starts the next round; step 3 = a round starts), Dash Shoot up to 5 warp-and-dash
+  -- rounds (step 2 = the dash after the warp), Warp Shoot two volleys with a warp between (step 5 = the second).
+  -- Each round gets the window of bbskh2_boss.ini again; before, only the first one had one.
+  rearm = rounds({ InvertedShoot = { step = 3 }, DashShoot = { step = 2 }, WarpShoot = { step = 5 } }),
   fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
   -- (no paceFields: his waits are bbskh2_boss.ini's beat)
   counter = function(self)
@@ -557,6 +580,8 @@ cfg.b20pp00 = {
 
 -- Experiment 221: growing chance to flee per hit.
 cfg.b20ls00 = {
+  -- Lightning: a long wind-up (~8 s), then up to 8 dashes (step 2 = a dash starts); each dash gets the window
+  rearm = rounds({ Lightning = { step = 2 } }),
   limit = 7,
   tempo = { idle = { Idling = "timer", AirIdling = "timer", Waiting = "timer" } },
   armorStates = { Electroshock = true, Lightning = true, ElectricBall = true, BlasterMode = true },
@@ -603,6 +628,8 @@ cfg.b20ls00 = {
 -- an unbroken combo could loop her.  The counter below is her own pair of
 -- moves, fired per hit / from the watchdog.
 cfg.b01sb00 = {
+  -- Thunder (up to 8 casts) and Staff Attack (more swings after her Charm Flash) repeat in one move: count goes down
+  rearm = rounds({ Thunder = { down = "count" }, StaffAttack = { down = "count" } }),
   limit = 9,
   tempo = { idle = { IdlingA = "timer", IdlingB = "timer", IdlingC = "timer", Idling = "timer" } },
   armorStates = { Teleport = true, StaffAttack = true, Meteor = true },
@@ -793,6 +820,7 @@ local function hadesCounter(self)
   return 1
 end
 local hades = {
+  rearm = rounds({ FingernailofFire = { down = "cnboNum" } }),  -- 3-8 swings in one move
   limit = 9,
   pace = false,                 -- his slow pace is the fight: he walks while he burns, as KH2's Hades
   fire = "real",

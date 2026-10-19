@@ -1279,3 +1279,16 @@ Only the first round had a window, so after one combo every later round could be
 2026-10-19).  New: cfg.rearm(self, st) -> true re-applies the current state's bbskh2_boss.ini window (st.armMove,
 the code the state start uses); Braig's fires on the step change into 3.  [Braig (final)] InvertedShoot = hit 60
 (armoured until his first arrow of the round); [Braig] keeps 46 frames per round.  b30ex00 limit 7 -> 6.
+
+## Per-round armour for repeating moves (2026-10-19)
+
+Survey of every windowed move (number / hit) of the humanoid bosses: moves that start new rounds inside one state
+only had a window for the first round.  `rounds(spec)` in bosses.lua builds a cfg.rearm: spec[state] =
+{ step = n } (a round starts when self.step turns n) or { up/down = "field" } (a counter changes while he stays).
+Fixed: Braig InvertedShoot step 3, DashShoot step 2 (dash after the warp, up to 5 rounds), WarpShoot step 5
+(second volley); Eraqus RushAttack count up (3 rushes); Hades FingernailofFire cnboNum down (3-8 swings);
+Maleficent Thunder / StaffAttack count down; Experiment 221 Lightning step 2 (8 dashes after a ~480-frame wind-up:
+the window used to run out before the first dash); Armor of the Master GodspeedCuttingVFinish count up.
+Left for playtesting (user's doc "BBS KH2-Style: Boss Moves to Playtest"): MF Random_Laser, Maleficent Thundaga,
+MX Thundaga, Peter Attack3, Hook RushXCutting, Braig RoundShoot, b11ex00 XDisCharge, b52 Guardian repeats,
+MF RashAttack, 221 ElectricBall.

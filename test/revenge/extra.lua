@@ -836,5 +836,42 @@ local okA, errA = xpcall(function()
   M.num["Entity.CalcDistanceSq"] = nil; M.num["Entity.CalcDistanceXZSq"] = nil
 end, debug.traceback)
 check(okA, "Armor of the Master checks ran (" .. tostring(errA) .. ")")
+-- moves with rounds inside one state: each new round gets its window again (cfg.rearm)
+local okR, errR = xpcall(function()
+  local rows = {
+    { "b30ex00", "b30ex00", "DashShoot", "step", { 0, 1, 2, 3, 4, 5, 0, 1, 2, 3 }, { 3, 9 } },
+    { "b30ex00", "b30ex00", "WarpShoot", "step", { 1, 2, 3, 4, 5, 6 }, { 5 } },
+    { "b20ex00", "b20ex00", "RushAttack", "count", { 0, 0, 1, 1, 2 }, { 3, 5 } },
+    { "b01he00", "b01he00", "FingernailofFire", "cnboNum", { 5, 5, 4, 4, 3 }, { 3, 5 } },
+    { "b01sb00", "b01sb00", "Thunder", "count", { 8, 8, 7, 7, 6 }, { 3, 5 } },
+    { "b01sb00", "b01sb00", "StaffAttack", "count", { 3, 2, 2, 1 }, { 2, 4 } },
+    { "b20ls00", "b20ls00", "Lightning", "step", { 0, 1, 1, 2, 3, 4, 2, 3 }, { 4, 7 } },
+    { "b81vs00", "b81vs00", "GodspeedCuttingVFinish", "count", { 0, 0, 1, 1, 2 }, { 3, 5 } },
+  }
+  for _, row in ipairs(rows) do
+    local script, name, move, field, seq, want = row[1], row[2], row[3], row[4], row[5], row[6]
+    M.script(script)
+    local e, h = M.create(name)
+    local st = BBS_REVENGE.ents[name]
+    rawset(e, "Debug", function() end); rawset(e, "CheckPlayerPos", function() end)
+    rawset(e, "RestHpRate", function() return 1 end)                              -- (stand-in values the
+    rawset(e, "AttackControl", function() end); rawset(e, "ChangeDisp", function() end)   -- emulator lacks)
+    local i = 0
+    rawset(e, "Update", function(self) i = i + 1 self[field] = seq[i] end)
+    pcall(e.GotoState, e, move)
+    st.rrS = nil
+    local armed = {}
+    for k = 1, #seq do
+      st.hitWin, st.mArmor, st.winOff = nil, 0, true            -- (the last round's window is over)
+      local ok, err = pcall(e.OnUpdate, e)
+      if not ok then armed[#armed + 1] = "err:" .. tostring(err) break end
+      if (st.mArmor or 0) > 0 then armed[#armed + 1] = k end
+    end
+    local got = table.concat(armed, ",")
+    check(got == table.concat(want, ","), name .. " " .. move .. ": a new window at each new round (updates " .. got .. ")")
+    rawset(e, "Update", function() end)
+  end
+end, debug.traceback)
+check(okR, "round checks ran (" .. tostring(errR) .. ")")
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
