@@ -364,14 +364,19 @@ static void t_haste(void) {
     /* the game's lookup of an ability's description gives the new text: 1401b3d80 walks the loaded files */
     printf("t_haste done\n");
 }
-/* D-Link end: the gauge keeps at most DLinkGaugeAfter (0) once a link has ended; the game's 208390 runs first */
+/* D-Link end: the gauge keeps at most DLinkGaugeAfter once a link has ended (default 100 = the game's way, 0 = KH2);
+   the game's 208390 runs first */
 extern void test_link_end(u8 *g, int now); extern void test_link_set(void (MSABI *f)(u8*, float)); extern float *test_link_keep(void);
 static float g_set_v; static int g_set_n;
 static void MSABI link_set_stub(u8 *g, float v) { g_set_n++; g_set_v = v; *(float*)(g + 0x60) = v; *(u32*)(g + 0x84) &= ~0x300u; }
 static void t_link_end(void) {
     u8 *g = calloc(1, 0x100);
     test_link_set(link_set_stub);
-    CHECK(*test_link_keep() == 0.0f, "nothing left by default (KH2)");
+    CHECK(*test_link_keep() == 100.0f, "by default the game's way: what is left stays");
+    *(float*)(g + 0x60) = 85; *(u32*)(g + 0x84) = 0x300; g_set_n = 0;
+    test_link_end(g, 0);
+    CHECK(g_set_n == 0 && *(float*)(g + 0x60) == 85, "default: reverted with 85 left, 85 stays (%d)", g_set_n);
+    *test_link_keep() = 0;
     *(float*)(g + 0x60) = 85; *(u32*)(g + 0x84) = 0x300; g_set_n = 0;
     test_link_end(g, 0);
     CHECK(g_set_n == 1 && g_set_v == 0 && !(*(u32*)(g + 0x84) & 0x200), "reverted with 85 left: gauge emptied, the game's end ran (%d, %.0f)", g_set_n, g_set_v);
@@ -385,7 +390,7 @@ static void t_link_end(void) {
     CHECK(g_set_n == 1 && g_set_v == 25, "DLinkGaugeAfter = 25: 85 -> 25");
     *(float*)(g + 0x60) = 10; *(u32*)(g + 0x84) = 0x200; g_set_n = 0; test_link_end(g, 0);
     CHECK(g_set_n == 0, "... 10 left stays 10");
-    *test_link_keep() = 0;
+    *test_link_keep() = 100;
     printf("t_link_end done\n");
 }
 /* MP Rage: Attack Haste renamed; HP lost gives lost / max HP x max MP x 25% x copies / 5, never during the MP charge */

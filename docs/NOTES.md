@@ -1298,3 +1298,8 @@ MF RashAttack, 221 ElectricBall.
 The +12 frames for final Braig (own [Braig (final)] section) were an attempt at the "stagger on start-up" problem
 that the per-round windows fixed; at the user's request both fights share [Braig] again (Dash 56, Round 60, Warp 48,
 Inverted 46 per round).  Kept: final Braig's revenge limit 6 (bosses.lua braigLate).
+
+## D-Link gauge after a link: back to the game's way (2026-10-22)
+
+At the user's request `DLinkGaugeAfter` defaults to 100 (dist ini and the built-in default): ending a D-Link leaves
+the gauge as the game does.  The hook stays; 0 brings the KH2 rule back.  t_link_end checks both.

@@ -62,7 +62,7 @@ static int   c_cursor_advance = 0;     /* 1 = cursor moves to the next command a
 static int   c_ether = 1;              /* Ether-type items restore MP */
 static int   c_tiered = 1;             /* magic costs spread out by tier (see base_cost) */
 static int   c_link_refill = 1;        /* starting a D-Link fills the MP bar and ends an MP charge, as a Drive Form does in KH2 */
-static float c_link_keep = 0.0f;       /* percent of a full D-Link gauge that can be left once a D-Link has ended (KH2: 0) */
+static float c_link_keep = 100.0f;     /* percent of a full D-Link gauge that can be left once a D-Link has ended (game: 100, KH2: 0) */
 static int   c_link_in_burn = 1;       /* a D-Link can be started during MP charge (0 = not until the bar is back) */
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
