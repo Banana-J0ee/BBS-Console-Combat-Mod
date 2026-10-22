@@ -1316,3 +1316,7 @@ At the user's request (the Magic list is Skills now): every in-game text of the 
 descriptions ("SP 10", "SP All"), SP Haste / SP Rage (names and help), Berserker's help, the Ether / Mega-Ether /
 Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD plate and the status panel label
 (art; the user will supply assets), the ini (comments, [MP] section and key names kept), code names, logs.
+* (art, same day) The bar's plate: tools/genmpart.py relabels KH2's "MP" plate "SP" - KH2's "p" kept (x 342..355),
+  an "s" drawn on its pixel grid (12 rows, strokes 4 wide, bars 2 rows, corners trimmed by one), centred where "mp"
+  was.  The menu panel's label: tools/genstatart.py draws an S in the sheet's square style (8 x 10, like its E / F)
+  and puts the sheet's P 2 texels after it (as in "HP"); STAT_M_* names kept.  Test: t_stat (the S, the P).

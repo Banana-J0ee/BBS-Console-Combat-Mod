@@ -2199,8 +2199,11 @@ static void t_status(void) {
                 diff++; if (x < 298 || x >= 328 || y < 674 || y >= 694) out++; }
             CHECK(diff > 100 && !out, "only the new cell changed (%ld texels, %ld outside)", diff, out);
             #define A(x, y) pix[((y) * 1024 + (x)) * 4 + 3]
-            CHECK(A(302, 678) == 255 && A(303, 678) == 255 && A(311, 687) == 255 && A(306, 684) == 0, "the M: stems %d %d, open below the V %d", A(302, 678), A(311, 687), A(306, 684));
-            int same = 1; for (int y = 0; y < 10; y++) for (int x = 0; x < 8; x++) same &= A(314 + x, 678 + y) == before[((648 + y) * 1024 + 46 + x) * 4 + 3];
+            /* the label reads SP (2026-10-22): an S at x 302..309, the sheet's own P at 312..319 */
+            CHECK(A(302, 678) == 255 && A(309, 678) == 255 && A(302, 680) == 255 && A(309, 680) == 0 && A(305, 682) == 255
+                  && A(309, 684) == 255 && A(302, 684) == 0 && A(302, 687) == 255 && A(310, 682) == 0,
+                  "the S: bars, upper left and lower right strokes (%d %d %d %d)", A(302, 678), A(309, 680), A(309, 684), A(302, 684));
+            int same = 1; for (int y = 0; y < 10; y++) for (int x = 0; x < 8; x++) same &= A(312 + x, 678 + y) == before[((648 + y) * 1024 + 46 + x) * 4 + 3];
             CHECK(same, "the P is the sheet's own");
             CHECK(!test_stat_patch(pix, 1024, 1024), "a second pass changes nothing (the cell is in use now)");
             free(before);

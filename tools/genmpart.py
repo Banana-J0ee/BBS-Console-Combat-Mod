@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """genmpart.py -> src/mpart_gen.h
 
-Builds the small block of KH2 HUD art (the "MP" plate, the bar gradients and the bar's round end) that the mod draws its MP bar
+Builds the small block of KH2 HUD art (KH2's "MP" plate relabelled "SP", the bar gradients and the bar's round end) that the mod draws its MP bar
 with, and the check pixels used to recognise BBS's own gauge texture at run time.
 
 Inputs (your own game files, extracted with the scripts in tools/):
@@ -37,9 +37,38 @@ def put(block, ux, uy):
     h, w = block.shape[:2]
     patch[uy * 2:uy * 2 + h, ux * 2:ux * 2 + w] = block
 
-# "MP" plate: KH2 pixels x 309..361, y 73..95 (52 x 22 with its soft rim)
+# The bar's label plate: KH2's "MP" plate, pixels x 309..361, y 73..95 (52 x 22 with its soft rim), relabelled "SP"
+# (2026-10-22: the mod's MP is called SP).  KH2's letters are a crisp pixel font - 12 rows high, upright strokes 4
+# pixels wide, bars 2 rows, outer corners trimmed by one pixel, grey 128 on the black plate.  Its "p" (x 342..355)
+# is kept, moved left; the "s" is drawn here on the same grid, the width of the "p"; the pair is centred where
+# "mp" was.
+def relabel_sp(plate):
+    out = plate.copy()
+    ink = np.array([128, 128, 128, 255], np.float32)
+    clear = np.array([0, 0, 0, 255], np.float32)
+    y0, x_letters = 78 - 73, 318 - 309                     # first letter row, first letter column (in the plate)
+    out[y0:y0 + 12, x_letters:x_letters + 38] = clear      # "mp" gone
+    p_src = plate[y0:y0 + 12, 342 - 309:342 - 309 + 14].copy()
+    xs = x_letters + 3                                     # "sp" = 14 + 4 + 14 = 32 wide, centred in the 38 "mp" took
+    S = ["." + "#" * 13,                 # top bar, its top-left corner trimmed
+         "#" * 14,
+         "####" + "." * 10,              # upper left stroke
+         "####" + "." * 10,
+         "####" + "." * 10,
+         "#" * 13 + ".",                 # middle bar, trimmed at the ends it turns from
+         "." + "#" * 13,
+         "." * 10 + "####",              # lower right stroke
+         "." * 10 + "####",
+         "." * 10 + "####",
+         "#" * 14,                       # bottom bar, its bottom-right corner trimmed
+         "#" * 13 + "."]
+    for r, row in enumerate(S):
+        for c, ch in enumerate(row):
+            if ch == "#": out[y0 + r, xs + c] = ink
+    out[y0:y0 + 12, xs + 18:xs + 32] = p_src
+    return out
 PILL = (2, 2, 52, 22)
-put(up2(kh2[73:95, 309:361]), PILL[0], PILL[1])
+put(up2(relabel_sp(kh2[73:95, 309:361])), PILL[0], PILL[1])
 
 def strip(col, y0, y1, ux, uy, w=8, pad=2):
     """one texture column, repeated sideways, with its end rows repeated above and below so filtering stays clean"""
