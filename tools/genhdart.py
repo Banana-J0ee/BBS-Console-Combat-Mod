@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """genhdart.py -> src/hdart_gen.h
 
-Builds the words MAGIC, ITEMS and D-LINK for the headers of the command menu's lists (drawn by tools/hdfont.py, in
+Builds the words SKILLS (the Magic list's header), ITEMS and D-LINK for the headers of the command menu's lists (drawn by tools/hdfont.py, in
 the style of the game's "COMMANDS" label; nothing is copied from the game), and the check pixels by which the
 game's command sheet - the texture of bc01_00.l2d, 1024 x 1024 - is recognised when it is loaded.
 
@@ -25,8 +25,9 @@ OX, OY = 16, 740                 # where the block goes in the sheet (pixels, ev
 CELL, STEP = 40, 44
 words = {}
 ims = []
-for i, t in enumerate(('MAGIC', 'ITEMS', 'D-LINK')):
-    im, x0, y0 = hdfont.word(t, pad=(4, 4, 8, 12))
+# (name in hdart_gen.h, the word drawn): the Magic list is called Skills in the menu since 2026-10-22
+for i, (t, text) in enumerate((('MAGIC', 'SKILLS'), ('ITEMS', 'ITEMS'), ('D-LINK', 'D-LINK'))):
+    im, x0, y0 = hdfont.word(text, pad=(4, 4, 8, 12))
     assert im.shape[0] == CELL, im.shape
     if im.shape[1] % 4: im = np.concatenate([im, np.zeros((CELL, 4 - im.shape[1] % 4, 4), np.float32)], 1)
     ims.append(im); words[t] = (0, i * STEP, im.shape[1], CELL)

@@ -77,7 +77,7 @@ static float prompt_y(u8 *cmd) {
 static float c_prompt_stack = 16;      /* height of an offer's plate: how far above the offer the prompt sits */
 static float offer_y(u8 *cmd) { return prompt_y(cmd) - 3.0f; }
 static float context_y(u8 *cmd) { return style_prompt_shown() ? offer_y(cmd) - c_prompt_stack : prompt_y(cmd); }
-static char  c_text[3][24] = { "Magic", "Items", "D-Link" };     /* "D-Link" is the game's own word for it */
+static char  c_text[3][24] = { "Skills", "Items", "D-Link" };     /* "D-Link" is the game's own word for it */
 /* shortcut list (hold L1): the game's large "under the cursor" plate, which has room for a button's picture on its
    left, in grey.  Positions are in the plate's own units (it is drawn at 0.88) */
 static float c_sc_icon_x = 11, c_sc_icon_y = 8;    /* centre of the button's picture: the game's own place for it */

@@ -1303,3 +1303,9 @@ Inverted 46 per round).  Kept: final Braig's revenge limit 6 (bosses.lua braigLa
 
 At the user's request `DLinkGaugeAfter` defaults to 100 (dist ini and the built-in default): ending a D-Link leaves
 the gauge as the game does.  The hook stays; 0 brings the KH2 rule back.  t_link_end checks both.
+
+## The Magic list is called Skills (2026-10-22)
+
+At the user's request: the menu row (`[Menu] MagicText`, default and dist ini "Skills") and the list's header word
+(tools/genhdart.py now draws SKILLS for the MAGIC slot; hdart_gen.h keeps the HDART_MAGIC_* names, 240 px wide,
+patch 244 x 132 at 16,740, still in the empty area of all three sheets).
