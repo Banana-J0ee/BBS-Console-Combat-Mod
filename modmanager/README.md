@@ -5,10 +5,10 @@ One mod, installed with the OpenKH Mod Manager.
 
 ## What it changes
 
-- **Command menu**: Attack / Magic / Item / Link, as in KH2. Magic, Item and Link open a list of what is in
+- **Command menu**: Attack / Skills / Item / Link, as in KH2. Skills, Item and Link open a list of what is in
   your deck; after a command is used the cursor is back on Attack.
-- **MP instead of reloads**: commands cost MP (their old reload time, so Fire 10, Firaga 15 ...). At 0 MP the
-  bar recharges (MP charge). Cure takes all remaining MP. Ethers and Elixirs restore MP. KH2-style MP bar.
+- **SP instead of reloads**: commands cost SP, skill points (their old reload time, so Fire 10, Firaga 15 ...). At
+  0 SP the bar recharges (SP charge). Cure takes all remaining SP. Ethers and Elixirs restore SP. KH2-style bar.
 - **Command Styles and finishers are offers**: a full gauge shows a prompt with a timer above the menu. Press
   the style button (the game's old deck-command button) to take it; Attack stays Attack meanwhile.
 - **Pace**: attacks, commands and items play 15 % faster; a tilted stick ends an action as soon as its last

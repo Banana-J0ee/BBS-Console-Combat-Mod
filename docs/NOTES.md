@@ -1309,3 +1309,10 @@ the gauge as the game does.  The hook stays; 0 brings the KH2 rule back.  t_link
 At the user's request: the menu row (`[Menu] MagicText`, default and dist ini "Skills") and the list's header word
 (tools/genhdart.py now draws SKILLS for the MAGIC slot; hdart_gen.h keeps the HDART_MAGIC_* names, 240 px wide,
 patch 244 x 132 at 16,740, still in the empty area of all three sheets).
+
+## MP is called SP in the game's text (2026-10-22)
+
+At the user's request (the Magic list is Skills now): every in-game text of the mod says SP - command costs in
+descriptions ("SP 10", "SP All"), SP Haste / SP Rage (names and help), Berserker's help, the Ether / Mega-Ether /
+Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD plate and the status panel label
+(art; the user will supply assets), the ini (comments, [MP] section and key names kept), code names, logs.

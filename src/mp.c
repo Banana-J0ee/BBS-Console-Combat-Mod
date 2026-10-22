@@ -216,18 +216,18 @@ static void load_ini(void) {
     c_haste_rename = (int)ini_f("MP", "MPHasteRename", (float)c_haste_rename);
     c_haste_name_set = ini_s("MP", "MPHasteName", c_haste_name, sizeof c_haste_name);
     c_haste_help_set = ini_s("MP", "MPHasteHelp", c_haste_help, sizeof c_haste_help);
-    if (!c_haste_name_set) snprintf(c_haste_name, sizeof c_haste_name, "MP Haste");
+    if (!c_haste_name_set) snprintf(c_haste_name, sizeof c_haste_name, "SP Haste");
     c_rage = ini_f("MP", "MPRage", c_rage);
     if (!(c_rage >= 0 && c_rage <= 400)) c_rage = 25.0f;
     c_rage_rename = (int)ini_f("MP", "MPRageRename", (float)c_rage_rename);
     c_rage_name_set = ini_s("MP", "MPRageName", c_rage_name, sizeof c_rage_name);
     c_rage_help_set = ini_s("MP", "MPRageHelp", c_rage_help, sizeof c_rage_help);
-    if (!c_rage_name_set) snprintf(c_rage_name, sizeof c_rage_name, "MP Rage");
+    if (!c_rage_name_set) snprintf(c_rage_name, sizeof c_rage_name, "SP Rage");
     if (!c_rage_help_set) snprintf(c_rage_help, sizeof c_rage_help,
-        "Restores some MP whenever you take damage, except\nduring an MP charge. Multi-install the ability to\nrestore even more.");
+        "Restores some SP whenever you take damage, except\nduring an SP charge. Multi-install the ability to\nrestore even more.");
     if (!c_haste_help_set) {
         char pc[16]; snprintf(pc, sizeof pc, "%g", c_haste_bonus * 100.0f);
-        snprintf(c_haste_help, sizeof c_haste_help, "Makes MP recharge %s%% faster once you have run out.\n"
+        snprintf(c_haste_help, sizeof c_haste_help, "Makes SP recharge %s%% faster once you have run out.\n"
                  "Multi-install the ability for an even quicker recharge.", pc);
     }
     c_berserk_pct = ini_f("MP", "BerserkerDamage", c_berserk_pct);
@@ -237,7 +237,7 @@ static void load_ini(void) {
     if (!c_berserk_name_set) snprintf(c_berserk_name, sizeof c_berserk_name, "Berserker");
     if (!c_berserk_help_set) {
         char pc[16]; snprintf(pc, sizeof pc, "%g", c_berserk_pct);
-        snprintf(c_berserk_help, sizeof c_berserk_help, "Increases the damage you deal by %s%% while MP is\nrecharging.", pc);
+        snprintf(c_berserk_help, sizeof c_berserk_help, "Increases the damage you deal by %s%% while SP is\nrecharging.", pc);
     }
     c_cursor_advance = (int)ini_f("MP", "CursorAdvance", (float)c_cursor_advance);
     c_ether = (int)ini_f("MP", "EtherRestoresMP", (float)c_ether);
@@ -372,9 +372,9 @@ static int text_width(const u8 *p, const u8 *end) {        /* characters shown, 
 static const char *desc_with_cost(int id, const char *text) {
     if (!c_desc_cost || !text || !costs_mp(id)) return NULL;
     char cost[32]; float c = mp_cost(id);
-    if (c_cure_all && is_cure(id)) snprintf(cost, sizeof cost, "MP All");
-    else if (c == (float)(int)c) snprintf(cost, sizeof cost, "MP %d", (int)c);
-    else snprintf(cost, sizeof cost, "MP %.1f", c);
+    if (c_cure_all && is_cure(id)) snprintf(cost, sizeof cost, "SP All");
+    else if (c == (float)(int)c) snprintf(cost, sizeof cost, "SP %d", (int)c);
+    else snprintf(cost, sizeof cost, "SP %.1f", c);
     size_t n = strlen(text);
     if (n + strlen(cost) + 8 > sizeof g_desc) return NULL;
     while (n && (text[n - 1] == ' ' || text[n - 1] == '\n')) n--;
@@ -389,13 +389,13 @@ static const char *desc_with_cost(int id, const char *text) {
    only: the replacement is used when the game's text starts as expected, so another language keeps its own. */
 static const struct { u16 id; const char *was, *now; } g_item_desc[] = {
     { 0xbf, "Can be used once to restore a large portion of",                        /* Ether: 50 % */
-      "Can be used once to restore half of your MP and a\nlarge portion of the Focus Gauge." },
+      "Can be used once to restore half of your SP and a\nlarge portion of the Focus Gauge." },
     { 0xc0, "Can be used once to completely restore the",                           /* Mega-Ether: 100 % */
-      "Can be used once to completely restore your MP\nand the Focus Gauge." },
+      "Can be used once to completely restore your SP\nand the Focus Gauge." },
     { 0xc2, "Can be used once to completely restore your HP",                       /* Elixir: 100 % */
-      "Can be used once to completely restore your HP, MP\nand the Focus Gauge. Also eliminates all negative\nstatus effects." },
+      "Can be used once to completely restore your HP, SP\nand the Focus Gauge. Also eliminates all negative\nstatus effects." },
     { 0xc3, "Can be used once to completely restore HP,",                           /* Megalixir: 100 % */
-      "Can be used once to completely restore HP and MP,\nas well as the Focus and D-Link Gauges.\nAlso eliminates all negative status effects." },
+      "Can be used once to completely restore HP and SP,\nas well as the Focus and D-Link Gauges.\nAlso eliminates all negative status effects." },
 };
 static const char *item_desc(int id, const char *text) {
     if (!c_ether || !text) return NULL;

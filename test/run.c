@@ -326,14 +326,14 @@ static void t_haste(void) {
     CHECK(was && !strcmp(was, "Magic Haste"), "the game's name: %s", was ? was : "-");
     u8 *o1 = calloc(1, 0x100); *(u8**)(o1 + 0x70) = names; ready(o1);
     #define NAME(id) G(const char*, 0x814908 + (u32)(id) * 0x18)
-    CHECK(NAME(0x1d0) && !strcmp(NAME(0x1d0), "MP Haste"), "name: %s", NAME(0x1d0) ? NAME(0x1d0) : "-");
+    CHECK(NAME(0x1d0) && !strcmp(NAME(0x1d0), "SP Haste"), "name: %s", NAME(0x1d0) ? NAME(0x1d0) : "-");
     CHECK(NAME(0x1d0) == was, "written in the file itself");
-    CHECK(NAME(0x1cf) && !strcmp(NAME(0x1cf), "MP Rage") && NAME(0x1cf) == ctd_find(names, 0xfa01cf), "Attack Haste is MP Rage: %s", NAME(0x1cf) ? NAME(0x1cf) : "-");
+    CHECK(NAME(0x1cf) && !strcmp(NAME(0x1cf), "SP Rage") && NAME(0x1cf) == ctd_find(names, 0xfa01cf), "Attack Haste is MP Rage: %s", NAME(0x1cf) ? NAME(0x1cf) : "-");
     CHECK(NAME(0x1d9) && !strcmp(NAME(0x1d9), "Berserker") && !strcmp(NAME(0x1d8), "Dark Screen") && !strcmp(NAME(0x1da), "Defender"), "Reload Boost is Berserker: %s", NAME(0x1d9) ? NAME(0x1d9) : "-");
     CHECK(!strcmp(NAME(0x1ce), ctd_find(names, 0xfa01ce)) && !strcmp(NAME(0x1d1), "Combo F Boost") && !strcmp(NAME(0x92), "Cure") && !strcmp(NAME(0x1f1), ctd_find(names, 0xfa01f1)),
           "the names around them are the game's (%s / %s)", NAME(0x1ce), NAME(0x1d1));
     ready(o1);
-    CHECK(!strcmp(NAME(0x1d0), "MP Haste") && !strcmp(NAME(0x1cf), "MP Rage"), "a second call changes nothing");
+    CHECK(!strcmp(NAME(0x1d0), "SP Haste") && !strcmp(NAME(0x1cf), "SP Rage"), "a second call changes nothing");
     const char *h0 = ctd_find(help, 0x32020d), *h1 = ctd_find(help, 0x32020c), *ha = ctd_find(help, 0x32020b), *hb = ctd_find(help, 0x32020e);
     CHECK(h0 && !strncmp(h0, "Shortens the reload time for all magic commands", 47), "the game's description");
     CHECK(h1 && !strncmp(h1, "Shortens the reload time for all attack commands", 48), "the game's description of Attack Haste");
@@ -357,8 +357,8 @@ static void t_haste(void) {
       *test_rage() = 0;
       u8 *o3 = calloc(1, 0x100); *(u8**)(o3 + 0x70) = nm2; ready(o3);
       u8 *o4 = calloc(1, 0x100); *(u8**)(o4 + 0x70) = hp2; ready(o4);
-      CHECK(!strcmp(NAME(0x1cf), "Attack Haste") && !strcmp(NAME(0x1d0), "MP Haste"), "MPRage = 0: it stays Attack Haste (%s)", NAME(0x1cf));
-      CHECK(!strncmp(ctd_find(hp2, 0x32020c), "Shortens the reload time for all attack", 39) && !strncmp(ctd_find(hp2, 0x32020d), "Makes MP", 8), "... with its own description");
+      CHECK(!strcmp(NAME(0x1cf), "Attack Haste") && !strcmp(NAME(0x1d0), "SP Haste"), "MPRage = 0: it stays Attack Haste (%s)", NAME(0x1cf));
+      CHECK(!strncmp(ctd_find(hp2, 0x32020c), "Shortens the reload time for all attack", 39) && !strncmp(ctd_find(hp2, 0x32020d), "Makes SP", 8), "... with its own description");
       *test_rage() = 25.0f; }
     CHECK(*(u32*)(o2 + 0xb0) == 0x320000 && *(u32*)(o1 + 0xb0) == 0xfa0000, "the game's own set-up ran");
     /* the game's lookup of an ability's description gives the new text: 1401b3d80 walks the loaded files */
@@ -1731,10 +1731,10 @@ static void t_desc(void) {
     world(1, ids);
     /* the items that restore MP say so (the game's English texts, from CT00100.ctd when BBS_MSG_HELP is set) */
     { static const struct { int id; const char *game, *mp; } it[] = {
-        { 0xbf, "Can be used once to restore a large portion of\nthe Focus Gauge.", "half of your MP" },
-        { 0xc0, "Can be used once to completely restore the\nFocus Gauge.", "your MP" },
-        { 0xc2, "Can be used once to completely restore your HP\nand the Focus Gauge. Also eliminates all negative\nstatus effects.", "HP, MP" },
-        { 0xc3, "Can be used once to completely restore HP,\nas well as the Focus and D-Link Gauges.\nAlso eliminates all negative status effects.", "HP and MP" } };
+        { 0xbf, "Can be used once to restore a large portion of\nthe Focus Gauge.", "half of your SP" },
+        { 0xc0, "Can be used once to completely restore the\nFocus Gauge.", "your SP" },
+        { 0xc2, "Can be used once to completely restore your HP\nand the Focus Gauge. Also eliminates all negative\nstatus effects.", "HP, SP" },
+        { 0xc3, "Can be used once to completely restore HP,\nas well as the Focus and D-Link Gauges.\nAlso eliminates all negative status effects.", "HP and SP" } };
       const char *hf = getenv("BBS_MSG_HELP"); size_t hn; u8 *help = hf ? slurp(hf, &hn) : NULL;
       for (unsigned i = 0; i < 4; i++) {
           const char *g = help ? ctd_find(help, 0x320000 + it[i].id) : it[i].game;
@@ -1752,22 +1752,22 @@ static void t_desc(void) {
     #define BACK  "\xf9\x41"
     const char *aero = "Call on the wind to lift enemies into the air and\nthen send them flying. Stuns some foes.";
     const char *t = test_desc(0xa2, aero);
-    CHECK(t && !strcmp(t, "Call on the wind to lift enemies into the air and\nthen send them flying. Stuns some foes. " GREEN "MP 10" BACK), "Aero: cost after the last line");
-    t = test_desc(0xa3, aero); CHECK(t && strstr(t, GREEN "MP 15" BACK), "Aerora 15");
-    t = test_desc(0xa4, aero); CHECK(t && strstr(t, GREEN "MP 20" BACK), "Aeroga 20");
-    t = test_desc(0xac, "x"); CHECK(t && !strcmp(t, "x " GREEN "MP 50" BACK), "Mega Flare 50");
-    t = test_desc(0x92, "Restore a small amount of HP."); CHECK(t && strstr(t, " " GREEN "MP All" BACK), "Cure: all MP");
+    CHECK(t && !strcmp(t, "Call on the wind to lift enemies into the air and\nthen send them flying. Stuns some foes. " GREEN "SP 10" BACK), "Aero: cost after the last line");
+    t = test_desc(0xa3, aero); CHECK(t && strstr(t, GREEN "SP 15" BACK), "Aerora 15");
+    t = test_desc(0xa4, aero); CHECK(t && strstr(t, GREEN "SP 20" BACK), "Aeroga 20");
+    t = test_desc(0xac, "x"); CHECK(t && !strcmp(t, "x " GREEN "SP 50" BACK), "Mega Flare 50");
+    t = test_desc(0x92, "Restore a small amount of HP."); CHECK(t && strstr(t, " " GREEN "SP All" BACK), "Cure: all MP");
     /* a long last line: the cost goes on its own line while there are fewer than three */
     t = test_desc(0x88, "Launch a series of three fireballs toward enemies.");
-    CHECK(t && strstr(t, "enemies.\n" GREEN "MP "), "long single line: cost on a second line (%s)", t ? t : "-");
+    CHECK(t && strstr(t, "enemies.\n" GREEN "SP "), "long single line: cost on a second line (%s)", t ? t : "-");
     t = test_desc(0x69, "Throw the Keyblade at the enemy, letting the\nwind guide it toward your target for multiple hits.");
-    CHECK(t && strstr(t, "hits.\n" GREEN "MP 20"), "long second line: cost on a third line (Wind Raid 20)");
+    CHECK(t && strstr(t, "hits.\n" GREEN "SP 20"), "long second line: cost on a third line (Wind Raid 20)");
     t = test_desc(0x61, "Cloak yourself in darkness, then charge at\nfaraway enemies. The attack has a chance of\ndooming them, leaving them five seconds to live.");
-    CHECK(t && strstr(t, "live. " GREEN "MP "), "three lines: the cost stays on the third");
+    CHECK(t && strstr(t, "live. " GREEN "SP "), "three lines: the cost stays on the third");
     /* colour codes and icons in the text: "(Uses two slots.)" is yellow in the original */
     t = test_desc(0xb0, "Create an anti-gravity field no enemy can\nescape, then deal damage by sending them\nhurtling in all directions. \xf9Y(Uses two slots.)");
-    CHECK(t && strstr(t, "slots.) " GREEN "MP 25" BACK), "after the yellow note: %s", t ? strrchr(t, '\n') + 1 : "-");
-    t = test_desc(0x83, "Fire. \n"); CHECK(t && !strcmp(t, "Fire. " GREEN "MP 10" BACK), "trailing blanks are dropped");
+    CHECK(t && strstr(t, "slots.) " GREEN "SP 25" BACK), "after the yellow note: %s", t ? strrchr(t, '\n') + 1 : "-");
+    t = test_desc(0x83, "Fire. \n"); CHECK(t && !strcmp(t, "Fire. " GREEN "SP 10" BACK), "trailing blanks are dropped");
     /* what has no MP cost is left alone */
     CHECK(!test_desc(0xbc, "Potion") && !test_desc(0xc5, "Ice cream"), "items");
     CHECK(!test_desc(0xfc, "Dodge") && !test_desc(0x110, "Block") && !test_desc(0x122, "Shotlock") && !test_desc(0x1a0, "Ability") && !test_desc(1, "Attack"), "actions, shotlocks, abilities, basic attacks");
@@ -1779,8 +1779,8 @@ static void t_desc(void) {
     int MSABI (*hook)(u32, const char**, void**, u16*, char) = (void*)(site + 5 + rel);
     const char *out = NULL; stub_text = aero;
     int r = hook(0x3200a2, &out, NULL, NULL, 0);
-    CHECK(r == 1 && out && strstr(out, GREEN "MP 10"), "description of Aero gets its cost");
-    out = NULL; r = hook(0x320092, &out, NULL, NULL, 0); CHECK(r == -1 && out && strstr(out, "MP All"), "return value kept");
+    CHECK(r == 1 && out && strstr(out, GREEN "SP 10"), "description of Aero gets its cost");
+    out = NULL; r = hook(0x320092, &out, NULL, NULL, 0); CHECK(r == -1 && out && strstr(out, "SP All"), "return value kept");
     out = NULL; r = hook(0x3200bc, &out, NULL, NULL, 0); CHECK(r == 1 && out == aero, "an item's description is passed through");
     out = NULL; r = hook(0x343c0001, &out, NULL, NULL, 0); CHECK(r == 1 && out == aero, "other messages are passed through");
     out = NULL; r = hook(0x1e00a2, &out, NULL, NULL, 0); CHECK(out == aero, "another message group with the same index");

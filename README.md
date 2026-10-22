@@ -1,7 +1,7 @@
 # BBS KH2-Style
 
 A mod for **Kingdom Hearts Birth by Sleep Final Mix** (Steam, HD 1.5+2.5 ReMIX) that makes it play more like
-Kingdom Hearts II: a KH2 command menu, MP instead of command reloads, Command Styles as offers, faster pacing and
+Kingdom Hearts II: a KH2 command menu, SP instead of command reloads, Command Styles as offers, faster pacing and
 a KH2-style camera.
 
 It is a single DLL that the OpenKH mod loader starts with the game. It patches the game in memory only; no game
@@ -9,17 +9,17 @@ file is changed, and removing the mod puts everything back.
 
 ## What it changes
 
-- **Command menu**: Attack / Magic / Items / D-Link, as in KH2 (D-Link with the pink heart of the game's D-Link
-  gauge as its icon). Magic, Items and D-Link open a list of what is in
-  your deck, with a header and a colour of its own (Magic blue, Items green, D-Link the D-Link blue). The confirm
+- **Command menu**: Attack / Skills / Items / D-Link, as in KH2 (D-Link with the pink heart of the game's D-Link
+  gauge as its icon). Skills, Items and D-Link open a list of what is in
+  your deck, with a header and a colour of its own (Skills blue, Items green, D-Link the D-Link blue). The confirm
   button or d-pad right opens a list; the jump button closes it. After a command is used the cursor is back on
   Attack.
-- **MP instead of reloads**: commands cost MP (their old reload time, so Fire 10, Firaga 15 ...). At 0 MP the bar
-  recharges (MP charge, 25 seconds). The Magic Haste and Attack Haste abilities are now both **MP Haste**: every copy
-  installed makes the charge 5 % faster. Reload Boost is now **Berserker**: 5 % more damage dealt while the bar
-  recharges. Cure takes all remaining MP. Ethers and Elixirs restore MP (their descriptions say so), and starting a D-Link
-  refills the bar. KH2-style MP bar under the Focus gauge; a command that would empty the bar has its name in
-  yellow.
+- **SP instead of reloads**: commands cost SP, skill points (their old reload time, so Fire 10, Firaga 15 ...). At
+  0 SP the bar recharges (SP charge, 25 seconds). Magic Haste is now **SP Haste**: every copy installed makes the
+  charge 10 % faster. Attack Haste is now **SP Rage**: damage you take gives SP back. Reload Boost is now
+  **Berserker**: 5 % more damage dealt while the bar recharges. Cure takes all remaining SP. Ethers and Elixirs
+  restore SP (their descriptions say so), and starting a D-Link refills the bar. KH2-style bar under the Focus
+  gauge; a command that would empty the bar has its name in yellow.
 - **Shortcuts**: hold L1 and the menu turns into four commands on the face buttons, as in KH2. There are two sets
   of four: with the list up, the d-pad flips between them. Set them in the pause menu under *Command Decks >
   Shortcuts* (square there switches between the two sets).
@@ -66,7 +66,7 @@ line gives that setting its default back.
 
 | Section | What it holds |
 |---|---|
-| `[MP]`, `[Cost]`, `[Bar]` | maximum MP, recharge, what commands cost, the MP bar's place, size and look |
+| `[MP]`, `[Cost]`, `[Bar]` | maximum SP, recharge, what commands cost, the SP bar's place, size and look (the sections keep their old names) |
 | `[Menu]` | the command menu: positions, texts, list headers and colours, button behaviour |
 | `[Shortcuts]` | the L1 shortcut list |
 | `[Style]` | Command Style and finisher offers |
@@ -107,7 +107,7 @@ variables in `test/run.c`); they are skipped when those are not set. No game fil
 
 | Path | Contents |
 |---|---|
-| `src/` | the mod: `menu.c` command menu, `mp.c` MP and the bar, `style.c` offers, `speed.c` pacing, `shortcut.c` / `sccamp.c` shortcuts, `bundle.c` camera and revenge values, `tex.c` added art, `guard.c` 2D safety checks, `core.c` patching |
+| `src/` | the mod: `menu.c` command menu, `mp.c` SP and the bar (MP in the code), `style.c` offers, `speed.c` pacing, `shortcut.c` / `sccamp.c` shortcuts, `bundle.c` camera and revenge values, `tex.c` added art, `guard.c` 2D safety checks, `core.c` patching |
 | `bundle_src/` | sources of the revenge-value boss scripts and the camera / walk-out data patches |
 | `tools/` | generators for the art, hooks and package |
 | `test/` | the offline tests |
