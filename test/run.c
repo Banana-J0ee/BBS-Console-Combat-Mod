@@ -2750,6 +2750,7 @@ static void t_listhdr(void) {
     CHECK(test_list_y(2, 0, 1) == 228 && test_list_y(2, 1, 2) == 243 && test_list_y(2, 0, 3) == 213 && test_list_y(2, 2, 3) == 243, "Items: from the Items row; 3 rows start on the Magic row (%.0f, %.0f)", test_list_y(2, 0, 1), test_list_y(2, 0, 3));
     CHECK(test_list_y(3, 0, 1) == 243 && test_list_y(3, 0, 3) == 213 && test_list_y(3, 2, 3) == 243, "D-Link: always ends on its own row, the last (%.0f, %.0f..)", test_list_y(3, 0, 1), test_list_y(3, 0, 3));
     /* the words in the command sheet: every language's sheet is recognised, nothing else is */
+    static u8 g_emb_px[3];
     static const char *envs[3] = { "BBS_CMD_RAW", "BBS_CMD_RAW_JP", "BBS_CMD_RAW_FR" };
     size_t sz = 1024 * 1024 * 4; u8 *pix = malloc(sz), *orig = malloc(sz);
     for (int l = 0; l < 3; l++) {
@@ -2758,10 +2759,15 @@ static void t_listhdr(void) {
         FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; continue; }
         CHECK(fread(pix, 1, sz, f) == sz, "read"); fclose(f); memcpy(orig, pix, sz);
         CHECK(test_hd_patch(pix, 1024, 1024) == 1, "%s: command sheet recognised", envs[l]);
-        size_t in = 0, out = 0;
+        size_t in = 0, out = 0, emb = 0;
         for (int y = 0; y < 1024; y++) for (int x = 0; x < 1024; x++) if (memcmp(pix + (y * 1024 + x) * 4, orig + (y * 1024 + x) * 4, 4)) {
-            if (x >= HDART_X && x < HDART_X + HDART_W && y >= HDART_Y && y < HDART_Y + HDART_H) in++; else out++; }
-        CHECK(out == 0 && in > 8000, "only the words' area changed (%zu inside, %zu outside)", in, out);
+            if (x >= HDART_X && x < HDART_X + HDART_W && y >= HDART_Y && y < HDART_Y + HDART_H) in++;
+            else if (x >= HDART_EMB_X && x < HDART_EMB_X + HDART_EMB_W && y >= HDART_EMB_Y && y < HDART_EMB_Y + HDART_EMB_H) emb++;
+            else out++; }
+        CHECK(out == 0 && in > 8000 && emb > 500, "only the words' and the Skills icon's areas changed (%zu, %zu inside, %zu outside)", in, emb, out);
+        { u8 *e = pix + ((size_t)(HDART_EMB_Y + 22) * 1024 + HDART_EMB_X + 16) * 4;           /* inside the emblem: gold */
+          CHECK(e[3] == 255 && e[1] > 100 && (e[0] > e[2] + 60 || e[2] > e[0] + 60), "the Skills icon is in colour (%d %d %d %d)", e[0], e[1], e[2], e[3]);
+          if (l == 0) g_emb_px[0] = e[0], g_emb_px[2] = e[2]; }
         if (l == 0) {
             /* MAGIC: a letter's body is grey and solid, its shadow black; the cell's top row is clear */
             u8 *m = pix + ((size_t)(HDART_MAGIC_V * 2 + 16) * 1024 + HDART_MAGIC_U * 2 + 16) * 4, *t = pix + ((size_t)(HDART_MAGIC_V * 2) * 1024 + HDART_MAGIC_U * 2 + 30) * 4;
@@ -2769,6 +2775,8 @@ static void t_listhdr(void) {
             CHECK(test_hd_patch(pix, 1024, 1024) == 0, "a second pass finds the area in use");
             memcpy(pix, orig, sz); for (size_t i = 0; i < sz; i += 4) { u8 x = pix[i]; pix[i] = pix[i + 2]; pix[i + 2] = x; }
             CHECK(test_hd_patch(pix, 1024, 1024) == 1, "the same sheet in the other byte order is recognised too");
+            { u8 *e = pix + ((size_t)(HDART_EMB_Y + 22) * 1024 + HDART_EMB_X + 16) * 4;
+              CHECK(e[0] == g_emb_px[2] && e[2] == g_emb_px[0], "... and the Skills icon follows its byte order (%d %d)", e[0], e[2]); }
         }
     }
     memset(pix, 0, sz); CHECK(test_hd_patch(pix, 1024, 1024) == 0 && test_hd_patch(orig, 1024, 512) == 0, "an empty sheet and other sizes are left alone");
@@ -2790,6 +2798,22 @@ static void t_listhdr(void) {
     int h = *test_hdr();
     CHECK(h > 0 && FN(int, 0x1a6060, int)(h) == 1, "header instance %d, shown", h);
     CHECK(FN(int, 0x1a6670, int, u16)(h, 0x46) == 0 && FN(int, 0x1a6670, int, u16)(h, 0x47) != 0, "gauge node off, label node on");
+    { /* the Skills entry's icon: the hat's sprite of this plate only is pointed at the emblem */
+      extern void test_set_emb_art(int); extern int test_skills_icon_plate(void);
+      test_set_emb_art(1);
+      *(u8*)RVA(0x1aa620) = 0xC3;                         /* text objects need the font system */
+      int p1 = test_skills_icon_plate(), p2 = FN(int, 0x1a4ec0, int, u16, int, void*)(G(int, 0x10f9ed48), 3, 3, NULL);
+      Pair *e = NULL; int ce = FN(int, 0x1a6980, int, u16, int, Pair**)(p1, 0x5a, 3, &e);
+      CHECK(p1 > 0 && ce == 1 && e && e[0].p->u0 == HDART_EMB_U && e[0].p->v0 == HDART_EMB_V && e[0].p->u1 == HDART_EMB_U + HDART_EMB_UW
+            && e[0].g->x0 == -HDART_EMB_UW / 2 && e[0].g->y0 == -11 && e[0].g->y1 == -11 + HDART_EMB_UH,
+            "Skills icon: the emblem, uv (%d,%d), %d..%d", e ? e[0].p->u0 : 0, e ? e[0].p->v0 : 0, e ? e[0].g->x0 : 0, e ? e[0].g->x1 : 0);
+      printf("  Skills icon: plate %d, uv (%d,%d) %d x %d\n", p1, e ? e[0].p->u0 : -1, e ? e[0].p->v0 : -1, e ? e[0].g->x1 - e[0].g->x0 : 0, e ? e[0].g->y1 - e[0].g->y0 : 0);
+      if (p2 > 0) {
+          FN(int, 0x1a7fb0, int, u16, int, u16, int)(p2, 0x5a, G(int, 0x10f9ed4c), 0x21, 3);
+          Pair *o = NULL; int co = FN(int, 0x1a6980, int, u16, int, Pair**)(p2, 0x5a, 3, &o);
+          CHECK(co <= 0 || (o && o[0].p->u0 == 338 && o[0].p->v0 == 2), "another plate with the hat keeps the hat (%d)", co > 0 && o ? o[0].p->u0 : -1);
+      }
+      test_set_emb_art(0); }
     Pair *q = NULL; int c = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x47, 2, &q);
     CHECK(c == 1 && q && q[0].g->x0 == 0 && q[0].g->y0 == -1 && q[0].g->x1 == HDART_MAGIC_W / 2 && q[0].g->y1 == 9 && q[0].p->u0 == HDART_MAGIC_U && q[0].p->v0 == HDART_MAGIC_V && q[0].p->u1 == HDART_MAGIC_U + HDART_MAGIC_W && q[0].p->v1 == HDART_MAGIC_V + 20 && q[0].p->col[0] == 0x80808080,
           "letters: MAGIC, %d x %d from uv (%d,%d)", q ? q[0].g->x1 : 0, q ? q[0].g->y1 - q[0].g->y0 : 0, q ? q[0].p->u0 : 0, q ? q[0].p->v0 : 0);

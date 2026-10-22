@@ -88,6 +88,7 @@ static u32   c_sc_fill = 0x606060;                  /* strength of the gradient 
 static float c_sc_item_dx = 11;                     /* an item's bottle icon: this far right of its place on the plain plate */
 static int   c_link_icon = 1;                       /* the D-Link entry gets the pink heart (sequence 0x2e, control 0) */
 static float c_link_icon_x = 97, c_link_icon_y = 2; /* ... moved to where the other entries' icons sit (its sprite is at 0,0) */
+static int   c_skill_icon = 1;                      /* the Skills entry shows the gold emblem of the game's menu sheet (0 = the magic hat) */
 static float c_link_name_x = 2;          /* D-Link rows: their name this much further right (2 = where Magic / Items rows have theirs) */
 static u32   c_sc_dim = 0x404040;                   /* name of a command that cannot be used now */
 static int   c_hd = 1;                              /* the "COMMANDS" window is grey as well while the list is shown */
@@ -140,6 +141,7 @@ static void load_ini(void) {
     c_sc_icon_x = ini_f("ShortcutIconX", c_sc_icon_x); c_sc_icon_y = ini_f("ShortcutIconY", c_sc_icon_y);
     c_sc_item_dx = ini_f("ShortcutItemIconShift", c_sc_item_dx);
     c_link_icon = (int)ini_f("DLinkIcon", (float)c_link_icon);
+    c_skill_icon = (int)ini_f("SkillsIcon", (float)c_skill_icon);
     c_link_icon_x = ini_f("DLinkIconX", c_link_icon_x); c_link_icon_y = ini_f("DLinkIconY", c_link_icon_y);
     c_link_name_x = ini_f("DLinkNameX", c_link_name_x);
     c_sc_pad = ini_f("ShortcutPad", c_sc_pad); if (c_sc_pad < 0) c_sc_pad = 0; if (c_sc_pad > 30) c_sc_pad = 30;
@@ -892,6 +894,23 @@ static void link_icon(int h) {
     if (L2D_GetNodeControl(h, 0x5a) != 0) L2D_SetNodeControl(h, 0x5a, 0);
     FN(int, 0x1a7ec0, int, u16, float, float)(h, 0x5a, c_link_icon_x, c_link_icon_y);
 }
+/* The Skills entry's icon (2026-10-22): the gold emblem of the game's menu sheet in place of the magic hat.  The
+   entry keeps the hat's sequence (0x21; the hat is its object 3 in every control: sprite 6, (-10,-11)..(10,10), texture
+   338,2..378,44); its own copy of that sprite is pointed at the emblem, which tex.c adds to the command texture
+   (hdart_gen.h HDART_EMB_*).  Only this plate's copy changes: the hat stays the hat everywhere else.  Done every frame,
+   as a control change may give the node its shared sprite back. */
+static void skills_icon(int h) {
+    if (!c_skill_icon || !tex_emblem_ready()) return;
+    Pair *q;
+    int n = node_quads(h, 0x5a, 3, &q);
+    if (n <= 0 || !q) { L2D_CloneNodeSprite(h, 0x5a, 3); n = node_quads(h, 0x5a, 3, &q); }
+    if (n != 1 || !q || !q[0].g || !q[0].p) return;
+    if (q[0].p->u0 == HDART_EMB_U && q[0].p->v0 == HDART_EMB_V) return;                 /* done */
+    if (q[0].p->u0 != 338 || q[0].p->v0 != 2) return;                                     /* not the hat we know */
+    /* 16 x 22 texels (the emblem with its clear rim) at one screen unit each: about the hat's height, centred where it was */
+    quad(&q[0], -HDART_EMB_UW / 2, -11, HDART_EMB_UW / 2, -11 + HDART_EMB_UH, HDART_EMB_U, HDART_EMB_V,
+         HDART_EMB_U + HDART_EMB_UW, HDART_EMB_V + HDART_EMB_UH, q[0].p->col[0]);
+}
 static int entry_alive(int i) { l2d_live(&g_entry[i]); return g_entry[i] > 0 && L2D_GetControl(g_entry[i]) != 8; }
 static void entry_create(int e, int battle) {
     static const u16 icon[4] = { 0x20, 0x21, 0x22, 0 };         /* keyblade, magic hat, item bottle, none */
@@ -1200,6 +1219,7 @@ void menu_frame(u8 *gauge) {
         } else ready_look(h, selected, 0);
         cursor_body(h, 0x5d, !selected ? 0 : !usable ? 1 : 2);
         if (e == E_LINK) link_icon(h);
+        if (e == E_MAGIC) skills_icon(h);
         L2D_SetColor(h, entry_col);
         L2D_Show(h, hud && !sc);
     }
@@ -1312,6 +1332,12 @@ int test_menu_input(u8 *cmd) { return menu_input(cmd); }
 void test_cmd_update(u8 *cmd) { cmd_update_hook(cmd); }
 void test_hd_frame(u8 *cmd, int grey) { hd_frame(cmd, grey); }
 void test_hdr_frame(int kind, int battle, float x, float y) { hdr_frame(kind, battle, x, y); }
+int test_skills_icon_plate(void) {                  /* a Skills entry plate, its icon set as the menu does */
+    entry_create(E_MAGIC, 1);
+    int h = g_entry[E_MAGIC];
+    if (h > 0) skills_icon(h);
+    return h;
+}
 int *test_hdr(void) { return &g_hdr; }
 float test_list_y(int e, int idx, int n) { return list_y(e, idx, n); }
 float *test_list_x(void) { return &c_list_x; }

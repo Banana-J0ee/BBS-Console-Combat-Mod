@@ -40,6 +40,25 @@ p8 = np.clip(patch + 0.5, 0, 255).astype(np.uint8)
 for s in sheets:
     assert s[OY - 4:OY + PH + 4, OX - 4:OX + PW + 4, 3].max() == 0, 'target area of a command sheet is not empty'
 
+# The Skills entry's icon (2026-10-22): the gold emblem of the game's own menu sheet (camp.l2d's texture, 1024 x 1024,
+# BBS_CAMP_PNG = arc_en/menu/camp.arc "US_camp_arc6.png"), x 58..84, y 755..794, copied with a clear 2-pixel rim (made
+# even, so its corners fall on whole texels of the 512-unit sheet) to the right of the words.  In colour: the order
+# of its bytes is settled when the sheet is patched (tex.c), as for the bar art.
+camp = np.array(Image.open(os.environ['BBS_CAMP_PNG']).convert('RGBA'))
+assert camp.shape == (1024, 1024, 4)
+EB = (58, 755, 85, 795)                                   # x0, y0, x1, y1 (exclusive)
+assert camp[EB[1]:EB[3], EB[0]:EB[2], 3].max() > 200, 'the emblem is not where it was'
+emb = np.zeros((EB[3] - EB[1] + 4, EB[2] - EB[0] + 4, 4), np.uint8)
+emb[2:-2, 2:-2] = camp[EB[1]:EB[3], EB[0]:EB[2]]
+if emb.shape[1] % 2: emb = np.concatenate([emb, np.zeros((emb.shape[0], 1, 4), np.uint8)], 1)
+if emb.shape[0] % 2: emb = np.concatenate([emb, np.zeros((1, emb.shape[1], 4), np.uint8)], 0)
+emb[emb[:, :, 3] == 0] = 0
+EX, EY = OX + PW + 8, OY                                   # pixels, even
+EX += EX % 2
+EH, EW = emb.shape[:2]
+for s in sheets:
+    assert s[EY - 4:EY + EH + 4, EX - 4:EX + EW + 4, 3].max() == 0, 'the emblem\'s area of a command sheet is not empty'
+
 # check pixels: opaque, flat surroundings, the same in every sheet given
 rng = np.random.RandomState(11)
 s16 = [s.astype(np.int16) for s in sheets]
@@ -70,7 +89,15 @@ with open(os.path.join(ROOT, 'src', 'hdart_gen.h'), 'w') as f:
     for name, (x, y, w, h) in words.items():
         n = name.replace('-', '')
         f.write('#define HDART_%s_U %d\n#define HDART_%s_V %d\n#define HDART_%s_W %d\n#define HDART_%s_H %d\n' % (n, (OX + x) // 2, n, (OY + y) // 2, n, w // 2, n, h // 2))
+    f.write('/* the Skills icon (the menu sheet\'s gold emblem): pixels in the sheet, and its texels (units of 512) */\n')
+    f.write('#define HDART_EMB_X %d\n#define HDART_EMB_Y %d\n#define HDART_EMB_W %d\n#define HDART_EMB_H %d\n' % (EX, EY, EW, EH))
+    f.write('#define HDART_EMB_U %d\n#define HDART_EMB_V %d\n#define HDART_EMB_UW %d\n#define HDART_EMB_UH %d\n' % (EX // 2, EY // 2, EW // 2, EH // 2))
     f.write('#ifdef HDART_DATA\n')
+    f.write('/* RGBA, row by row */\nstatic const unsigned char hdart_emb[%d] = {\n' % emb.size)
+    flat_e = emb.reshape(-1)
+    for k in range(0, len(flat_e), 32):
+        f.write('    ' + ','.join(str(int(v)) for v in flat_e[k:k + 32]) + ',\n')
+    f.write('};\n')
     f.write('static const struct { unsigned short x, y; unsigned char r, g, b, a; } hdart_checks[%d] = {\n' % len(checks))
     for c in checks: f.write('    { %d, %d, %d, %d, %d, %d },\n' % c)
     f.write('};\n')
@@ -87,7 +114,7 @@ with open(os.path.join(ROOT, 'src', 'hdart_gen.h'), 'w') as f:
     for k in range(0, len(runs), 10):
         f.write('    ' + ' '.join('%d,%d,%d,' % r for r in runs[k:k + 10]) + '\n')
     f.write('};\n#endif\n')
-print('patch %dx%d px at (%d,%d), %d runs (%d bytes), %d check pixels' % (PW, PH, OX, OY, len(runs), len(runs) * 3, len(checks)), words)
+print('patch %dx%d px at (%d,%d), %d runs (%d bytes), %d check pixels; emblem %dx%d at (%d,%d)' % (PW, PH, OX, OY, len(runs), len(runs) * 3, len(checks), EW, EH, EX, EY), words)
 if len(sys.argv) > 1:
-    out = sheets[0].copy(); out[OY:OY + PH, OX:OX + PW] = p8
+    out = sheets[0].copy(); out[OY:OY + PH, OX:OX + PW] = p8; out[EY:EY + EH, EX:EX + EW] = emb
     Image.fromarray(out).save(sys.argv[1])

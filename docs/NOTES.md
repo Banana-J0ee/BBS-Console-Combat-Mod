@@ -1320,3 +1320,13 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
   an "s" drawn on its pixel grid (12 rows, strokes 4 wide, bars 2 rows, corners trimmed by one), centred where "mp"
   was.  The menu panel's label: tools/genstatart.py draws an S in the sheet's square style (8 x 10, like its E / F)
   and puts the sheet's P 2 texels after it (as in "HP"); STAT_M_* names kept.  Test: t_stat (the S, the P).
+
+## The Skills entry's icon: the gold emblem (2026-10-22; menu.c skills_icon, `[Menu] SkillsIcon`)
+* Asked for: the Skills entry shows the gold emblem of the game's own menu sheet (camp.l2d's texture, x 58..84,
+  y 755..794) instead of the magic hat, and nothing else changes.  tools/genhdart.py copies it (needs BBS_CAMP_PNG)
+  with a clear 2-pixel rim, 32 x 44, to px 268,740 of the command sheet beside the header words (empty in EN / JP / FR);
+  tex.c writes it in colour, in the byte order the check pixels show (BGRA from the game's decoder).
+* The entry keeps sequence 0x21 (game id 33; the hat is object 3, sprite 6, in all 8 controls, quad (-10,-11)..(10,10),
+  uv 338,2..378,44); each frame its plate's own copy of that sprite (L2D_CloneNodeSprite) is pointed at the emblem:
+  16 x 22 texels at one unit each, x -8..8, y -11..11.  Other plates with the hat keep it.  Test: t_listhdr (the art
+  in all three sheets and both byte orders; on the layout runtime the Skills plate's icon and another plate's hat).

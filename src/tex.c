@@ -86,19 +86,23 @@ static int stat_patch(u8 *pix, int w, int h) {
    by language (the label, the word under it), so it is recognised by 24 pixels of the art all languages share; the
    words (hdart_gen.h, drawn by tools/hdfont.py) go to an area they all leave empty.  Grey and black only, so the
    byte order of the pixels does not matter. */
-static int g_hd_art;
+static int g_hd_art, g_emb_art;
 int tex_hd_art_ready(void) { return g_hd_art; }
+int tex_emblem_ready(void) { return g_emb_art; }
 static int hd_patch(u8 *pix, int w, int h) {
     if (w != HDART_SHEET || h != HDART_SHEET || !pix) return 0;
-    int n = (int)(sizeof hdart_checks / sizeof *hdart_checks), ok = 0;
+    int n = (int)(sizeof hdart_checks / sizeof *hdart_checks), ok = 0, rgb = 0, bgr = 0;
     for (int i = 0; i < n; i++) {
         const u8 *p = pix + ((size_t)hdart_checks[i].y * (size_t)w + hdart_checks[i].x) * 4;
         int r = hdart_checks[i].r, g = hdart_checks[i].g, b = hdart_checks[i].b, a = hdart_checks[i].a;
 #define CLOSE(a, b) ((a) - (b) <= 3 && (b) - (a) <= 3)
         if (CLOSE(p[3], a) && CLOSE(p[1], g) && ((CLOSE(p[0], r) && CLOSE(p[2], b)) || (CLOSE(p[0], b) && CLOSE(p[2], r)))) ok++;
+        if (CLOSE(p[3], a) && CLOSE(p[1], g) && CLOSE(p[0], r) && CLOSE(p[2], b) && r != b) rgb++;
+        if (CLOSE(p[3], a) && CLOSE(p[1], g) && CLOSE(p[0], b) && CLOSE(p[2], r) && r != b) bgr++;
 #undef CLOSE
     }
     if (ok < n - 1) return 0;                                   /* not the command sheet */
+    int swap = bgr >= rgb;                                      /* the decoder's BGRA, unless the sheet says otherwise */
     for (int y = -2; y < HDART_H + 2; y++) {                    /* the area must be unused */
         const u8 *row = pix + ((size_t)(HDART_Y + y) * (size_t)w + HDART_X - 2) * 4;
         for (int x = 0; x < HDART_W + 4; x++) if (row[x * 4 + 3]) { LOG("header art: the area in the command texture is in use, left alone"); return 0; }
@@ -114,6 +118,20 @@ static int hd_patch(u8 *pix, int w, int h) {
         }
         r += 3;
     }
+    /* the Skills entry's icon (the menu sheet's gold emblem, in colour) beside the words, if its area is free */
+    int emb_free = 1;
+    for (int ey = -2; ey < HDART_EMB_H + 2 && emb_free; ey++)
+        for (int ex = -2; ex < HDART_EMB_W + 2; ex++)
+            if (pix[((size_t)(HDART_EMB_Y + ey) * (size_t)w + HDART_EMB_X + ex) * 4 + 3]) { emb_free = 0; break; }
+    if (emb_free) {
+        for (int ey = 0; ey < HDART_EMB_H; ey++)
+            for (int ex = 0; ex < HDART_EMB_W; ex++) {
+                const u8 *s = hdart_emb + ((size_t)ey * HDART_EMB_W + ex) * 4;
+                u8 *d = pix + ((size_t)(HDART_EMB_Y + ey) * (size_t)w + HDART_EMB_X + ex) * 4;
+                d[0] = swap ? s[2] : s[0]; d[1] = s[1]; d[2] = swap ? s[0] : s[2]; d[3] = s[3];
+            }
+        g_emb_art = 1;
+    } else LOG("menu: the Skills icon's area in the command texture is in use, left alone");
     return 1;
 }
 
@@ -154,4 +172,5 @@ void test_set_stat_art(int on) { g_stat_art = on; }
 void test_set_art(int on) { g_art = on; }
 int test_hd_patch(u8 *pix, int w, int h) { return hd_patch(pix, w, h); }
 void test_set_hd_art(int on) { g_hd_art = on; }
+void test_set_emb_art(int on) { g_emb_art = on; }
 #endif

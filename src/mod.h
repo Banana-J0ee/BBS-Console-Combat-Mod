@@ -27,6 +27,7 @@ int  tex_check(void);
 void tex_apply(void);
 void tex_enable(int on);
 int  tex_art_ready(void);           /* 1 once KH2's MP bar art is in the gauge texture */
+int  tex_emblem_ready(void);        /* 1 once the Skills icon (the menu sheet's gold emblem) is in the command texture */
 int  tex_stat_art_ready(void);      /* 1 once the "MP" label is in the menu texture */
 /* the mod's own 2D instances, for the crash log: appends " name=handle" for every live one */
 void mod_own_handles(char *out, int n);
