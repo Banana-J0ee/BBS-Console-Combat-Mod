@@ -1335,3 +1335,15 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
   (y -7..9) and then the art on y -6..8 both showed the emblem low and nearly filling the inside.
   Other plates with the hat keep it.  Test: t_listhdr (the art in all three sheets and both byte orders; on the layout
   runtime the Skills plate's icon, what the node draws, and another plate's hat).
+
+## D-Link rows solid (2026-10-23; menu.c plate_update_hook, `[Menu] DLinkRowsSolid`)
+* Reported: the D-Link list is see-through, unlike the Magic / Items lists.  Cause (bc01_00, sequence 0x2d): the
+  D-Link plate is one sprite, 63 - frame and its black inside in one piece of art (texture 120,48..176,86, inside
+  opaque in the texture) - and controls 3 / 4 multiply it by the key 3c3c3c with alpha a0, so the whole plate,
+  inside included, draws at about 63 %.  The Magic / Items body (sequence 0xb) has the same a0 on its frame sprite
+  0, but lays sprite 2 (object 6, black, alpha ff) over the inside.  Under the cursor (control 0) the D-Link plate
+  has no colour key and is opaque.
+* Fix: the D-Link row rule of tint_node now also sets the key's alpha to ff (Tint `to` with a top byte = alpha;
+  0 keeps the game's, as before for every other rule).  DLinkRowsSolid=1 default; with DLinkRowsBright=0 the
+  rule keeps 3c3c3c and only changes the alpha.  Test t_colours: record alpha ff and the drawn colour word's alpha
+  above the game's.  Not seen in the game by me.

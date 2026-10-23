@@ -63,6 +63,7 @@ static float c_list_dim_level = 50;    /* ... to this much of their brightness, 
 static int   c_list_col = 1;           /* each list has its own colour, the same in battle and out of it (0 = the game's battle / field colours) */
 static u32   c_col_plate[3] = { 0x005ff0, 0x00c832, 0x0096fa };    /* Magic, Items, D-Link: the header's plate and the rows' frames ... */
 static u32   c_col_title[3] = { 0x00ffff, 0xc8ff64, 0xffffff };    /* ... and the letters on the header.  RRGGBB, 80 = the texture's own grey */
+static int   c_link_solid = 1;         /* D-Link rows not under the cursor opaque, as the other lists' rows (the game draws them at alpha a0) */
 static int   c_link_bright = 1;        /* D-Link rows not under the cursor in full colour, as the other lists' rows (the game draws them dark) */
 static float c_head_dy = -4.5f;        /* the "COMMANDS" gauge window: moved by this from the game's place (table row 1) */
 static float head_y(void) { return (float)G(s16, 0x818308 + 4) + c_head_dy; }
@@ -129,6 +130,7 @@ static void load_ini(void) {
         snprintf(b, sizeof b, "%06x", c_col_plate[i]); ini_s(kp[i], b, sizeof b); c_col_plate[i] = (u32)strtoul(b, NULL, 16) & 0xffffff;
         snprintf(b, sizeof b, "%06x", c_col_title[i]); ini_s(kt[i], b, sizeof b); c_col_title[i] = (u32)strtoul(b, NULL, 16) & 0xffffff; } }
     c_link_bright = (int)ini_f("DLinkRowsBright", (float)c_link_bright);
+    c_link_solid = (int)ini_f("DLinkRowsSolid", (float)c_link_solid);
     c_head_dy = ini_f("HeaderShift", c_head_dy);
     c_noshadow = (int)ini_f("HeaderShadow", 0) == 0;
     c_prompt_x = ini_f("PromptX", c_prompt_x); c_prompt_y = ini_f("PromptY", c_prompt_y);
@@ -518,7 +520,8 @@ static Key  g_sc_keys[0x10000];
    by the next pass, which runs after the plate's own update and before anything is drawn.
    Twins are made once per record and colour and kept; their keys sit above any key index of the file (bc01_00
    has 3749 keys), so a game record read through our table by mistake finds zeros. */
-typedef struct { s16 spr; u32 from, to; } Tint;         /* objects showing this sprite: colour keys equal to `from` (ANY: all of them) become `to` */
+typedef struct { s16 spr; u32 from, to; } Tint;         /* objects showing this sprite: colour keys equal to `from` (ANY: all of them) become `to`
+                                                           (RGB; a non-zero top byte of `to` sets the keys' alpha too, else the game's alpha stays) */
 #define ANY 0xffffffffu
 #define TW_SLOTS 256
 #define TW_KEYS  32
@@ -533,7 +536,7 @@ static Anim *twin_for(Anim *src, Key *gk, const Tint *r) {
     if (!nc || nk > TW_KEYS) return NULL;
     for (int k = nk - nc; k < nk; k++) {
         const u8 *c = gk[src->key + k].v.c; u32 rgb = (u32)c[0] << 16 | (u32)c[1] << 8 | c[2];
-        if ((r->from == ANY || rgb == r->from) && rgb != r->to) hit = 1;
+        if ((r->from == ANY || rgb == r->from) && (rgb != (r->to & 0xffffff) || (r->to >> 24 && c[3] != r->to >> 24))) hit = 1;
     }
     if (!hit) return NULL;                              /* the game's record already has that colour */
     if (g_tw_n >= TW_SLOTS) g_tw_n = 0;                 /* full (the file was loaded anew many times): start over; every pass sets what it wants again */
@@ -543,7 +546,8 @@ static Anim *twin_for(Anim *src, Key *gk, const Tint *r) {
     for (int k = nk - nc; k < nk; k++) {
         u8 *c = dst[k].v.c; u32 rgb = (u32)c[0] << 16 | (u32)c[1] << 8 | c[2];
         if (r->from != ANY && rgb != r->from) continue;
-        c[0] = (u8)(r->to >> 16); c[1] = (u8)(r->to >> 8); c[2] = (u8)r->to;          /* alpha stays the game's */
+        c[0] = (u8)(r->to >> 16); c[1] = (u8)(r->to >> 8); c[2] = (u8)r->to;          /* alpha stays the game's ... */
+        if (r->to >> 24) c[3] = (u8)(r->to >> 24);                                   /* ... unless the rule sets one */
     }
     g_tw_anim[slot] = *src; g_tw_anim[slot].key = (u16)(TW_KEY0 + slot * TW_KEYS);
     g_tw_id[slot].src = src; g_tw_id[slot].from = r->from; g_tw_id[slot].to = r->to;
@@ -782,9 +786,11 @@ static void MSABI plate_update_hook(u8 *P) {
         link_row_places(h);
         /* The D-Link plate's blue is in its art (the corners of sprite 63's quads are 0080ff); the game multiplies
            it with 3c3c3c for every row but the one under the cursor.  Here those rows are in full colour, like the
-           rows of the other lists (their alpha, a0, stays). */
-        { static const Tint bright[1] = { { 63, 0x3c3c3c, 0x808080 } };
-          tint_node(h, 1, bright, c_list_col && c_link_bright ? 1 : 0); }
+           rows of the other lists.  That key's alpha is a0, and sprite 63 is the whole plate - frame and its black
+           inside in one piece of art - so the inside showed the game through it.  The Magic / Items rows lay an
+           opaque black sprite (2) over their a0 body; here the key's alpha goes to ff instead (DLinkRowsSolid). */
+        { Tint row[1] = { { 63, 0x3c3c3c, (c_link_bright ? 0x808080u : 0x3c3c3cu) | (c_link_solid ? 0xff000000u : 0) } };
+          tint_node(h, 1, row, c_list_col && (c_link_bright || c_link_solid) ? 1 : 0); }
         L2D_SetPos(h, c_list_x + (selected ? c_bump : 0), list_y(E_LINK, idx, n));
         L2D_SetPriority(h, selected ? 13 : 12);         /* over the menu's entries and the gauge window, as the other lists */
         L2D_SetColor(h, 0xffffffff);

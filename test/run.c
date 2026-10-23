@@ -2999,6 +2999,11 @@ static void t_colours(void) {
     test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
     c = t_obj_col(hl, 1, 2, &spr, &ours, NULL);
     CHECK(spr == 63 && c == 0x808080a0 && ours, "bright: the art's own blue at the game's alpha (%08x)", c);
+    test_tint_node(hl, 1, 63, 0x3c3c3c, 0xff808080);
+    c = t_obj_col(hl, 1, 2, &spr, &ours, NULL);
+    CHECK(spr == 63 && c == 0x808080ff && ours, "solid: full alpha as well, so the inside is not see-through (%08x)", c);
+    { u32 ds = t_drawn_col(hl, 1, 3); CHECK(ds >> 24 > dd >> 24, "drawn opaque (%08x, was %08x)", ds, dd); }
+    test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
     u32 dl = t_drawn_col(hl, 1, 3);
     CHECK(dl != dd && dl != 0, "drawn brighter (%08x, was %08x)", dl, dd);
     FN(int, 0x1a7520, int, int)(hl, 0); test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
