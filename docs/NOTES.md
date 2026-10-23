@@ -1434,3 +1434,18 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
 * Test t_sporb: the game's own 2d5b30 over a made-up table (2 HP, 3 + 1 D-Link at 100 %) with 1e83e0 stubbed: a Flood
   gets 4 orbs, a boss none, a drop outside a defeat none, 0.5 about half; pickup +2 % / +2 % of the recharge, a
   friend's pickup nothing.  Not seen in the game by me.  Look and sound: next.
+
+### SP orbs: the look (2026-10-23)
+
+Prize looks are FEP particle effects in `arc/system/commonGame.arc` → `s_ex_prz_00.fep` (9 effects: SYS_PRZ_000_0/1 HP,
+001_0/1 D-Link, 002_0/1/2 munny, 100_0, 003_0).  SYS_PRZ_100_0 is in the file but no prize type uses it.  The effect is
+picked while the prize is made (1ea280, from the type's +0x20 file / +0x28 effect name), so the orb borrows kind 5's
+entry for its one 1e83e0 call with the name swapped (`[SPOrbs] Look`).  Textures are not in the FEP: its five texture
+resources are ids 0xf00000xx into `arc/system/common.arc` → `resident.frr` (29 shared textures; the remastered DDS
+of frr texture N is common.arc's remastered entry N+4).  The prizes use 0x12 (orbs / D-Link star sheet), 0x0a, 0x13
+(munny crystal), 0x04, 0x1b (chrome sphere) - and 0x1b alone is shared by ~100 other effects (magic, bosses), so its
+pixels can't be swapped for KH2's bubble (obj/PRIZE.mdlx remastered -1.dds) without changing those too.
+HD DDS textures go through 4e19b0 → the call to 4e1630 at 4e1e47 (the PNG path is 4e1ee4).
+Pickup sound: record +0x44 (bank, -1 = system) / +0x46 (SE id) → 1b2e40 (system bank "se0000",
+sound/win/se/common/se0000.win32.scd) or 1b2c70 (bank*0x400+id).  HP 11, D-Link 12, munny 13.  Bounce sounds come
+from 1e8d30 / 1e93c0 by command (0x3c / 0x3d / 0x3e) - the orb (0x1ef) has none.

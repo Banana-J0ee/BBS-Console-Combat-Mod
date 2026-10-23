@@ -34,6 +34,9 @@ static const u32 DEATH_CALLS[2] = { 0x2d8f16, 0x2defd8 };
 static int   c_on = 1;              /* [SPOrbs] Enabled */
 static float c_per = 1.0f;          /* orbs per D-Link prize (a fraction = that chance of one) */
 static float c_pct = 2.0f;          /* percent of max SP per orb (also the recharge it adds in an SP charge) */
+static int   c_look = 1;            /* the effect it is drawn with: 0 the small D-Link prize's, 1 SYS_PRZ_100_0 (in the
+                                       prize effects s_ex_prz_00.fep but used by no prize type), 2 SYS_PRZ_003_0 */
+static const char *const k_look[3] = { "SYS_PRZ_001_0", "SYS_PRZ_100_0", "SYS_PRZ_003_0" };
 static u8    g_rec[0x50];           /* the orb's prize type: kind 5's, command 0x1ef */
 static u8   *g_drop;                /* the defeated regular enemy whose drops are being made */
 static u32   g_seed = 0x2545f491u;
@@ -49,7 +52,13 @@ static u8 *MSABI make_hook(void *pos, int kind, u64 a3, int a4, float a5, float 
         float n = c_per;
         while (n > 0) {
             if (n < 1 && rnd() >= n) break;
+            /* the effect is chosen while the prize is made (1ea280: from its type's +0x20 / +0x28): kind 5's entry
+               lends the orb's name for this one call */
+            u8 *k5 = g_base + PRIZE_TYPES + 5 * 0x50;
+            const char *was = *(const char**)(k5 + 0x28);
+            *(const char**)(k5 + 0x28) = *(const char**)(g_rec + 0x28);
             u8 *o = ((MakeFn)(g_base + MAKE_FN))(pos, 5, 0, 0, a5, a6);
+            *(const char**)(k5 + 0x28) = was;
             if (o) { *(u8**)(o + 0x250) = g_rec; g_made++; }
             n -= 1;
         }
@@ -90,6 +99,7 @@ int sporb_check(void) {
     c_on = (int)ini_f("Enabled", (float)c_on);
     c_per = ini_f("PerDLinkPrize", c_per); if (!(c_per >= 0 && c_per <= 5)) c_per = 1.0f;
     c_pct = ini_f("SPPercent", c_pct); if (!(c_pct >= 0 && c_pct <= 100)) c_pct = 2.0f;
+    c_look = (int)ini_f("Look", (float)c_look); if (c_look < 0 || c_look > 2) c_look = 1;
     if (!c_on) return 1;
     int bad = 0;
     for (int i = 0; i < 2; i++) if (!call_ok(DEATH_CALLS[i], DROP_FN)) { LOG("sp orbs: defeat drop call %x does not match", DEATH_CALLS[i]); bad++; }
@@ -97,6 +107,7 @@ int sporb_check(void) {
     if (!call_ok(PICK_CALL, PICK_FN)) { LOG("sp orbs: pickup call does not match"); bad++; }
     const u8 *k5 = g_base + PRIZE_TYPES + 5 * 0x50;
     if (*(const u32*)(k5 + 0x40) != 0x1e4) { LOG("sp orbs: prize type 5 is not the D-Link prize"); bad++; }
+    else { const char *nm = *(const char* const*)(k5 + 0x28); if (!nm || strcmp(nm, "SYS_PRZ_001_0")) { LOG("sp orbs: prize type 5 has another effect"); bad++; } }
     if (G(u8, 0x814900 + ORB_CMD * 0x18) != 10) { LOG("sp orbs: command %x is not a prize", ORB_CMD); bad++; }
     return bad == 0;
 }
@@ -104,6 +115,7 @@ void sporb_apply(void) {
     if (!c_on) { LOG("sp orbs: off"); return; }
     memcpy(g_rec, g_base + PRIZE_TYPES + 5 * 0x50, sizeof g_rec);
     *(u32*)(g_rec + 0x40) = ORB_CMD;
+    *(const char**)(g_rec + 0x28) = k_look[c_look];                 /* the effect's name in the prize effects */
     for (int i = 0; i < 2; i++) hook_call(DEATH_CALLS[i], DROP_FN, drop_hook, "defeat drops (SP orbs)");
     hook_call(MAKE_CALL, MAKE_FN, make_hook, "prize (SP orbs)");
     hook_call(PICK_CALL, PICK_FN, pick_hook, "prize pickup (SP orbs)");

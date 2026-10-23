@@ -261,8 +261,9 @@ static void t_fx(void) {
 }
 /* SP orbs: a defeated regular enemy's D-Link prizes come with SP orbs; an orb picked up gives SP back */
 static int g_mk_kind[64], g_mk_n; static u8 *g_mk_obj[64];
+static const char *g_mk_look[64];
 static u8 *MSABI s_make(void *pos, int kind, u64 a3, int a4, float a5, float a6) { (void)pos; (void)a3; (void)a4; (void)a5; (void)a6;
-    u8 *o = calloc(1, 0x3a0); *(u8**)(o + 0x250) = RVA(0x817b30 + kind * 0x50); if (g_mk_n < 64) { g_mk_kind[g_mk_n] = kind; g_mk_obj[g_mk_n] = o; } g_mk_n++; return o; }
+    u8 *o = calloc(1, 0x3a0); if (g_mk_n < 64) g_mk_look[g_mk_n] = *(const char**)RVA(0x817b30 + kind * 0x50 + 0x28); *(u8**)(o + 0x250) = RVA(0x817b30 + kind * 0x50); if (g_mk_n < 64) { g_mk_kind[g_mk_n] = kind; g_mk_obj[g_mk_n] = o; } g_mk_n++; return o; }
 static u32 g_drop_tab[8];
 static void *MSABI s_droptab(int id) { (void)id; return g_drop_tab; }
 static int MSABI s_zero(void) { return 0; }
@@ -288,7 +289,13 @@ static void t_sporb(void) {
     int hp = 0, dl = 0, orb = 0;
     for (int i = 0; i < g_mk_n && i < 64; i++) { if (g_mk_kind[i] == 0) hp++; else if (g_mk_kind[i] == 6 || (g_mk_kind[i] == 5 && *(u8**)(g_mk_obj[i] + 0x250) != test_sporb_rec())) dl++; else if (*(u8**)(g_mk_obj[i] + 0x250) == test_sporb_rec()) orb++; }
     CHECK(hp == 2 && dl == 4 && orb == 4 && test_sporb_counts()[0] == 4, "Flood defeated: its 2 HP and 4 D-Link prizes, and 4 SP orbs (%d / %d / %d)", hp, dl, orb);
-    CHECK(*(u32*)(test_sporb_rec() + 0x40) == 0x1ef && !memcmp(test_sporb_rec(), RVA(0x817b30 + 5 * 0x50), 0x40), "the orb's prize type: the small D-Link prize's, command 1ef");
+    { int lk = 0, dk = 0; for (int i = 0; i < g_mk_n && i < 64; i++) {
+          if (*(u8**)(g_mk_obj[i] + 0x250) == test_sporb_rec()) lk += !strcmp(g_mk_look[i], "SYS_PRZ_100_0");
+          else if (g_mk_kind[i] == 5) dk += !strcmp(g_mk_look[i], "SYS_PRZ_001_0"); }
+      CHECK(lk == 4 && dk == 3 && !strcmp(*(char**)RVA(0x817b30 + 5 * 0x50 + 0x28), "SYS_PRZ_001_0"), "made with their own effect (%d), the D-Link prizes with theirs (%d), kind 5 put back", lk, dk); }
+    CHECK(*(u32*)(test_sporb_rec() + 0x40) == 0x1ef && !memcmp(test_sporb_rec(), RVA(0x817b30 + 5 * 0x50), 0x28)
+          && !memcmp(test_sporb_rec() + 0x30, RVA(0x817b30 + 5 * 0x50 + 0x30), 0x10) && !strcmp(*(char**)(test_sporb_rec() + 0x28), "SYS_PRZ_100_0"),
+          "the orb's prize type: the small D-Link prize's, command 1ef, drawn with SYS_PRZ_100_0");
     /* a boss: no orbs */
     strcpy((char*)ent + 0xf0, "b10ex00"); g_mk_n = 0; test_sporb_reset();
     drop(ent, pos, 100, 0, 0);
