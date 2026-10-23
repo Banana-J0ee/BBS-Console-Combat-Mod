@@ -2804,8 +2804,8 @@ static void t_listhdr(void) {
       *(u8*)RVA(0x1aa620) = 0xC3;                         /* text objects need the font system */
       int p1 = test_skills_icon_plate(), p2 = FN(int, 0x1a4ec0, int, u16, int, void*)(G(int, 0x10f9ed48), 3, 3, NULL);
       Pair *e = NULL; int ce = FN(int, 0x1a6980, int, u16, int, Pair**)(p1, 0x5a, 1, &e);
-      CHECK(p1 > 0 && ce == 1 && e && e[0].p->u0 == HDART_EMB_U && e[0].p->v0 == HDART_EMB_V && e[0].p->u1 == HDART_EMB_U + HDART_EMB_UW
-            && e[0].g->x0 == -5 && e[0].g->y0 == -7 && e[0].g->x1 == 7 && e[0].g->y1 == 9 && e[0].p->col[0] == 0x80808080,
+      CHECK(p1 > 0 && ce == 1 && e && e[0].p->u0 == HDART_EMB_U && e[0].p->v0 == HDART_EMB_V + 3 && e[0].p->u1 == HDART_EMB_U + HDART_EMB_UW
+            && e[0].g->x0 == -5 && e[0].g->y0 == -6 && e[0].g->x1 == 7 && e[0].g->y1 == 8 && e[0].p->col[0] == 0x80808080,
             "Skills icon: the emblem, uv (%d,%d), %d..%d", e ? e[0].p->u0 : 0, e ? e[0].p->v0 : 0, e ? e[0].g->x0 : 0, e ? e[0].g->x1 : 0);
       /* and it is what the game draws for the icon node */
       { draw_stubs(); FN(int, 0x1a5b30, int, int)(p1, 1);
@@ -2814,7 +2814,7 @@ static void t_listhdr(void) {
         int ok = 0;
         if (nd) { G(u8, 0x8f88020 + (s8)nd[0x86]) = 1; G(u8, 0x8f8802c) = 1; g_vcalls = 0; memset(g_vtx, 0, sizeof g_vtx);
             FN(void, 0x1aaea0, u8*, int)(nd, 0);
-            ok = g_vcalls == 1 && g_vn[0] == 4 && g_vtx[0][4] == HDART_EMB_U && g_vtx[0][5] == HDART_EMB_V; }
+            ok = g_vcalls == 1 && g_vn[0] == 4 && g_vtx[0][4] == HDART_EMB_U && g_vtx[0][5] == HDART_EMB_V + 3; }
         CHECK(ok, "Skills icon: the node draws the emblem (%d draws, uv %.0f,%.0f)", g_vcalls, g_vtx[0][4], g_vtx[0][5]); }
       printf("  Skills icon: plate %d, uv (%d,%d) %d x %d\n", p1, e ? e[0].p->u0 : -1, e ? e[0].p->v0 : -1, e ? e[0].g->x1 - e[0].g->x0 : 0, e ? e[0].g->y1 - e[0].g->y0 : 0);
       if (p2 > 0) {

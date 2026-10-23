@@ -909,8 +909,9 @@ static void skills_icon(int h) {
     if (n != 1 || !q || !q[0].g || !q[0].p) return;
     if (q[0].p->u0 == HDART_EMB_U && q[0].p->v0 == HDART_EMB_V) return;                 /* done */
     if (q[0].p->u0 != 26 || q[0].p->v0 != 98 || q[0].g->x0 != -6 || q[0].g->y0 != -6) return;      /* not the hat we know */
-    /* 12 x 16 units (the emblem with its clear rim, 16 x 22 texels), centred where the hat was (1, 1) */
-    quad(&q[0], -5, -7, 7, 9, HDART_EMB_U, HDART_EMB_V, HDART_EMB_U + HDART_EMB_UW, HDART_EMB_V + HDART_EMB_UH, 0x80808080);
+    /* the emblem's own part of its block (texels 0..16 x 3..21: the art sits 3 texels low in it, with a stray row
+       above) on 12 x 14 units, so its middle is the hat's (1, 0.6) and the plate's (node y 0.5) */
+    quad(&q[0], -5, -6, 7, 8, HDART_EMB_U, HDART_EMB_V + 3, HDART_EMB_U + HDART_EMB_UW, HDART_EMB_V + 21, 0x80808080);
 }
 static int entry_alive(int i) { l2d_live(&g_entry[i]); return g_entry[i] > 0 && L2D_GetControl(g_entry[i]) != 8; }
 static void entry_create(int e, int battle) {
