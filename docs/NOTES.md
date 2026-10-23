@@ -1387,3 +1387,29 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
 * Test: t_linkdrain (the game's own gauge update through the hook: one frame early in a link 2x, late 0.4 a frame,
   no link / pinned / skip flag nothing added); t_use (no refill without the ability, refill with it); t_cm (33 on
   Critical, bit 27, help, name).  Not seen in the game by me.
+
+## Regular enemies wait less ([Mobs], 2026-10-23; revenge.lua attachMob / mobValue, bundle.c mob_patch)
+* Investigated first (no changes): BBS Unversed vs KH2 Heartless / Nobodies.  BBS: no group attack limit -
+  Enemy.CanAttack (2b7670 -> 2d2ae0) is a perception check (target in the enemy's 10-slot sight table at +0x2b0:
+  visible, awareness >= 100, seen within 60 ticks, first spotted over 15 ticks ago; sight range +0x29c 15.0; the
+  table is refreshed in 2d1dc0); waits are per-script SetTimer values (Scrapper 3 s idle, Monotrucker 3 s, Red
+  Hot Chili 2 s, Buckle Bruiser two idle loops + 0..1.3 s, wanders 4..12 s).  KH2 (its BDX AI: idle_time 15..45
+  frames, counterattack on flinch, group shouts, no attack limit, no difficulty reads) - scratch tools in
+  /home/claude/kh2mob (bdx.py disassembler) and /home/claude/mobs (decompiled mob scripts, upvalue dumps).
+* Asked for: only shorter waits, for the Unversed and Maleficent's goons.  RV.mobs: m01..m22, m25, m50..m57 (31
+  Unversed by OpenKH's model names) and m01sb00 / m02sb00 (goons).  Out: Prize Pod m23 (only runs), Disney Town
+  m03dc00 / m07dc00, Heartless m40..m42, the Mirage Arena "vs" copies, bosses, allies (Peter Pan included).
+* How: attachMob wraps the factory record's Create of a listed name (not when it has a boss cfg), tracks the state
+  through GotoStateSub and puts the entity in the SetTimer pace table the bosses use (P.by).  The state decides:
+  MOB_KIND idle (Idling, Idling2, InIdling, InIdlingNeedle, Rock_Idling, FastIdling, UndergroundIdling, SearchIdling,
+  Search, SeekTarget, SearchTargeting, AttackWaiting, BeforeAttackIdling, Waiting) x WaitScale 0.5; wander (Wander,
+  Rotation, Goes_away, Shuffle, Uneasiness, SearchTargetingUneasiness) x WanderScale 0.5; recover (Stiff,
+  Stiffening, Dizzy) x RecoveryScale 1.0; nothing below WaitFloor 0.3 s (18 frames; shorter waits stay).  Per enemy:
+  Yellow Mustard m18 decides inside its Move (70 % attack, 30 % a wait set there): Move = idle.  The state list was
+  read from every SetTimer in the 33 scripts.  Waits counted in a field of the script's own (Bruiser's Wait = a third
+  of its idle, Belly Balloon / Floating Flora's behaviours) are not changed.
+* Settings: [Mobs] Enabled / WaitScale / WaitFloor / WanderScale / RecoveryScale, float markers 9003.5 .. 9007.5 in
+  the compiled script replaced by the DLL (pace_patch), as [Bosses].  Needs RevengeValue=1.
+* Test: extra.lua (Scrapper Idling 180 -> 90, Wander halved, Stiffening kept, floor, list, Enabled=0), t_bundle
+  (markers replaced, ini values written).  A smoke run of all 33 through the stand-in: every listed enemy is paced,
+  the halved values come out (scratch mobsmoke.lua).  Not seen in the game by me.

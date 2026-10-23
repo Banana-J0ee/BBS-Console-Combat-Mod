@@ -1766,6 +1766,12 @@ static void t_bundle(void) {
           int f1 = 0, f2 = 0, g = 0;
           for (size_t i = 0; i + 5 <= n2; i++) { if (!memcmp(b + i, p1, 5)) f1++; if (!memcmp(b + i, p2, 5)) f2++; if (!memcmp(b + i, q1, 5) || !memcmp(b + i, q2, 5)) g++; }
           CHECK(f2 >= 1 && g == 0, "boss pace: markers replaced by the defaults (%d %d, %d markers left)", f1, f2, g);
+          { extern int test_rv_find(float marker); extern void test_mob_apply(float, float, float, float, float);
+            int left = 0; for (int k = 0; k < 5; k++) left += test_rv_find(9003.5f + k);
+            CHECK(left == 0, "mob pace: its five markers replaced (%d left)", left);
+            test_mob_apply(1, 0.6f, 0.25f, 0.4f, 0.9f);
+            CHECK(test_rv_find(0.6f) >= 1 && test_rv_find(0.25f) >= 1 && test_rv_find(0.4f) >= 1 && test_rv_find(0.9f) >= 1, "mob pace: ini values written");
+            test_mob_apply(1, 0.5f, 0.3f, 0.5f, 1.0f); test_pace(0.4f, 2.0f); }
           u8 *before = malloc(n2); memcpy(before, b, n2);
           test_pace(0.7f, 3.0f); float e1 = 0.7f, e2 = 3.0f; int nd = 0, ok7 = 0, ok3 = 0;
           for (size_t i = 0; i < n2; i++) if (before[i] != (u8)b[i]) nd++;

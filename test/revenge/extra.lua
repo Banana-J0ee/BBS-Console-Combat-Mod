@@ -872,5 +872,35 @@ local okR, errR = xpcall(function()
   end
 end, debug.traceback)
 check(okR, "round checks ran (" .. tostring(errR) .. ")")
+-- [Mobs]: regular enemies wait less (Scrapper m02ex00: Idling 180, Wander 240..480, Stiffening 180 in its script)
+do
+  local okM, errM = pcall(function()
+    local RVx = BBS_REVENGE
+    check(RVx.mobOn == 1 and RVx.mobWait == 0.5 and RVx.mobFloor == 0.3 and RVx.mobWander == 0.5 and RVx.mobRecover == 1, "mob pace defaults (markers unpatched)")
+    local set = {}
+    M.num["Entity.SetTimer"] = function(h, v) set[#set + 1] = v end
+    M.script("m02ex00")
+    local e, h = M.create("m02ex00")
+    check(e ~= nil and rawget(e, "__rvmob") ~= nil, "Scrapper gets the mob pace")
+    rawset(e, "Update", function() end)
+    set = {}; pcall(e.GotoState, e, "Idling")
+    check(set[1] ~= nil and set[1] > 89 and set[1] < 91.5, "Idling: 180 (+0..1) -> " .. tostring(set[1]))
+    set = {}; pcall(e.GotoState, e, "Wander")
+    check(set[1] ~= nil and set[1] >= 120 and set[1] <= 240, "Wander: 240..480 -> " .. tostring(set[1]))
+    set = {}; pcall(e.GotoState, e, "Stiffening")
+    check(set[1] == 180, "Stiffening (the stagger) kept: " .. tostring(set[1]))
+    local mv = RVx.mobValue
+    check(mv("idle", 30) == 18 and mv("idle", 15) == 15 and mv("idle", 60) == 30 and mv("idle", 300) == 150, "floor 0.3 s: 30 -> 18, 15 stays, 60 -> 30, 300 -> 150 (" .. mv("idle", 30) .. ")")
+    check(mv(nil, 300) == 300 and mv("recover", 300) == 300, "other states and the stagger: as the game has them")
+    -- a boss is not paced as a mob, and a mob not listed (Prize Pod) is left alone
+    check(RVx.mobs.m23ex00 == nil and RVx.mobs.b20pp00 == nil and RVx.mobs.m01sb00 and RVx.mobs.m57ex00, "list: Prize Pod and Peter Pan out, goons and Final Mix Unversed in")
+    RVx.mobOn = 0
+    local e2 = M.create("m02ex00")
+    check(e2 ~= nil and rawget(e2, "__rvmob") == nil, "Enabled=0: no pace")
+    RVx.mobOn = 1
+    M.num["Entity.SetTimer"] = nil
+  end)
+  check(okM, "mob pace checks ran (" .. tostring(errM) .. ")")
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

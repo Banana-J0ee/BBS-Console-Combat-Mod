@@ -125,6 +125,52 @@ if RV.aggr > 100 or RV.aggr <= 0 then RV.aggr = 0.4 end
 if RV.walkCap > 100 or RV.walkCap < 0 then RV.walkCap = 2.0 end
 RV.idleFloor = 45      -- 0.75 s, KH2's longest wait between decisions: shorter waits stay as they are
 
+-- Regular-enemy pace ([Mobs] in bbskh2.ini, 2026-10-23): the Unversed and Maleficent's goons wait less between
+-- decisions.  Their scripts start every wait with Entity.SetTimer in the state they enter; by that state's kind the
+-- value is scaled: idle / decision waits x RV.mobWait, wander / circle / hesitate timers x RV.mobWander, the stagger
+-- after a big attack x RV.mobRecover - none of them cut below RV.mobFloor seconds (shorter waits stay).  Their moves,
+-- odds, ranges and attacks keep their own timers.  Markers the DLL overwrites, as RV.aggr.
+RV.mobOn      = 9003.5
+RV.mobWait    = 9004.5
+RV.mobFloor   = 9005.5
+RV.mobWander  = 9006.5
+RV.mobRecover = 9007.5
+if RV.mobOn > 100 or RV.mobOn < 0 then RV.mobOn = 1 end
+if RV.mobWait > 100 or RV.mobWait <= 0 then RV.mobWait = 0.5 end
+if RV.mobFloor > 100 or RV.mobFloor < 0 then RV.mobFloor = 0.3 end
+if RV.mobWander > 100 or RV.mobWander <= 0 then RV.mobWander = 0.5 end
+if RV.mobRecover > 100 or RV.mobRecover <= 0 then RV.mobRecover = 1.0 end
+-- the 31 Unversed (base game m01..m22, m25 Blobmob; Final Mix m50..m57) and the two goons of Enchanted Dominion.
+-- Not here: Prize Pod (m23, it only runs), the Disney Town fruitball copies, the Heartless, bosses, allies.
+RV.mobs = {}
+for _, n in ipairs { "m01ex00", "m02ex00", "m03ex00", "m04ex00", "m05ex00", "m06ex00", "m07ex00", "m08ex00", "m09ex00",
+                     "m10ex00", "m11ex00", "m12ex00", "m13ex00", "m14ex00", "m15ex00", "m16ex00", "m17ex00", "m18ex00",
+                     "m19ex00", "m20ex00", "m21ex00", "m22ex00", "m25ex00", "m50ex00", "m51ex00", "m52ex00", "m53ex00",
+                     "m54ex00", "m55ex00", "m56ex00", "m57ex00", "m01sb00", "m02sb00" } do RV.mobs[n] = true end
+-- their states that set a wait (read from all 33 scripts): what kind of wait each is
+local MOB_KIND = {
+  Idling = "idle", Idling2 = "idle", InIdling = "idle", InIdlingNeedle = "idle", Rock_Idling = "idle",
+  FastIdling = "idle", UndergroundIdling = "idle", SearchIdling = "idle", Search = "idle", SeekTarget = "idle",
+  SearchTargeting = "idle", AttackWaiting = "idle", BeforeAttackIdling = "idle", Waiting = "idle",
+  Wander = "wander", Rotation = "wander", Goes_away = "wander", Shuffle = "wander", Uneasiness = "wander",
+  SearchTargetingUneasiness = "wander",
+  Stiff = "recover", Stiffening = "recover", Dizzy = "recover",
+}
+RV.mobKind = MOB_KIND
+-- per enemy: Yellow Mustard decides inside its hover (Move): 70 % an attack, 30 % a wait it sets there
+local MOB_OWN = { m18ex00 = { Move = "idle" } }
+local function mobValue(kind, v)
+  if type(v) ~= "number" then return v end
+  local k = kind == "idle" and RV.mobWait or kind == "wander" and RV.mobWander or kind == "recover" and RV.mobRecover or 1
+  if k == 1 then return v end
+  local fl = RV.mobFloor * 60
+  if v <= fl then return v end
+  local n = v * k
+  if n < fl then n = fl end
+  return n
+end
+RV.mobValue = mobValue
+
 -- ---------------------------------------------------------------------
 -- bbskh2_boss.ini: per boss and move, how long the move is armoured (KH3: from the wind-up through the hit, the
 -- recovery open), the gaps between attacks (a short beat instead of the idle wait, a reposition after a few
@@ -1230,12 +1276,52 @@ local function attach(ent, name, handle)
 end
 RV.attach = attach
 
+-- a regular enemy: only its waits (see RV.mobWait above); the state it enters or runs decides what a SetTimer means
+local function attachMob(ent, name, handle)
+  if type(ent) ~= "table" or RV.mobOn < 0.5 or not installPace() then return end
+  local st = rawget(ent, "__rvmob")
+  if st == nil then
+    st = { name = name }
+    rawset(ent, "__rvmob", st)
+    st.pace = function(h, v)
+      local mh = rawget(ent, "myHandle")
+      if mh ~= nil and mh ~= h then return v end
+      local own = MOB_OWN[name]
+      return mobValue((own ~= nil and own[st.state]) or MOB_KIND[st.state], v)
+    end
+    local gss = ent.GotoStateSub
+    if type(gss) == "function" then
+      rawset(ent, "GotoStateSub", function(self, s, a, b)
+        local prev = st.state
+        st.state = s
+        local r = gss(self, s, a, b)
+        if type(self.states) == "table" and self.states[s] ~= nil then st.state = s else st.state = prev end
+        local mh = rawget(self, "myHandle")
+        if mh ~= nil then P.by[mh] = st end
+        return r
+      end)
+    end
+  end
+  st.state = nil
+  if handle ~= nil then P.by[handle] = st end
+end
+RV.attachMob = attachMob
+
 -- Hook entity construction: wrap the per-entity constructor the first
 -- time a configured boss is created.
 local factoryCreate = EntityFactory.Create
 EntityFactory.Create = function(self, name, handle)
   if handle ~= nil then P.by[handle] = nil end    -- a handle handed out again: no stale pace entry
   local rec = self[name]
+  if type(rec) == "table" and RV.mobs[name] and RV.cfg[name] == nil and not rec.__rvmob then
+    local make = rec.Create
+    rec.__rvmob = true
+    rec.Create = function(h)
+      local ent = make(h)
+      if ent ~= nil then pcall(attachMob, ent, name, h) end
+      return ent
+    end
+  end
   if type(rec) == "table" and RV.cfg[name] ~= nil and not rec.__rv then
     local make = rec.Create
     rec.__rv = true
