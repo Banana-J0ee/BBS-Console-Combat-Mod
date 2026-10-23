@@ -900,13 +900,16 @@ static void link_icon(int h) {
    (hdart_gen.h HDART_EMB_*).  Only this plate's copy changes: the hat stays the hat everywhere else.  Done every frame,
    as a control change may give the node its shared sprite back. */
 static void skills_icon(int h) {
-    if (!c_skill_icon || !tex_emblem_ready()) return;
+    if (!c_skill_icon) return;
+    if (!tex_emblem_ready()) { static int said0; if (!said0) { said0 = 1; LOG("menu: Skills icon: emblem not in the texture yet"); } return; }
     Pair *q;
     int n = node_quads(h, 0x5a, 3, &q);
     if (n <= 0 || !q) { L2D_CloneNodeSprite(h, 0x5a, 3); n = node_quads(h, 0x5a, 3, &q); }
-    if (n != 1 || !q || !q[0].g || !q[0].p) return;
+    static int said;
+    if (n != 1 || !q || !q[0].g || !q[0].p) { if (!(said & 1)) { said |= 1; LOG("menu: Skills icon: node has %d quads (ctl %d), left alone", n, L2D_GetNodeControl(h, 0x5a)); } return; }
     if (q[0].p->u0 == HDART_EMB_U && q[0].p->v0 == HDART_EMB_V) return;                 /* done */
-    if (q[0].p->u0 != 338 || q[0].p->v0 != 2) return;                                     /* not the hat we know */
+    if (q[0].p->u0 != 338 || q[0].p->v0 != 2) { if (!(said & 2)) { said |= 2; LOG("menu: Skills icon: sprite uv %d,%d (ctl %d), not the hat, left alone", (int)q[0].p->u0, (int)q[0].p->v0, L2D_GetNodeControl(h, 0x5a)); } return; }
+    if (!(said & 4)) { said |= 4; LOG("menu: Skills icon set (ctl %d)", L2D_GetNodeControl(h, 0x5a)); }
     /* 16 x 22 texels (the emblem with its clear rim) at one screen unit each: about the hat's height, centred where it was */
     quad(&q[0], -HDART_EMB_UW / 2, -11, HDART_EMB_UW / 2, -11 + HDART_EMB_UH, HDART_EMB_U, HDART_EMB_V,
          HDART_EMB_U + HDART_EMB_UW, HDART_EMB_V + HDART_EMB_UH, q[0].p->col[0]);
