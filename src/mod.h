@@ -7,6 +7,8 @@ float mp_burn_pct(void);
 u8   *mp_use(u8 *plate);            /* the deck "use" gate: COMMAND* or NULL; charges MP */
 float mp_cost(int id);
 int   mp_would_burn(int id);         /* using this command now would empty the MP bar */
+int   mp_fx(int id);                 /* Focus Exchange: this command costs Focus now (not SP) */
+int   mp_fx_any(u8 *cmd);            /* ... and the deck has such a command (usable in an MP charge) */
 void  hud_timer_bar(int *ph, float left, float top, float w, float hgt, float frac, u32 fill, int prio, int show);
 /* bundle.c */
 int  bundle_check(void);
@@ -86,6 +88,7 @@ int  combomaster_check(void);
 void combomaster_apply(void);
 void combomaster_texts(u8 *self);        /* a message file is in memory (called from mp.c's hook) */
 int  combomaster_on(void);
+int  focusx_on(void);                    /* Focus Exchange switched on in this save */
 int  guard_check(void);
 void guard_apply(void);
 void guard_stats(int *fixed, int *skipped);

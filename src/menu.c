@@ -220,7 +220,7 @@ static int swallow(u8 *cmd) {
 }
 static int entry_usable(u8 *cmd, int e) {
     switch (e) {
-    case E_MAGIC: return !mp_in_burn() && !deck_sealed(cmd) && list_count(cmd, 0, -1, NULL) > 0;
+    case E_MAGIC: return (!mp_in_burn() || mp_fx_any(cmd)) && !deck_sealed(cmd) && list_count(cmd, 0, -1, NULL) > 0;
     case E_ITEM:  return !deck_sealed(cmd) && list_count(cmd, 1, -1, NULL) > 0;
     case E_LINK:  return cmd[0x350] > 0 && !(GFLAGS & 0x200000) && !deck_sealed(cmd) && (link_active(cmd) || !mp_blocks_link());
     }
@@ -458,7 +458,7 @@ static int MSABI menu_input(u8 *cmd) {
     if (g_state != S_MAIN) {
         int kind = g_state == S_ITEM;
         int n = list_count(cmd, kind, -1, NULL);
-        if (n == 0 || deck_sealed(cmd) || (!kind && mp_in_burn())) { g_state = S_MAIN; return 0; }
+        if (n == 0 || deck_sealed(cmd) || (!kind && mp_in_burn() && !mp_fx_any(cmd))) { g_state = S_MAIN; return 0; }
         if (g_sel[kind] >= n) g_sel[kind] = n - 1;
         if (g_sel[kind] < 0) g_sel[kind] = 0;
         if (dir) { g_sel[kind] = (g_sel[kind] - dir + n) % n; SE(1); }
@@ -1147,7 +1147,7 @@ static void sc_frame(u8 *cmd, int show, int battle) {
             L2D_ShowNode(h, 0x5a, item);
         }
         u32 fl = P ? *(u32*)(P + 0x60) : 2;
-        int usable = P && !(fl & 2) && !deck_sealed(cmd) && (item || !mp_in_burn());
+        int usable = P && !(fl & 2) && !deck_sealed(cmd) && (item || !mp_in_burn() || mp_fx(id));
         L2D_SetPos(h, c_main_x, c_row_y[r]);
         L2D_SetPriority(h, 5);
         set_control(h, 0);                                              /* the long plate: name and item count at its places */

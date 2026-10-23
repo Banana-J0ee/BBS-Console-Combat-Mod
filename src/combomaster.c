@@ -33,7 +33,13 @@
    not simply set: for the window call of the normal combo (sub-state 5, at 22902e) the attack counts as connected
    from the end of its homing (PAtk frMark End, +0x1d - where the swing lands; melee records have no trigger frame),
    and the bit is put back after the call.  The next hit still starts no sooner than frChangeEnable (+0xd), as after
-   a real hit. */
+   a real hit.
+
+   Focus Exchange (2026-10-23) is a second ability of this file's, set up the same way: id 0x1c2 (ENCHANT_KIND_Random,
+   a debug command-board entry: category DEBUG, never shown; the Abilities menu reads only its name pointer, 3f1b20),
+   its choice in bit 26 of the same u32 (Combo Master 23, the BBS Armor mod 24-25).  The list holds up to 33 with the
+   rows' positions moved out (menu+0x288 .. +0x2c0, where the row objects start), so both fit on Critical too.  What
+   it does is mp.c's (physical deck commands cost Focus instead of SP). */
 #include "core.h"
 #include <stdio.h>
 #include <string.h>
@@ -44,6 +50,7 @@ extern char g_ini[MAX_PATH + 32];
 extern int g_debug;
 
 #define CM_ID        0x1c3
+#define FX_ID        0x1c2
 #define NAME_PTR(id) G(const char*, 0x814908 + (u32)(id) * 0x18)
 #define LIST_FN      0x3f1ce0u
 static const u32 LIST_CALLS[3] = { 0x3f2979, 0x3f2f55, 0x3f39a6 };
@@ -54,17 +61,27 @@ static const u32 HELP_CALLS[2] = { 0x3f2711, 0x3f3562 };
 #define WIN_FN       0x21c140u
 #define WIN_CALL     0x22902eu
 #define LIST_GAME    30                 /* the game's room: menu+0xa8 .. +0x288, where the 7 rows' positions start */
+#define LIST_MOVED   33                 /* with those moved out: up to +0x2b8, the row objects start at +0x2c0 */
 #define REC_SEEN     0xc000u          /* 0x4000 new, 0x8000 just seen (dim NEW badge), 0xc000 known [41c5f0] */
 #define REC_LEARNED  (1u << 6)          /* one copy */
 #define REC_ON       (1u << 9)          /* copy 0 switched on */
 
-static int c_enabled = 1;               /* [Combat] ComboMaster: the ability exists at all */
 #define SAVE_FLAG    G(u32, 0x10fa3d08 + 0x18cc + 5 * 4)   /* EXP Zero's u32 in the save in memory [1403600f0] */
-#define FLAG_ON      (1u << 23)
-static char c_name[48], c_help[256];
-static u32 g_rec;                       /* the ability's u32, as the menu reads it */
+/* the abilities of this file, in the order they are added to the end of Support */
+typedef struct { u16 id; u32 bit; int enabled; char name[48], help[256]; u32 rec; const char *key, *tag; } Extra;
+static Extra g_ab[2] = {
+    { CM_ID, 1u << 23, 1, "", "", 0, "ComboMaster", "combo master" },
+    { FX_ID, 1u << 26, 1, "", "", 0, "FocusExchange", "focus exchange" },
+};
+#define NAB ((int)(sizeof g_ab / sizeof *g_ab))
+static Extra *ab_of(int id) { for (int i = 0; i < NAB; i++) if (g_ab[i].enabled && g_ab[i].id == id) return &g_ab[i]; return NULL; }
+#define c_enabled (g_ab[0].enabled)
+#define FLAG_ON      (g_ab[0].bit)
+#define c_name (g_ab[0].name)
+#define c_help (g_ab[0].help)
+#define g_rec (g_ab[0].rec)
 static float g_rowpos[7][2];            /* the menu's row positions, moved out of menu+0x288 */
-static int g_rows_moved;                /* all three sites redirected: the list may hold 31 */
+static int g_rows_moved;                /* all three sites redirected: the list may hold up to 33 */
 
 /* the row positions: lea rdx,[rbx+0x288] (rbx = menu + row * 8) twice in 3f24d0, lea rdi,[rsi+0x288] in the setup */
 static const Steal S_cm_row_a = { 0x3f2644, 7, 0, {0}, {0}, {0x48,0x8d,0x93,0x88,0x02,0x00,0x00} };
@@ -78,8 +95,10 @@ static u64 MSABI row_init(Ctx *c) { c->rdi = (u64)g_rowpos[0]; return (u64)(g_ba
 /* the detail page is refused for it (3f3659: mov rax,[rbx+rax*8+0xa8]; then the "seen" test) */
 static const Steal S_cm_detail = { 0x3f3659, 8, 0, {0}, {0}, {0x48,0x8b,0x84,0xc3,0xa8,0x00,0x00,0x00} };
 
-static int is_on(void) { return (SAVE_FLAG & FLAG_ON) != 0; }
-static void rec_update(void) { g_rec = REC_SEEN | REC_LEARNED | (is_on() ? REC_ON : 0); }
+static int ab_on(const Extra *a) { return (SAVE_FLAG & a->bit) != 0; }
+static void ab_rec(Extra *a) { a->rec = REC_SEEN | REC_LEARNED | (ab_on(a) ? REC_ON : 0); }
+static int is_on(void) { return ab_on(&g_ab[0]); }
+static void rec_update(void) { for (int i = 0; i < NAB; i++) ab_rec(&g_ab[i]); }
 static int ini_get(const char *key, int def) {
     char b[32], d[32]; snprintf(d, sizeof d, "%d", def);
     GetPrivateProfileStringA("Combat", key, d, b, sizeof b, g_ini);
@@ -98,47 +117,55 @@ static int ini_str(const char *key, char *out, size_t n) {
 
 /* ---- the Abilities menu ---- */
 static void cm_append(u8 *menu) {
-    if (!c_enabled) return;
     s16 *count = (s16*)(menu + 0x94);
-    if (*count < 1 || *count >= LIST_GAME + (g_rows_moved ? 1 : 0)) return;
-    for (int i = 0; i < *count; i++) if (*(u16*)(menu + 0xa8 + i * 0x10 + 8) == CM_ID) return;
-    u8 *e = menu + 0xa8 + *count * 0x10, *last = e - 0x10;
     rec_update();
-    memset(e, 0, 0x10);
-    *(u32**)e = &g_rec;
-    *(u16*)(e + 8) = CM_ID;
-    e[0xa] = 2;                                         /* Support */
-    e[0xb] = last[0xa] != 2;                            /* heads the group only if Support had nothing */
-    e[0xd] = 1; e[0xe] = 1;                             /* one copy, learned; one possible */
-    (*count)++;
+    for (int k = 0; k < NAB; k++) {
+        Extra *a = &g_ab[k];
+        if (!a->enabled) continue;
+        if (*count < 1 || *count >= (g_rows_moved ? LIST_MOVED : LIST_GAME)) return;
+        int there = 0;
+        for (int i = 0; i < *count; i++) if (*(u16*)(menu + 0xa8 + i * 0x10 + 8) == a->id) there = 1;
+        if (there) continue;
+        u8 *e = menu + 0xa8 + *count * 0x10, *last = e - 0x10;
+        memset(e, 0, 0x10);
+        *(u32**)e = &a->rec;
+        *(u16*)(e + 8) = a->id;
+        e[0xa] = 2;                                     /* Support */
+        e[0xb] = last[0xa] != 2;                        /* heads the group only if Support had nothing */
+        e[0xd] = 1; e[0xe] = 1;                         /* one copy, learned; one possible */
+        (*count)++;
+    }
 }
 static void MSABI list_hook(u8 *menu) {
     FN(void, LIST_FN, u8*)(menu);
     cm_append(menu);
 }
 static const char *MSABI help_hook(u8 *cmd) {
-    if (c_enabled && cmd && *(u16*)(cmd + 6) == CM_ID) return c_help;
+    Extra *a = cmd ? ab_of(*(u16*)(cmd + 6)) : NULL;
+    if (a) return a->help;
     return FN(const char*, HELP_FN, u8*)(cmd);
 }
 static void MSABI switch_hook(u16 id, u8 copy, s8 on) {
-    if (id != CM_ID) { FN(void, SWITCH_FN, u16, u8, s8)(id, copy, on); return; }
+    Extra *a = ab_of(id);
+    if (!a) { FN(void, SWITCH_FN, u16, u8, s8)(id, copy, on); return; }
     if (copy != 0) return;
-    int now = on < 0 ? !is_on() : on != 0;
-    if (now) SAVE_FLAG |= FLAG_ON; else SAVE_FLAG &= ~FLAG_ON;
-    rec_update();
-    LOG("combo master: switched %s", now ? "on" : "off");
+    int now = on < 0 ? !ab_on(a) : on != 0;
+    if (now) SAVE_FLAG |= a->bit; else SAVE_FLAG &= ~a->bit;
+    ab_rec(a);
+    LOG("%s: switched %s", a->tag, now ? "on" : "off");
 }
 static u64 MSABI detail_hook(Ctx *c) {
     u8 *menu = (u8*)c->rbx;
     s16 i = *(s16*)(menu + 0x8e);
-    if (c_enabled && *(u16*)(menu + 0xa8 + i * 0x10 + 8) == CM_ID) return (u64)(g_base + 0x3f3669);   /* buzzer */
+    if (ab_of(*(u16*)(menu + 0xa8 + i * 0x10 + 8))) return (u64)(g_base + 0x3f3669);   /* buzzer */
     return 0;
 }
 /* the names file is in memory (mp.c's hook on its "ready" call): the name goes to the command table */
 void combomaster_texts(u8 *self) {
-    if (c_enabled && *(u32*)(self + 0xb0) == 0xfa0000u) NAME_PTR(CM_ID) = c_name;
+    if (*(u32*)(self + 0xb0) == 0xfa0000u) for (int i = 0; i < NAB; i++) if (g_ab[i].enabled) NAME_PTR(g_ab[i].id) = g_ab[i].name;
 }
 int combomaster_on(void) { return c_enabled && is_on(); }
+int focusx_on(void) { return g_ab[1].enabled && ab_on(&g_ab[1]); }
 
 /* ---- the effect: the normal combo's window ---- */
 static u64 MSABI window_hook(u8 *pl, float frame) {
@@ -159,17 +186,22 @@ static int call_ok(u32 rva, u32 target) {
     return p[0] == 0xE8 && (u32)(rva + 5 + d) == target;
 }
 int combomaster_check(void) {
-    c_enabled = ini_get("ComboMaster", 1);
-    if (!ini_str("ComboMasterName", c_name, sizeof c_name)) snprintf(c_name, sizeof c_name, "Combo Master");
-    if (!ini_str("ComboMasterHelp", c_help, sizeof c_help))
-        snprintf(c_help, sizeof c_help, "Lets you keep your Attack combo going even when your\nattacks miss.");
+    static const char *names[2] = { "Combo Master", "Focus Exchange" };
+    static const char *helps[2] = { "Lets you keep your Attack combo going even when your\nattacks miss.",
+                                    "Physical commands use the Focus Gauge instead of SP.\nA command needs its full cost in Focus to be used." };
+    for (int i = 0; i < NAB; i++) {
+        char k[64]; Extra *a = &g_ab[i];
+        a->enabled = ini_get(a->key, 1);
+        snprintf(k, sizeof k, "%sName", a->key); if (!ini_str(k, a->name, sizeof a->name)) snprintf(a->name, sizeof a->name, "%s", names[i]);
+        snprintf(k, sizeof k, "%sHelp", a->key); if (!ini_str(k, a->help, sizeof a->help)) snprintf(a->help, sizeof a->help, "%s", helps[i]);
+    }
     rec_update();
-    if (!c_enabled) return 1;
+    if (!g_ab[0].enabled && !g_ab[1].enabled) return 1;
     int bad = 0;
     for (int i = 0; i < 3; i++) if (!call_ok(LIST_CALLS[i], LIST_FN)) { LOG("combo master: list call %x does not match", LIST_CALLS[i]); bad++; }
     for (int i = 0; i < 2; i++) if (!call_ok(HELP_CALLS[i], HELP_FN)) { LOG("combo master: help call %x does not match", HELP_CALLS[i]); bad++; }
     if (!call_ok(SWITCH_CALL, SWITCH_FN)) { LOG("combo master: switch call does not match"); bad++; }
-    if (!call_ok(WIN_CALL, WIN_FN)) { LOG("combo master: combo window call does not match"); bad++; }
+    if (c_enabled && !call_ok(WIN_CALL, WIN_FN)) { LOG("combo master: combo window call does not match"); bad++; }
     if (memcmp(g_base + S_cm_detail.rva, S_cm_detail.bytes, S_cm_detail.len)) { LOG("combo master: detail site does not match"); bad++; }
     const Steal *rows[3] = { &S_cm_row_a, &S_cm_row_b, &S_cm_row_init };
     for (int i = 0; i < 3; i++) if (memcmp(g_base + rows[i]->rva, rows[i]->bytes, rows[i]->len)) { LOG("combo master: row site %x does not match", rows[i]->rva); bad++; }
@@ -177,7 +209,9 @@ int combomaster_check(void) {
     return bad == 0;
 }
 void combomaster_apply(void) {
-    if (!c_enabled) { LOG("combo master: off"); return; }
+    if (!c_enabled) LOG("combo master: off");
+    if (!g_ab[1].enabled) LOG("focus exchange: off");
+    if (!g_ab[0].enabled && !g_ab[1].enabled) return;
     for (int i = 0; i < 3; i++) hook_call(LIST_CALLS[i], LIST_FN, list_hook, "abilities list (Combo Master)");
     for (int i = 0; i < 2; i++) hook_call(HELP_CALLS[i], HELP_FN, help_hook, "ability help (Combo Master)");
     hook_call(SWITCH_CALL, SWITCH_FN, switch_hook, "ability switch (Combo Master)");
@@ -185,9 +219,11 @@ void combomaster_apply(void) {
     g_rows_moved = hook_ctx(&S_cm_row_a, row_a, "ability rows a (Combo Master)")
                  & hook_ctx(&S_cm_row_b, row_b, "ability rows b (Combo Master)")
                  & hook_ctx(&S_cm_row_init, row_init, "ability rows setup (Combo Master)");
-    hook_call(WIN_CALL, WIN_FN, window_hook, "combo window (Combo Master)");
-    NAME_PTR(CM_ID) = c_name;
-    LOG("combo master: in the Abilities menu (on or off per save, off at first)");
+    if (c_enabled) hook_call(WIN_CALL, WIN_FN, window_hook, "combo window (Combo Master)");
+    for (int i = 0; i < NAB; i++) if (g_ab[i].enabled) {
+        NAME_PTR(g_ab[i].id) = g_ab[i].name;
+        LOG("%s: in the Abilities menu (on or off per save, off at first)", g_ab[i].tag);
+    }
 }
 
 #ifndef _WIN32
@@ -199,5 +235,10 @@ void test_cm_append(u8 *menu) { cm_append(menu); }
 float *test_cm_rowpos(void) { return g_rowpos[0]; }
 u64 test_cm_row(int which, u8 *menu, int row) { Ctx c; memset(&c, 0, sizeof c); c.rdi = (u64)menu; c.rbx = (u64)menu + row * 8; c.rsi = (u64)menu;
     u64 r = which == 0 ? row_a(&c) : which == 1 ? row_b(&c) : row_init(&c); return which == 2 ? c.rdi : (r ? c.rdx : 0); }
+int test_fx_on(void) { return ab_on(&g_ab[1]); }
+void test_fx_set(int on) { if (on) SAVE_FLAG |= g_ab[1].bit; else SAVE_FLAG &= ~g_ab[1].bit; }
+u32 *test_fx_rec(void) { return &g_ab[1].rec; }
+const char *test_fx_help(void) { return g_ab[1].help; }
+int *test_fx_enabled(void) { return &g_ab[1].enabled; }
 u64 test_cm_detail(u8 *menu) { Ctx c; memset(&c, 0, sizeof c); c.rbx = (u64)menu; return detail_hook(&c); }
 #endif

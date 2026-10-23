@@ -1347,3 +1347,27 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
   0 keeps the game's, as before for every other rule).  DLinkRowsSolid=1 default; with DLinkRowsBright=0 the
   rule keeps 3c3c3c and only changes the alpha.  Test t_colours: record alpha ff and the drawn colour word's alpha
   above the game's.  Not seen in the game by me.
+
+## Focus Exchange (2026-10-23; combomaster.c, mp.c fx_*, `[Combat] FocusExchange`)
+* Asked for: a new ability like Combo Master.  With it on, physical deck commands (category 1, Attack - the red
+  keyblade icon) cost their SP cost in Focus instead; unlike SP they need the whole cost (greyed out below it), no
+  yellow "would start a charge" warning, and they can be used during an SP charge.  Off by default.  Descriptions
+  say FP.  Ethers and Elixirs untouched.
+* The ability: combomaster.c now keeps a table of its abilities.  Focus Exchange is id 0x1c2 (ENCHANT_KIND_Random,
+  category DEBUG: a command-board debug entry nothing shows; the Abilities row reads only the name pointer, 3f1b20,
+  and its detail page is refused as for Combo Master).  Its choice: bit 26 of EXP Zero's save u32 (Combo Master 23,
+  BBS Armor 24-25; the game's own fields are 0-20).  The list holds up to 33 now (with the rows' positions moved out,
+  the entries may run to menu+0x2b8; the row objects start at +0x2c0): on Critical 30 + 2.
+* The cost: Focus is the gauge's float at +0x68 (0..100, the shotlocks' gauge; pending gain at +0x6c).  use_hook
+  takes a physical command only when Focus >= its cost, then spends it: the game's setter 20ad00 for the new value
+  (it starts the shotlock "consume" display when asked for 0 and keeps the MAX flag 0x10000 / control 4 and drops the
+  pending gain by itself, so fx_spend clears MAX, puts node 0xde in control 0, writes 0 by hand, and keeps the
+  pending gain).  Availability: fx_block (every frame) makes a ready physical plate unavailable (flag 2) when the
+  Focus no longer covers its cost, its reload fill = Focus / cost; reload_hook brings it to 100 once it does, so the
+  game's own plate update readies it.  plates_block (SP charge) leaves physical plates to that rule.  Menu: the
+  Skills entry and list stay open in a charge when the deck has such a command (mp_fx_any); the shortcut list's
+  rows likewise; mp_would_burn is 0 for them.  Where the game switches the Focus gauge off (gauge flag 0x100000),
+  they cost SP as usual.
+* Test: t_fx (SP off / FP on, refused below the cost with the fill at Focus / cost, ready again when Focus comes up,
+  from MAX, during a charge with Fire refused, gauge off, switched off again); t_cm (two entries, bit 26, help,
+  detail, name through the names file).  Not seen in the game by me.

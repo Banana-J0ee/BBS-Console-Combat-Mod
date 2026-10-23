@@ -202,6 +202,57 @@ static void t_use(void) {
       *test_link_refill() = 1; }
     printf("t_use done\n");
 }
+/* Focus Exchange: physical deck commands cost Focus (gauge+0x68) instead of SP, need the whole cost, work in an MP charge */
+static void t_fx(void) {
+    extern void test_fx_set(int on); extern int mp_fx(int id); extern int mp_fx_any(u8 *cmd); extern int mp_would_burn(int id);
+    extern const char *test_desc(int id, const char *text);
+    static const u16 ids[] = { 0x65 /*Strike Raid 10*/, 0x83 /*Fire 10*/, 0x62 /*Sonic Rave 20*/, 0xbc /*Potion*/ };
+    world(4, ids);
+    *(u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4) = 0;            /* a new save: both abilities off */
+    frame();
+    #define FOCUS (*(float*)(gauge + 0x68))
+    FOCUS = 50;
+    CHECK(!mp_fx(0x65), "off: Strike Raid costs SP");
+    u8 *c = test_use(plate[0]); frame();
+    CHECK(c && *test_mp() == 90 && FOCUS == 50, "off: SP 100 -> %.0f, Focus kept (%.0f)", *test_mp(), FOCUS);
+    test_fx_set(1);
+    CHECK(mp_fx(0x65) && mp_fx(0x62) && !mp_fx(0x83) && !mp_fx(0xbc), "on: the two attack commands, not Fire, not the Potion");
+    { const char *d = test_desc(0x65, "Strike Raid text."); CHECK(d && strstr(d, "FP 10") && !strstr(d, "SP"), "description: %s", d ? d : "-");
+      d = test_desc(0x83, "Fire text."); CHECK(d && strstr(d, "SP 10"), "Fire's still says SP: %s", d ? d : "-"); }
+    c = test_use(plate[0]); frame();
+    CHECK(c && *test_mp() == 90 && FOCUS == 40, "Strike Raid: Focus 50 -> %.0f, SP untouched (%.0f)", FOCUS, *test_mp());
+    CHECK(!(FLG(0) & 2) && PCT(0) == 100, "still enough Focus: ready again at once (flags %x, %.0f)", FLG(0), PCT(0));
+    CHECK(!mp_would_burn(0x65), "never marked yellow");
+    /* not enough: unavailable, the fill shows how far the Focus is */
+    FOCUS = 15; frame();
+    CHECK(!(FLG(0) & 2) && (FLG(2) & 2) && PCT(2) > 74 && PCT(2) < 76, "Focus 15: Strike Raid (10) ready, Sonic Rave (20) unavailable at %.0f %%", PCT(2));
+    CHECK(test_use(plate[2]) == NULL && FOCUS == 15 && *test_mp() == 90, "Sonic Rave refused, nothing spent");
+    FOCUS = 20; frame(); frame();
+    CHECK(!(FLG(2) & 2) && PCT(2) == 100, "Focus 20: Sonic Rave ready (flags %x)", FLG(2));
+    c = test_use(plate[2]); frame();
+    CHECK(c && FOCUS == 0 && (FLG(2) & 2) && (FLG(0) & 2), "Sonic Rave takes all 20: both attack commands unavailable now (Focus %.0f)", FOCUS);
+    /* from a full gauge: the MAX look goes */
+    *(u32*)(gauge + 0x84) |= 0x10000; FOCUS = 100; frame(); frame();
+    c = test_use(plate[0]); frame();
+    CHECK(c && FOCUS == 90 && !(*(u32*)(gauge + 0x84) & 0x10000), "from MAX: 90 and no longer MAX (%08x)", *(u32*)(gauge + 0x84));
+    /* an MP charge: magic waits, the attack commands do not */
+    *test_mp() = 5; c = test_use(plate[1]); frame(); frame();
+    CHECK(*test_burn() == 1 && (FLG(1) & 2), "Fire emptied the SP: MP charge, Fire unavailable");
+    CHECK(!(FLG(0) & 2) && mp_fx_any(cmd), "Strike Raid still available in the charge");
+    c = test_use(plate[0]); frame();
+    CHECK(c && FOCUS == 80 && *test_burn() == 1, "used in the charge: Focus %.0f, still charging", FOCUS);
+    CHECK(test_use(plate[1]) == NULL, "Fire refused in the charge");
+    /* the game's Focus gauge switched off: SP as usual */
+    *(u32*)(gauge + 0x84) |= 0x100000;
+    CHECK(!mp_fx(0x65) && !mp_fx_any(cmd), "Focus gauge off: no Focus Exchange");
+    *(u32*)(gauge + 0x84) &= ~0x100000u;
+    /* switched off again: SP */
+    test_fx_set(0); for (int i = 0; i < 1600; i++) frame();
+    CHECK(*test_burn() == 0 && !(FLG(0) & 2) && !(FLG(2) & 2), "off, after the charge: every plate ready");
+    c = test_use(plate[0]); CHECK(c && FOCUS == 80 && *test_mp() == 90, "off: SP again (SP %.0f, Focus %.0f)", *test_mp(), FOCUS);
+    #undef FOCUS
+    printf("t_fx done\n");
+}
 static void t_ether(void) {
     static const u16 ids[] = { 0x83, 0xbf };
     world(2, ids);
@@ -1479,6 +1530,7 @@ static void t_worldmap(void) {
 /* Combo Master: a new ability (id 0x1c3) in the camp Abilities menu, and what it does to the normal combo's window */
 extern int test_cm_on(void); extern void test_cm_set(int on); extern u32 *test_cm_rec(void); extern const char *test_cm_help(void);
 extern void test_cm_append(u8 *menu); extern u64 test_cm_detail(u8 *menu);
+extern int test_fx_on(void); extern void test_fx_set(int on); extern u32 *test_fx_rec(void); extern const char *test_fx_help(void);
 extern float *test_cm_rowpos(void); extern u64 test_cm_row(int which, u8 *menu, int row);
 static u8 *call_target(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
 static void t_cm(void) {
@@ -1500,15 +1552,16 @@ static void t_cm(void) {
                 if (id == 0x1c9 && !critical) continue;
                 u8 *e = menu + 0xa8 + n * 0x10; *(u32**)e = &recs[i]; *(u16*)(e + 8) = id; e[0xa] = g; e[0xb] = k++ == 0; e[0xe] = G(u8, 0x811083 + id * 0x1e); n++; } }
         *(s16*)(menu + 0x94) = n;
-        memset(menu + 0x298, 0x5a, 8);                  /* past a 31st entry: must stay untouched */
+        memset(menu + 0x2b8, 0x5a, 8);                  /* past a 33rd entry: must stay untouched */
         test_cm_append(menu);
         if (critical) {
             CHECK(n == 30 && G(u8, 0x814901 + 0x1c9 * 0x18) == 0x11 && G(u8, 0x811083 + 0x1c9 * 0x1e) == 1, "Critical: 30 abilities with EXP Zero (%d)", n);
-            CHECK(*(s16*)(menu + 0x94) == 31 && *(u16*)(menu + 0x290) == 0x1c3 && menu[0x298] == 0x5a, "Critical: Combo Master is the 31st, nothing written past it (%d)", *(s16*)(menu + 0x94));
-            test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 31, "never a 32nd");
+            CHECK(*(s16*)(menu + 0x94) == 32 && *(u16*)(menu + 0x290) == 0x1c3 && *(u16*)(menu + 0x2a0) == 0x1c2 && menu[0x2a8 + 0xa] == 0 && menu[0x2b8] == 0x5a,
+                  "Critical: Combo Master the 31st, Focus Exchange the 32nd, nothing written past them (%d)", *(s16*)(menu + 0x94));
+            test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 32, "never added twice");
         } else {
             CHECK(n == 29, "other difficulties: 29 abilities (%d)", n);
-            CHECK(*(s16*)(menu + 0x94) == 30 && menu[0x298] == 0x5a, "Combo Master takes the 30th place");
+            CHECK(*(s16*)(menu + 0x94) == 31 && *(u16*)(menu + 0xa8 + 30 * 0x10 + 8) == 0x1c2 && menu[0x2b8] == 0x5a, "Combo Master takes the 30th place, Focus Exchange the 31st");
         }
     }
     u8 *e = menu + 0xa8 + n * 0x10;
@@ -1516,10 +1569,14 @@ static void t_cm(void) {
           "Combo Master added last, in Support, one copy learned of one");
     u32 r = **(u32**)e;
     CHECK(test_cm_on() == 0 && (r & 0xc000) == 0xc000 && (r >> 6 & 7) == 1 && (r >> 9 & 1) == 0 && (r & 7) == 0, "its u32: known (no NEW badge), learned, off at first (%08x)", r);
-    test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 30, "not added twice");
-    /* a 32-entry list (not the game's, just more than room) gets nothing */
-    { u8 *m = calloc(1, 0x500); *(s16*)(m + 0x94) = 31; *(u16*)(m + 0xa8 + 30 * 0x10 + 8) = 0x1d0; test_cm_append(m);
-      CHECK(*(s16*)(m + 0x94) == 31, "a full list (31) gets nothing more"); }
+    { u8 *f = menu + 0xa8 + (n + 1) * 0x10;
+      CHECK(*(u16*)(f + 8) == 0x1c2 && f[0xa] == 2 && f[0xb] == 0 && f[0xd] == 1 && f[0xe] == 1 && *(u32**)f == test_fx_rec()
+            && (*test_fx_rec() & 0xc000) == 0xc000 && !(*test_fx_rec() & 0x200), "Focus Exchange after it, in Support, one copy learned of one, off (%08x)", *test_fx_rec()); }
+    test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 31, "not added twice");
+    /* a full list (33: the room with the rows' positions moved out) gets nothing; 32 gets one of the two */
+    { u8 *m = calloc(1, 0x500); *(s16*)(m + 0x94) = 33; *(u16*)(m + 0xa8 + 32 * 0x10 + 8) = 0x1d0; test_cm_append(m);
+      CHECK(*(s16*)(m + 0x94) == 33, "a full list (33) gets nothing more");
+      *(s16*)(m + 0x94) = 32; test_cm_append(m); CHECK(*(s16*)(m + 0x94) == 33 && *(u16*)(m + 0xa8 + 32 * 0x10 + 8) == 0x1c3, "32: only Combo Master fits"); }
     /* the hooked calls */
     u8 *site = RVA(0x3f37f0); CHECK(site[0] == 0xe8 && call_target(0x3f37f0) != RVA(0x41d2e0), "the switch call is hooked");
     void (MSABI *sw)(u16, u8, s8) = (void*)call_target(0x3f37f0);
@@ -1536,17 +1593,27 @@ static void t_cm(void) {
     { u8 *m2 = calloc(1, 0x500); *(s16*)(m2 + 0x94) = 1; *(u16*)(m2 + 0xa8 + 8) = 0x1db; m2[0xa8 + 0xa] = 2; test_cm_append(m2);
       CHECK((**(u32**)(m2 + 0xb8) & 0x200) != 0, "the menu shows the save's choice"); }
     *exp0 = 0; CHECK(test_cm_on() == 0, "a new game: off");
+    /* Focus Exchange: its own bit (26), switched on its own */
+    CHECK(test_fx_on() == 0, "Focus Exchange: off in a new game");
+    sw(0x1c2, 0, 1); CHECK(test_fx_on() == 1 && test_cm_on() == 0 && *exp0 == 0x4000000u && (*test_fx_rec() & 0x200), "Focus Exchange on: bit 26 only (%08x)", *exp0);
+    sw(0x1c3, 0, 1); CHECK(test_fx_on() == 1 && test_cm_on() == 1 && *exp0 == 0x4800000u, "both on");
+    sw(0x1c2, 0, 0); CHECK(test_fx_on() == 0 && test_cm_on() == 1 && *exp0 == 0x800000u, "Focus Exchange off, Combo Master stays");
+    *exp0 = 0;
     const char *(MSABI *help)(u8*) = (void*)call_target(0x3f2711);
     const char *(MSABI *help2)(u8*) = (void*)call_target(0x3f3562);
     CHECK((void*)help != (void*)RVA(0x41d880) && (void*)help2 != (void*)RVA(0x41d880), "both description calls are hooked");
     u8 cmdbuf[8] = {0}; *(u16*)(cmdbuf + 6) = 0x1c3;
     CHECK(!strcmp(help(cmdbuf), test_cm_help()) && help2(cmdbuf) == help(cmdbuf) && strstr(help(cmdbuf), "miss"), "its description: %s", help(cmdbuf));
+    *(u16*)(cmdbuf + 6) = 0x1c2; CHECK(help(cmdbuf) == test_fx_help() && strstr(help(cmdbuf), "Focus"), "Focus Exchange's description: %s", help(cmdbuf));
+    { int w = 0, m = 0, lines = 1; for (const char *c = test_fx_help(); *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
+      CHECK(lines <= 3 && m <= 54, "it fits the help box: %d lines, longest %d", lines, m); }
     *(u16*)(cmdbuf + 6) = 0x1c0; CHECK(help(cmdbuf) == (const char*)RVA(0x6e0cb0), "another id: the game's answer");
     { int w = 0, m = 0, lines = 1; for (const char *c = test_cm_help(); *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
       CHECK(lines <= 3 && m <= 58, "it fits the help box: %d lines, longest %d", lines, m); }
     /* the detail page: the buzzer for Combo Master, the game's page for the others */
     CHECK(*(u8*)RVA(0x3f3659) == 0xe9, "the detail site is hooked");
     *(s16*)(menu + 0x8e) = n; CHECK(test_cm_detail(menu) == (u64)RVA(0x3f3669), "Combo Master: no detail page (buzzer)");
+    *(s16*)(menu + 0x8e) = n + 1; CHECK(test_cm_detail(menu) == (u64)RVA(0x3f3669), "Focus Exchange: no detail page either");
     *(s16*)(menu + 0x8e) = 3; CHECK(test_cm_detail(menu) == 0, "another ability: the game's detail page");
     /* the name: through the names file (CRsrcCTD ready), when the file is there */
     { const char *nf = getenv("BBS_MSG_NAMES"); size_t nn; u8 *names = nf ? slurp(nf, &nn) : NULL;
@@ -1554,7 +1621,9 @@ static void t_cm(void) {
           u8 *o = calloc(1, 0x100); *(u8**)(o + 0x70) = names; ready(o);
           const char *nm = G(const char*, 0x814908 + 0x1c3 * 0x18);
           CHECK(nm && !strcmp(nm, "Combo Master"), "its name: %s", nm ? nm : "-");
-          CHECK(!strcmp(G(const char*, 0x814908 + 0x1c9 * 0x18), "Zero EXP") && !strcmp(G(const char*, 0x814908 + 0x1c2 * 0x18), "Random"), "the names around it are the game's"); }
+          const char *fx = G(const char*, 0x814908 + 0x1c2 * 0x18);
+          CHECK(fx && !strcmp(fx, "Focus Exchange"), "Focus Exchange's name: %s", fx ? fx : "-");
+          CHECK(!strcmp(G(const char*, 0x814908 + 0x1c9 * 0x18), "Zero EXP") && G(const char*, 0x814908 + 0x1c4 * 0x18)[0], "the names around them are the game's"); }
       else printf("  (name skipped: BBS_MSG_NAMES not set)\n"); }
     /* the effect: the normal combo's window (the game's 14021c140 through the hooked call at 22902e) */
     u8 *p = calloc(1, 0x800), *phys = calloc(1, 0x200), *cm = calloc(1, 0x200), *rec = calloc(1, 0x28);
@@ -3063,6 +3132,7 @@ int main(int argc, char **argv) {
     printf("install=%d errors=%d\n", ok, g_patch_errors);
     int bad = 0;
     bad |= run("t_use", t_use);
+    bad |= run("t_fx", t_fx);
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);

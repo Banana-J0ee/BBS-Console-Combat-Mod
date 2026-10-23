@@ -343,7 +343,7 @@ static int is_cure(int id) {
 s16 *mp_cost_overrides(void) { return g_cost_over; }
 int *test_dlink_cost(void) { return &c_dlink_cost; }
 int mp_would_burn(int id) {
-    if (g_burn || id <= 0 || id >= CMD_MAX) return 0;
+    if (g_burn || id <= 0 || id >= CMD_MAX || mp_fx(id)) return 0;     /* Focus Exchange: no MP charge to warn of */
     if (c_cure_all && is_cure(id)) return 1;
     return g_mp - mp_cost(id) < 0.5f;
 }
@@ -360,6 +360,40 @@ int mp_would_burn(int id) {
 #define DESC_MAX_LINE 54                 /* longest line of the original descriptions */
 static char g_desc[768];
 static int costs_mp(int id) { return id >= 0x5b && id <= 0xe3 && CMD_CAT(id) != 3; }    /* deck commands, not items */
+/* ---------------- Focus Exchange (2026-10-23; the ability is combomaster.c's) ----------------
+   With the ability on, a physical deck command (category 1, Attack: the red keyblade icon) costs its SP cost in Focus
+   instead (the gauge's own 0..100 at gauge+0x68, the shotlocks' gauge), and SP is not touched.  Unlike SP it needs the
+   whole cost: below it the command is unavailable (its plate in the "not ready" look, its reload fill showing how
+   far the Focus has got), and it never leads into anything like an MP charge.  It can be used during an MP charge.
+   Where the game has the Focus gauge switched off (gauge flag 0x100000), the command costs SP as usual. */
+static int fx_physical(int id) { return id > 0 && id < CMD_MAX && costs_mp(id) && CMD_CAT(id) == 1; }
+int mp_fx(int id) {
+    if (!focusx_on() || !fx_physical(id)) return 0;
+    u8 *g = GAUGE;
+    return g && !(*(u32*)(g + 0x84) & 0x100000);
+}
+static float fx_focus(void) { u8 *g = GAUGE; return g ? *(float*)(g + 0x68) : 0; }
+static int fx_ready(int id) { return fx_focus() + 0.001f >= mp_cost(id); }
+static float fx_progress(int id) {         /* the plate's fill: how far the Focus is towards the cost (100 = ready) */
+    if (fx_ready(id)) return 100.0f;
+    float c = mp_cost(id), p = c > 0 ? fx_focus() * 100.0f / c : 0;
+    return p > 99.0f ? 99.0f : p < 0 ? 0 : p;
+}
+/* the Focus gauge's own setter (20ad00) for the new value; it starts the shotlock "consume" display when asked for 0
+   and keeps the MAX look and drops the pending gain on its own, so those three are handled here */
+static void fx_spend(int id) {
+    u8 *g = GAUGE; if (!g) return;
+    float before = fx_focus(), v = before - mp_cost(id), pend = *(float*)(g + 0x6c);
+    if (v < 0) v = 0;
+    int h = *(int*)(g + 0x8c);
+    *(u32*)(g + 0x84) &= ~0x10000u;                                 /* no longer MAX */
+    if (h > 0) FN(int, 0x1a7db0, int, u16, int)(h, 0xde, 0);         /* the fill's plain control, not the MAX glow */
+    if (v > 0.01f) FN(void, 0x20ad00, u8*, float)(g, v);
+    else { *(float*)(g + 0x68) = 0; if (h > 0) FN(int, 0x1a7d30, int, u16, float, int)(h, 0xde, 0.0f, 0); }
+    *(float*)(g + 0x6c) = pend;
+    if (g_debug) LOG("focus exchange: command %x costs %.1f FP -> %.1f", id, mp_cost(id), *(float*)(g + 0x68));
+}
+static int plate_id(u8 *P) { u16 *k = P ? *(u16**)(P + 0x58) : NULL; return k ? k[0] : 0; }
 static int text_width(const u8 *p, const u8 *end) {        /* characters shown, roughly */
     int n = 0;
     while (p < end) {
@@ -372,9 +406,10 @@ static int text_width(const u8 *p, const u8 *end) {        /* characters shown, 
 static const char *desc_with_cost(int id, const char *text) {
     if (!c_desc_cost || !text || !costs_mp(id)) return NULL;
     char cost[32]; float c = mp_cost(id);
+    const char *unit = focusx_on() && fx_physical(id) ? "FP" : "SP";     /* Focus Exchange on: what it costs is Focus */
     if (c_cure_all && is_cure(id)) snprintf(cost, sizeof cost, "SP All");
-    else if (c == (float)(int)c) snprintf(cost, sizeof cost, "SP %d", (int)c);
-    else snprintf(cost, sizeof cost, "SP %.1f", c);
+    else if (c == (float)(int)c) snprintf(cost, sizeof cost, "%s %d", unit, (int)c);
+    else snprintf(cost, sizeof cost, "%s %.1f", unit, c);
     size_t n = strlen(text);
     if (n + strlen(cost) + 8 > sizeof g_desc) return NULL;
     while (n && (text[n - 1] == ' ' || text[n - 1] == '\n')) n--;
@@ -462,6 +497,13 @@ static float burn_pct(void) { float c = g_charge; if (c > 99.0f) c = 99.0f; if (
 /* 233d40: the deck button was pressed on plate P; vanilla calls 2063c0(P), which returns the COMMAND or 0 */
 static u8 *MSABI use_hook(u8 *P) {
     int item = (*(u32*)(P + 0x60) & 0x800) != 0;
+    int id = item ? 0 : plate_id(P);
+    if (!item && mp_fx(id)) {                      /* Focus Exchange: Focus, the whole cost, MP charge or not */
+        if (!fx_ready(id)) return NULL;
+        u8 *c = FN(u8*, 0x2063c0, u8*)(P);
+        if (c) { fx_spend(id); *(float*)(P + 0x64) = fx_progress(id); }
+        return c;
+    }
     if (!item && g_burn) return NULL;
     u8 *c = FN(u8*, 0x2063c0, u8*)(P);
     if (c && !item) {
@@ -475,6 +517,11 @@ u8 *mp_use(u8 *P) { return use_hook(P); }
    recharge progress while in MP burn. */
 static float MSABI reload_hook(const void *command, float factor, float dt) {
     (void)factor; (void)dt;
+    int fid = command ? *(const u16*)command : 0;
+    if (mp_fx(fid)) {                              /* Focus Exchange: ready once the Focus covers the cost */
+        u8 *cmd = CMD; u8 *P = cmd ? plate_of(cmd, command) : NULL;
+        return P ? fx_progress(fid) - *(float*)(P + 0x64) : 0.0f;
+    }
     if (!g_burn) return 100.0f;
     u8 *cmd = CMD; u8 *P = cmd ? plate_of(cmd, command) : NULL;
     if (!P) return 0.0f;
@@ -489,10 +536,36 @@ static void plates_block(u8 *cmd) {
         u32 fl = *(u32*)(P + 0x60);
         if (fl & (0x800 | 0x80000000u | 0x2)) continue;     /* item / not built yet / already unavailable */
         if (P[0x31] >= 2) continue;                          /* sliding: wait until it is idle */
+        if (mp_fx(plate_id(P))) continue;                    /* Focus Exchange: its own rule (fx_block) */
         *(float*)(P + 0x64) = burn_pct();
         *(u32*)(P + 0x60) = fl | 2;
         FN(void, 0x2060d0, u8*)(P);                           /* the game's own redraw of a plate */
     }
+}
+/* Focus Exchange: a ready physical command whose cost the Focus no longer covers is made unavailable, as plates_block
+   does in an MP charge; reload_hook makes it ready again once the Focus has come up to the cost */
+static void fx_block(u8 *cmd) {
+    int n = plate_count(cmd);
+    for (int i = 0; i < n; i++) {
+        u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+        if (!P || P[0x30] != 2) continue;
+        u32 fl = *(u32*)(P + 0x60);
+        if (fl & (0x800 | 0x80000000u | 0x2)) continue;
+        if (P[0x31] >= 2) continue;
+        int id = plate_id(P);
+        if (!mp_fx(id) || fx_ready(id)) continue;
+        *(float*)(P + 0x64) = fx_progress(id);
+        *(u32*)(P + 0x60) = fl | 2;
+        FN(void, 0x2060d0, u8*)(P);
+    }
+}
+/* any physical command in the deck that Focus Exchange lets through an MP charge (the menu's Skills entry and list) */
+int mp_fx_any(u8 *cmd) {
+    if (!cmd || !focusx_on()) return 0;
+    int n = plate_count(cmd);
+    for (int i = 0; i < n; i++) { u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+        if (P && P[0x30] == 2 && !(*(u32*)(P + 0x60) & 0x800) && mp_fx(plate_id(P))) return 1; }
+    return 0;
 }
 
 /* 2388a0: open the D-Link list (returns 1 when opened).  A D-Link is not a command and costs no MP, so being out
@@ -952,6 +1025,7 @@ static void tick(u8 *g) {
     if (cmd) {
         if (!c_cursor_advance) *(u32*)(cmd + 0x60) |= 2;     /* stay on the command that was used */
         if (g_burn) plates_block(cmd);
+        if (focusx_on()) fx_block(cmd);
     }
 }
 static void (MSABI *o_gauge_update)(u8 *g);
