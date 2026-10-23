@@ -475,6 +475,7 @@ static void mp_restore(float pct) {     /* pct of the maximum */
     if (g_debug) LOG("mp: restored %.0f%% -> %.1f (burn %d, charge %.0f)", pct, g_mp, g_burn, g_charge);
 }
 
+void mp_restore_pct(float pct) { if (pct > 0) mp_restore(pct); }      /* SP orbs (sporb.c) */
 /* ---------------- deck plates ---------------- */
 static int plate_count(u8 *cmd) { int n = *(u16*)(cmd + 0x220); return n > 8 ? 8 : n; }
 static u8 *plate_of(u8 *cmd, const void *command) {
@@ -1096,6 +1097,7 @@ int mod_install(void) {
     if (!guard_check()) bad++;
     if (!combomaster_check()) bad++;
     if (!worldmap_check()) bad++;
+    if (!sporb_check()) bad++;
     if (bad) { LOG("this is not the game build the mod was written for: nothing changed"); g_patch_errors += bad; return 0; }
     if (c_desc_cost || c_ether) hook_call(DESC_CALL, MSG_FIND, desc_hook, "descriptions (MP cost, MP items)");
     if (c_floor) {
@@ -1131,6 +1133,7 @@ int mod_install(void) {
     guard_apply();
     combomaster_apply();
     worldmap_apply();
+    sporb_apply();
 
     o_gauge_update = hook_fn(&S_gauge_update, gauge_update_hook, "gauge_update");
     o_gauge_dtor   = hook_fn(&S_gauge_dtor, gauge_dtor_hook, "gauge_dtor");

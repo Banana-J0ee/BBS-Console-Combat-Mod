@@ -259,6 +259,63 @@ static void t_fx(void) {
     #undef FOCUS
     printf("t_fx done\n");
 }
+/* SP orbs: a defeated regular enemy's D-Link prizes come with SP orbs; an orb picked up gives SP back */
+static int g_mk_kind[64], g_mk_n; static u8 *g_mk_obj[64];
+static u8 *MSABI s_make(void *pos, int kind, u64 a3, int a4, float a5, float a6) { (void)pos; (void)a3; (void)a4; (void)a5; (void)a6;
+    u8 *o = calloc(1, 0x3a0); *(u8**)(o + 0x250) = RVA(0x817b30 + kind * 0x50); if (g_mk_n < 64) { g_mk_kind[g_mk_n] = kind; g_mk_obj[g_mk_n] = o; } g_mk_n++; return o; }
+static u32 g_drop_tab[8];
+static void *MSABI s_droptab(int id) { (void)id; return g_drop_tab; }
+static int MSABI s_zero(void) { return 0; }
+static u8 g_zero_obj[0x200];
+static void *MSABI s_zobj(void) { return g_zero_obj; }
+static int g_pick_n; static u16 g_pick_id;
+static void stub_jmp(u32 rva, void *fn);
+static u8 *sp_ct(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
+static void t_sporb(void) {
+    extern int *test_sporb_counts(void); extern void test_sporb_reset(void); extern u8 *test_sporb_rec(void); extern float *test_sporb_cfg(void);
+    static const u16 ids[] = { 0x83 };
+    world(1, ids);
+    stub_jmp(0x1e83e0, s_make); stub_jmp(0x53f640, s_droptab); stub_jmp(0x221900, s_zero); stub_jmp(0x236390, s_zero); stub_jmp(0x285550, s_zobj);
+    /* an enemy's drop table: 2 HP prizes (kind 0), 3 small D-Link prizes (kind 5), 1 big (kind 6), all at 100 % */
+    g_drop_tab[0] = 0; g_drop_tab[1] = 2 | 100u << 16; g_drop_tab[2] = 5; g_drop_tab[3] = 3 | 100u << 16; g_drop_tab[4] = 6; g_drop_tab[5] = 1 | 100u << 16;
+    u8 *ent = calloc(1, 0x400), *epd = calloc(1, 0x100); *(u8**)(ent + 0x250) = epd; *(u32*)(epd + 0x98) = 3;
+    float pos[4] = { 1, 2, 3, 1 };
+    CHECK(*(u8*)RVA(0x2d8f16) == 0xe8 && sp_ct(0x2d8f16) != RVA(0x2d5b30) && sp_ct(0x2defd8) != RVA(0x2d5b30), "both defeat drop calls are hooked");
+    void (MSABI *drop)(u8*, void*, int, int, int) = (void*)sp_ct(0x2d8f16);
+    /* a regular enemy (Flood) */
+    strcpy((char*)ent + 0xf0, "m01ex00"); g_mk_n = 0; test_sporb_reset();
+    drop(ent, pos, 100, 0, 0);
+    int hp = 0, dl = 0, orb = 0;
+    for (int i = 0; i < g_mk_n && i < 64; i++) { if (g_mk_kind[i] == 0) hp++; else if (g_mk_kind[i] == 6 || (g_mk_kind[i] == 5 && *(u8**)(g_mk_obj[i] + 0x250) != test_sporb_rec())) dl++; else if (*(u8**)(g_mk_obj[i] + 0x250) == test_sporb_rec()) orb++; }
+    CHECK(hp == 2 && dl == 4 && orb == 4 && test_sporb_counts()[0] == 4, "Flood defeated: its 2 HP and 4 D-Link prizes, and 4 SP orbs (%d / %d / %d)", hp, dl, orb);
+    CHECK(*(u32*)(test_sporb_rec() + 0x40) == 0x1ef && !memcmp(test_sporb_rec(), RVA(0x817b30 + 5 * 0x50), 0x40), "the orb's prize type: the small D-Link prize's, command 1ef");
+    /* a boss: no orbs */
+    strcpy((char*)ent + 0xf0, "b10ex00"); g_mk_n = 0; test_sporb_reset();
+    drop(ent, pos, 100, 0, 0);
+    CHECK(g_mk_n == 6 && test_sporb_counts()[0] == 0, "a boss (Vanitas): its own prizes only (%d)", g_mk_n);
+    /* a drop outside a defeat (the prize call reached without the defeat hook): no orbs */
+    strcpy((char*)ent + 0xf0, "m01ex00"); g_mk_n = 0; test_sporb_reset();
+    FN(void, 0x2d5b30, u8*, void*, int, int, int)(ent, pos, 100, 0, 0);
+    CHECK(g_mk_n == 6 && test_sporb_counts()[0] == 0, "hit drops (not a defeat): no orbs");
+    /* half an orb per D-Link prize: about half */
+    *test_sporb_cfg() = 0.5f; int tot = 0;
+    for (int k = 0; k < 50; k++) { test_sporb_reset(); drop(ent, pos, 100, 0, 0); tot += test_sporb_counts()[0]; }
+    CHECK(tot > 60 && tot < 140, "PerDLinkPrize 0.5: %d orbs for 200 D-Link prizes", tot);
+    *test_sporb_cfg() = 1.0f;
+    /* pickup: through the one call of 273420 */
+    CHECK(*(u8*)RVA(0x273408) == 0xe8 && sp_ct(0x273408) != RVA(0x273420), "the pickup call is hooked");
+    void (MSABI *pick)(u8*, u64, int, int) = (void*)sp_ct(0x273408);
+    *test_mp() = 50; *test_burn() = 0;
+    pick(pl, 0x1ef, 0, 0);
+    CHECK(*test_mp() > 51.9f && *test_mp() < 52.1f && test_sporb_counts()[1] == 1, "an orb: 50 -> %.1f SP (2 %% of 100)", *test_mp());
+    *test_burn() = 1; *test_charge() = 40;
+    pick(pl, 0x1ef, 0, 0);
+    CHECK(*test_charge() > 41.9f && *test_charge() < 42.1f, "in an SP charge: the recharge 40 -> %.1f %%", *test_charge());
+    *test_burn() = 0;
+    u8 *other = calloc(1, 0x800); float m0 = *test_mp();
+    pick(other, 0x1ef, 0, 0); CHECK(*test_mp() == m0, "picked up by someone else (a friend): nothing");
+    printf("t_sporb done\n");
+}
 /* Link Charge: an active D-Link drains twice as fast (the game's gauge update, 209f20, run through our hook) */
 static void t_linkdrain(void) {
     extern void test_lc_set(int on); extern float test_link_drain(u8 *g); extern void test_gauge_update(u8 *g);
@@ -3185,6 +3242,7 @@ int main(int argc, char **argv) {
     bad |= run("t_use", t_use);
     bad |= run("t_fx", t_fx);
     bad |= run("t_linkdrain", t_linkdrain);
+    bad |= run("t_sporb", t_sporb);
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);

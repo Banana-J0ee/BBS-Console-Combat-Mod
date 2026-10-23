@@ -1414,3 +1414,23 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
 * Test: extra.lua (Scrapper Idling 180 -> 90, Wander halved, Stiffening kept, floor, list, Enabled=0), t_bundle
   (markers replaced, ini values written).  A smoke run of all 33 through the stand-in: every listed enemy is paced,
   the halved values come out (scratch mobsmoke.lua).  Not seen in the game by me.
+
+## SP orbs (2026-10-23; sporb.c, `[SPOrbs]`)
+* Asked for: KH2's MP orbs as SP orbs - dropped whenever an enemy drops D-Link prizes, only on defeat, not by
+  bosses, weaker than KH2's; later the KH2 bubble look and the MP sound.
+* Prizes: an enemy's drops are 2d5b30(enemy, pos, percent, a4, a5) - its epd prize table ([enemy+0x250]+0x9c id,
+  +0x98 count; entries kind u32, count u16, chance u16; looked up by 53f640), each prize made by 1e83e0(pos, kind,
+  0, 0, f, f) at 2d5cc7.  Prize types at 140817b30, 0x50 each (+0x20 / +0x28 model arc / name, +0x38 / +0x3c floats,
+  +0x40 command): 0 / 1 HP 1e2 / 1e3 (SYS_PRZ_000), 2..4 munny 1e6..1e8 (SYS_PRZ_002), 5 / 6 D-Link 1e4 / 1e5
+  (SYS_PRZ_001; pickup 273420 adds to the gauge's pending D-Link +0x64 through 208280; counts x ability 0x1c6
+  "FpPrizeUp" = Link Prize Boost), 7 Vile Phial's drain, 8 1f0 (SYS_PRZ_003), 9.. Floating Flora / Gluttonous Goo
+  balls.  HP counts x ability 0x1c5.  Defeat: 2d8e40 (call 2d8f16) and 2def30 (call 2defd8); hit drops 2cfaae (50 %)
+  and the scripts' MakePrize are not defeats.  The entity name is at ent+0xf0 (m... regular, b... boss).
+* The orb: made as kind 5 (the small D-Link prize: model, flight, pull of Prize Draw), then given a type record of its
+  own (prize+0x250): kind 5's copy with command 0x1ef, a prize command (type 10) that 273420 does nothing for.  All
+  pickup paths take the command from that record and go through 2733d0 -> the one call of 273420 at 273408, hooked:
+  0x1ef from the local player = mp_restore_pct(SPPercent) (SP, or the recharge in an SP charge).
+* Settings: Enabled 1, PerDLinkPrize 1 (a fraction = a chance), SPPercent 2.
+* Test t_sporb: the game's own 2d5b30 over a made-up table (2 HP, 3 + 1 D-Link at 100 %) with 1e83e0 stubbed: a Flood
+  gets 4 orbs, a boss none, a drop outside a defeat none, 0.5 about half; pickup +2 % / +2 % of the recharge, a
+  friend's pickup nothing.  Not seen in the game by me.  Look and sound: next.

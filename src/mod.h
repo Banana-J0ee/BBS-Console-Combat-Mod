@@ -83,6 +83,9 @@ int  style_prompt_shown(void);
 
 /* guard.c: 2D nodes whose texture is gone are not drawn with it (and the log says which) */
 int  worldmap_check(void);              /* worldmap.c */
+int  sporb_check(void);                 /* sporb.c */
+void sporb_apply(void);
+void mp_restore_pct(float pct);         /* mp.c: percent of max SP back (in an SP charge: of the recharge) */
 void worldmap_apply(void);
 int  combomaster_check(void);
 void combomaster_apply(void);
