@@ -17,3 +17,7 @@ assets:
   method: copy
   source:
   - name: dll/bbskh2.ini
+- name: dll/bbskh2_boss.ini
+  method: copy
+  source:
+  - name: dll/bbskh2_boss.ini
