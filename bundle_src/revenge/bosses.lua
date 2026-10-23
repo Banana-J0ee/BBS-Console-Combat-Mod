@@ -247,15 +247,15 @@ local vanitasArmor = { SuccessionAttack1 = true, SuccessionAttack2 = true, DarkF
 -- bbskh2_boss.ini [Vanitas]: his armour windows, gaps and cooldowns; his Idling waits with Entity.SetTimer, and his
 -- back-handspring / cartwheel go back through his stack
 local vanitasTempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } }
-local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
+local vanitas = { limit = 7, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
                   tempo = vanitasTempo }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
-cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
+cfg.b10ex02 = { limit = 6, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
                 tempo = vanitasTempo }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
-  limit = 7.5,
+  limit = 6,
   tempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } },
   -- his specials are armoured in BBS already; his combo's opening is too here (it comes out,
   -- its end can be punished)
@@ -271,7 +271,7 @@ cfg.b63ex00 = {
 }
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
-cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
+cfg.b11ex00 = { limit = 6, pre = dmgCountPre, counter = vanitasCounter,
   -- gaps: his Idling (ground) and Hovering (air phase) wait with SetTimer; repositions only on the ground
   tempo = { idle = { Idling = "timer", Hovering = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true },
             repoAt = { Idling = true } },
@@ -309,7 +309,7 @@ cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
 -- Vanitas Remnant: growing chance of Dark Splicer / warp attack per hit.
 -- (his answer to shotlocks is unconditional and keeps its own dice)
 cfg.b12ex00 = {
-  limit = 8,
+  limit = 6,
   iframes = 0,                  -- Final Mix superboss: as he was
   -- (2026-10-19: superbosses get the gaps of bbskh2_boss.ini like everyone else - his pace is no longer his own)
   tempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } },
@@ -334,7 +334,7 @@ cfg.b12ex00 = {
 
 -- Master Eraqus: guard (+ counter) chance on every hit.
 cfg.b20ex00 = {
-  limit = 9,
+  limit = 7,
   rearm = rounds({ RushAttack = { up = "count" } }),           -- his rush runs 3 times in one move
   tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
@@ -370,7 +370,7 @@ local function armorGuardDash(self)
   self.stack:push(dash)
 end
 local armor = {
-  limit = 9,
+  limit = 7,
   rearm = rounds({ GodspeedCuttingVFinish = { up = "count" } }),   -- the Ventus-style finish dashes again and again
   iframes = 0,                  -- Final Mix superboss: as he was
   tempo = { idle = { Idling = "timer", IdlingV = "timer", IdlingT = "timer", IdlingA = "timer", IdlingZ = "timer" } },
@@ -396,7 +396,7 @@ cfg.b81vs00 = armor
 -- Shoot whole), gaps and cooldowns.  His Idling picks the next shot at once (0-1 frame): the beat is a hold of ours
 -- there; after Warp / Charge / Inverted Shoot his WaitIdling counts its own frames (self.timer) before a warp.
 local braig = {
-  limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
+  limit = 7,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
   -- His shots are long shooting phases, and after Dash / Round Shoot his Idling picks the next one at once
   -- (0-1 frame in play).  armorStates: the whole move where bbskh2_boss.ini has no window for it.
   armorStates = { RoundShoot = true, DashShoot = true, WarpShoot = true, ChargeShoot = true, InvertedShoot = true,
@@ -457,7 +457,7 @@ cfg.b30ex00 = braigLate
 
 -- Mysterious Figure: guard / warp counter / time-slip rolls on every hit.
 cfg.b01ex00 = {
-  limit = 9,
+  limit = 7,
   iframes = 0,                  -- Final Mix superboss: as he was
   -- his Idling hands over to BattleIdling, which decides (from his stack); his warp move goes back through it
   tempo = { idle = { Idling = "timer", BattleIdling = "timer" }, pop = { WarpMove = true }, repoAt = { BattleIdling = true } },
@@ -517,7 +517,7 @@ local function hookSetup(ent)
   rawset(ent, "states", own)
 end
 cfg.b01pp00 = {
-  limit = 8,
+  limit = 6,
   tempo = { idle = { Idling = "timer" }, pop = { Evade = true } },
   armorStates = { RushXCutting = true, PresentBombLarge = true, RushStab = true, DisturbStab = true,
                   PresentBombSmall = true },
@@ -548,7 +548,7 @@ cfg.b01pp00 = {
 -- he recovers from hit-stun into idling.  At the limit he answers with one of his
 -- own attacks; after any combo he goes straight back on the offensive.
 cfg.b20pp00 = {
-  limit = 8,
+  limit = 6,
   tempo = { idle = { Idling = "timer", BeforeAttackIdling = "timer" } },
   armorStates = { Attack1 = true, Attack2 = true, Attack3 = true, Attack4 = true },
   iframes = 48,
@@ -630,7 +630,7 @@ cfg.b20ls00 = {
 cfg.b01sb00 = {
   -- Thunder (up to 8 casts) and Staff Attack (more swings after her Charm Flash) repeat in one move: count goes down
   rearm = rounds({ Thunder = { down = "count" }, StaffAttack = { down = "count" } }),
-  limit = 9,
+  limit = 7,
   tempo = { idle = { IdlingA = "timer", IdlingB = "timer", IdlingC = "timer", Idling = "timer" } },
   armorStates = { Teleport = true, StaffAttack = true, Meteor = true },
   fire = "real",
@@ -701,6 +701,7 @@ end
 local wielderBoss = {}
 for k, v in pairs(wielder) do wielderBoss[k] = v end
 wielderBoss.tempo = { idle = { BattleIdling = "timer" } }
+wielderBoss.limit = 7                -- (2026-10-22: the enemy fights 9 -> 7; the allies keep 9)
 local wielderBosses = { "b60ex00", "b62ex00", "b70ex00", "b72ex00", "b73ex00", "b80ex00", "b82ex00", "b83ex00" }
 for i = 1, #wielderBosses do
   cfg[wielderBosses[i]] = wielderBoss
@@ -774,7 +775,7 @@ local function zackCounter(self)
   return 1
 end
 local zack = {
-  limit = 9,
+  limit = 7,
   fire = "real",
   iframes = 40,
   counter = zackCounter,
@@ -786,7 +787,7 @@ local zack = {
 }
 local zackStory = {}
 for k, v in pairs(zack) do zackStory[k] = v end
-zackStory.limit = 8
+zackStory.limit = 6
 zackStory.armorStates = { ComboAttack = true, Hakougeki = true }
 zackStory.answer = { close = { "ComboAttack", "Hakougeki", "Climbhazard" }, far = { "Climbhazard", "Hakougeki" } }
 zackStory.tempo = { idle = { Idling = "timer" }, pop = { BackJump_Short = true } }
@@ -795,7 +796,7 @@ cfg.b40he00 = zackStory
 -- Mirage Arena (2026-10-19, asked for: as his story fights); his limit stays the Arena's
 local zackArena = {}
 for k, v in pairs(zackStory) do zackArena[k] = v end
-zackArena.limit = 9
+zackArena.limit = 7
 cfg.b60vs00 = zackArena
 
 -- Hades (story and Mirage Arena).  vanilla: counters at the 7th hit in a row on the
@@ -821,7 +822,7 @@ local function hadesCounter(self)
 end
 local hades = {
   rearm = rounds({ FingernailofFire = { down = "cnboNum" } }),  -- 3-8 swings in one move
-  limit = 9,
+  limit = 7,
   pace = false,                 -- his slow pace is the fight: he walks while he burns, as KH2's Hades
   fire = "real",
   iframes = 40,
@@ -838,21 +839,21 @@ local hades = {
 }
 local hadesStory = {}
 for k, v in pairs(hades) do hadesStory[k] = v end
-hadesStory.limit = 8
+hadesStory.limit = 6
 hadesStory.armorStates = { MegaFire = true, BladesCrossing = true, FingernailofFire = true }
 hadesStory.answer = { close = { "NoRiaFingernailofFire", "BladesCrossing" }, far = { "MegaFire", "BladesCrossing" }, noRet = true }
 cfg.b01he00 = hadesStory
 -- Mirage Arena (2026-10-19, asked for: as his story fight - armour windows, his own pace); the Arena's limit
 local hadesArena = {}
 for k, v in pairs(hadesStory) do hadesArena[k] = v end
-hadesArena.limit = 9
+hadesArena.limit = 7
 cfg.b80vs00 = hadesArena
 
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
 -- warp, from idle into a warp attack) is still there but switched off at the first line
 -- of OnDamageBefore.  At the limit he uses it.
 cfg.b40ex00 = {
-  limit = 7,
+  limit = 6,
   tempo = { idle = { Idling = "timer" } },
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },

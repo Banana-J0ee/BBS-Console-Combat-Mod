@@ -1335,3 +1335,12 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
   (y -7..9) and then the art on y -6..8 both showed the emblem low and nearly filling the inside.
   Other plates with the hat keep it.  Test: t_listhdr (the art in all three sheets and both byte orders; on the layout
   runtime the Skills plate's icon, what the node draws, and another plate's hat).
+
+## Revenge limits lowered (2026-10-22)
+* Asked for: most bosses at 6 or 7 instead of 8 or 9.  9 -> 7: Masked Vanitas b10ex00/01, Braig b32ex00, Eraqus,
+  Mysterious Figure, Armor of the Master, Maleficent, the enemy keyblade wielders (wielderBoss.limit; the allies keep
+  9), Zack and Hades in the Mirage Arena.  8 -> 6: Masked Vanitas b10ex02, Vanitas Remnant, Hook, Peter Pan, Zack and
+  Hades story.  The finales below them go to 6: Vanitas b63ex00 / b11ex00 7.5 -> 6, Master Xehanort 7 -> 6.
+  Unchanged: Braig b30ex00 6, Terra-Xehanort 6, Experiment 221 7, No Heart 14 (only his burst timing).  The re-roll
+  (+- 1 after each revenge) stays.  extra.lua follows the new numbers; the wielder attack/dodge share test now runs
+  200 break-outs (80 came out 40 / 40 with the new dice order).

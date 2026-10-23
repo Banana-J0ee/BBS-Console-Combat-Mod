@@ -44,26 +44,26 @@ do
   local st = BBS_REVENGE.ents.b40ex00
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 6 do r = hit(h) end
-  check(r == nil and st.rv == 6 and e:GetState() == "Idling", "Xehanort: 6 hits land, he stays in the combo")
+  for i = 1, 5 do r = hit(h) end
+  check(r == nil and st.rv == 5 and e:GetState() == "Idling", "Xehanort: 5 hits land, he stays in the combo")
   r = hit(h)
-  check(r == "before" and e:GetState() == "Warp" and st.rv == 7 and e.defenseTimer > 0, "7th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
+  check(r == "before" and e:GetState() == "Warp" and st.rv == 6 and e.defenseTimer > 0, "6th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
   local grace = BBS_REVENGE.grace
   check(st.idle >= grace, "... and it drains from now on, while he acts")
   check(hit(h) == nil and e:GetState() == "Warp", "while he is warping nothing more is triggered")
   st.owe = nil                                   -- (the attack owed after the warp: not this check)
   pcall(e.GotoState, e, "Idling"); st.rv = 0
-  for i = 1, 2 do hit(h, ATK_KIND_DMG_SMALL, COMMAND_CATEGORY_FINISH) end
-  check(st.rv == 6 and e:GetState() == "Idling", "finishers count 3 each (value " .. st.rv .. ")")
-  check(hit(h, ATK_KIND_DMG_SMALL, COMMAND_CATEGORY_FINISH) == "before" and st.rv == 9, "... break-out at the third")
+  for i = 1, 1 do hit(h, ATK_KIND_DMG_SMALL, COMMAND_CATEGORY_FINISH) end
+  check(st.rv == 3 and e:GetState() == "Idling", "finishers count 3 each (value " .. st.rv .. ")")
+  check(hit(h, ATK_KIND_DMG_SMALL, COMMAND_CATEGORY_FINISH) == "before" and st.rv == 6, "... break-out at the second")
   -- KH2: the gauge is not cleared by a break-out; it drains while he acts, so going straight
   -- back in brings the next break-out sooner than the first
   pcall(e.GotoState, e, "Idling")
   for i = 1, 20 do e:OnUpdate() end              -- a third of a second of his own action
-  check(st.rv > 6.9 and st.rv < 7.1, "a third of a second later: drained at KH2's pace, 9 -> " .. st.rv)
+  check(st.rv > 3.9 and st.rv < 4.1, "a third of a second later: drained at KH2's pace, 6 -> " .. st.rv)
   local n = 0
   repeat n = n + 1 r = hit(h) until r == "before" or n > 12
-  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 7")
+  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 6")
   pcall(e.GotoState, e, "Idling")
   for i = 1, 200 do e:OnUpdate() end
   check(st.rv == 0, "left alone long enough it drains to nothing (" .. st.rv .. ")")
@@ -117,11 +117,11 @@ do
   rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 7 do r = hit(h) end
-  check(r == nil and st.rv == 7, "Peter Pan: 7 hits land, no vanilla escape fires")
+  for i = 1, 5 do r = hit(h) end
+  check(r == nil and st.rv == 5, "Peter Pan: 5 hits land, no vanilla escape fires")
   r = hit(h)
   local s8 = e:GetState()
-  check(r == "before" and st.rv == 8 and (s8 == "Attack1" or s8 == "Attack2" or s8 == "Attack3"), "8th hit: one of his own attacks as the revenge (" .. tostring(s8) .. "), value kept")
+  check(r == "before" and st.rv == 6 and (s8 == "Attack1" or s8 == "Attack2" or s8 == "Attack3"), "6th hit: one of his own attacks as the revenge (" .. tostring(s8) .. "), value kept")
   check(st.armor > 0, "the revenge has its armour window")
   for i = 1, 70 do e:OnUpdate() end
   check(st.armor > 0, "... held while his attack runs")
@@ -166,7 +166,7 @@ do
     if st.limit > hi then hi = st.limit end
   end
   BBS_REVENGE.vary = 0
-  check(lo >= 7 and hi <= 9 and hi > lo, string.format("the limit re-rolls in 8 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
+  check(lo >= 5 and hi <= 7 and hi > lo, string.format("the limit re-rolls in 6 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
 end
 -- boss pace: idle waits shortened, walks capped, attacks / superbosses / allies left alone
 do
@@ -271,7 +271,7 @@ do
   rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
   M.num["Entity.IsGround"] = true
   local na, nd = 0, 0
-  for k = 1, 80 do
+  for k = 1, 200 do
     pcall(e2.GotoState, e2, "BattleIdling")
     st2.rv, st2.firing, st2.armor = 0, false, 0
     for i = 1, 12 do if hit(h2) ~= nil then break end end
@@ -279,7 +279,7 @@ do
     if s2 == "EvasionAction" then nd = nd + 1 elseif s2 == "Combo" or s2 == "SpecialCommandAttack0" or s2 == "ShortDistAttackCommand" then na = na + 1 end
   end
   M.num["Entity.IsGround"] = nil
-  check(na > nd and nd > 0, "Terra (practice): " .. na .. " attacks, " .. nd .. " dodges out of 80 break-outs")
+  check(na > nd and nd > 0, "Terra (practice): " .. na .. " attacks, " .. nd .. " dodges out of 200 break-outs")
   -- bbskh2_boss.ini [Keyblade wielders]: the enemy wielders get the combo window and the gaps, the allies nothing
   local e6 = M.create("b82ex00")
   local st6 = BBS_REVENGE.ents.b82ex00
