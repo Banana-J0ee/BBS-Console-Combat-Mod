@@ -18,7 +18,7 @@ file is changed, and removing the mod puts everything back.
   0 SP the bar recharges (SP charge, 25 seconds). Magic Haste is now **SP Haste**: every copy installed makes the
   charge 10 % faster. Attack Haste is now **SP Rage**: damage you take gives SP back. Reload Boost is now
   **Berserker**: 5 % more damage dealt while the bar recharges. Cure takes all remaining SP. Ethers and Elixirs
-  restore SP (their descriptions say so), and starting a D-Link refills the bar. KH2-style bar under the Focus
+  restore SP (their descriptions say so), and with the Link Charge ability starting a D-Link refills the bar. KH2-style bar under the Focus
   gauge; a command that would empty the bar has its name in yellow.
 - **Shortcuts**: hold L1 and the menu turns into four commands on the face buttons, as in KH2. There are two sets
   of four: with the list up, the d-pad flips between them. Set them in the pause menu under *Command Decks >

@@ -89,6 +89,7 @@ void combomaster_apply(void);
 void combomaster_texts(u8 *self);        /* a message file is in memory (called from mp.c's hook) */
 int  combomaster_on(void);
 int  focusx_on(void);                    /* Focus Exchange switched on in this save */
+int  linkcharge_on(void);                 /* Link Charge switched on in this save */
 int  guard_check(void);
 void guard_apply(void);
 void guard_stats(int *fixed, int *skipped);

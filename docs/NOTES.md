@@ -1371,3 +1371,19 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
 * Test: t_fx (SP off / FP on, refused below the cost with the fill at Focus / cost, ready again when Focus comes up,
   from MAX, during a charge with Fire refused, gauge off, switched off again); t_cm (two entries, bit 26, help,
   detail, name through the names file).  Not seen in the game by me.
+
+## Link Charge (2026-10-23; combomaster.c, mp.c dlink_pick_hook / link_drain, `[Combat] LinkCharge`)
+* Asked for: starting a D-Link no longer refills SP by default; a new ability, Link Charge, brings the refill back,
+  and with it on the D-Link gauge drains twice as fast.  Off by default, like the other two.
+* The ability: the third of combomaster.c's table, id 0x1c1 (ENCHANT_KIND_Unknown: a status entry no command board
+  places - its loc 28 is no board's panel; the 0x1c1 immediates at 40517f / 405af3 are layout sequence numbers), bit
+  27 of EXP Zero's save u32.  The Abilities list is now 33 on Critical (30 + 3), the whole room there is.
+* Refill: dlink_pick_hook refills only when DLinkRefillsMP and the ability are both on.
+* Drain: the gauge update 209f20 drains an active link (flag 0x200; not 0x1000 pinned, 0x8800, 0x400 skip) by adding
+  to the pending change +0x64 per frame dt x -0.2 once +0xac (time in the link) >= 7200, before that the larger of
+  dt x -0.01 and dt x -0.0005 x value (constants 6468a8 / ac / b0 / b4), then value += pending.  link_drain computes
+  the same amount and gauge_update_hook adds it to +0x64 just before the game's update: twice the drain, prizes
+  picked up during a link (also through +0x64) not doubled.
+* Test: t_linkdrain (the game's own gauge update through the hook: one frame early in a link 2x, late 0.4 a frame,
+  no link / pinned / skip flag nothing added); t_use (no refill without the ability, refill with it); t_cm (33 on
+  Critical, bit 27, help, name).  Not seen in the game by me.

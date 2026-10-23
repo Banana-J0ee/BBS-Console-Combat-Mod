@@ -583,14 +583,16 @@ static int MSABI dlink_open_hook(u8 *cmd) {
 /* 205ee0: confirm an entry of the D-Link list (returns its COMMAND*, 0 = refused: the entry is used up or is not a
    D-Link).  This is the player starting a D-Link, and the one place that is: a link carried into the next room
    does not come through here.  Starting one fills the MP bar and ends an MP charge, as a Drive Form does in KH2
-   (ini DLinkRefillsMP); not when a link is already active, where the list is only there to end it. */
+   (ini DLinkRefillsMP) - since 2026-10-23 only with the Link Charge ability on (combomaster.c), whose price is a
+   D-Link that drains twice as fast (link_drain); not when a link is already active, where the list is only there
+   to end it. */
 static u8 *(MSABI *o_dlink_pick)(u8 *P);
 static u8 *MSABI dlink_pick_hook(u8 *P) {
     u8 *cmd = CMD;
     int linked = cmd && (*(u32*)(cmd + 0x64) & 0x80);
     if (mp_blocks_link() && cmd && !linked) return NULL;
     u8 *c = o_dlink_pick(P);
-    if (c && cmd && !linked && c_link_refill) {
+    if (c && cmd && !linked && c_link_refill && linkcharge_on()) {        /* only with the Link Charge ability */
         if (g_burn) burn_end(); else g_mp = g_mpmax;
         if (g_debug) LOG("mp: D-Link started, MP %.0f / %.0f", g_mp, g_mpmax);
     }
@@ -1028,9 +1030,24 @@ static void tick(u8 *g) {
         if (focusx_on()) fx_block(cmd);
     }
 }
+/* Link Charge: an active D-Link drains twice as fast.  The gauge's update (209f20) drains an active link (flag 0x200,
+   not 0x1000 pinned full, 0x8800 disabled / illusion, 0x400 "skip this frame") by adding to the pending change
+   +0x64 per frame dt x -0.2 once the link is 7200 ticks old (+0xac), before that the larger of dt x -0.01 and
+   dt x -0.0005 x value (the constants at 6468a8..6468b4), then value += pending.  The same drain is added to the
+   pending change here, just before that update, so the link loses twice as much each frame. */
+static float link_drain(u8 *g) {
+    u32 f = *(u32*)(g + 0x84);
+    if (!(f & 0x200) || (f & (0x1000 | 0x8800 | 0x400))) return 0;
+    float dt = *(float*)(g + 0x20), d = dt * G(float, 0x6468b4);
+    float t = *(float*)(g + 0xac), lim = G(float, 0x6468a8);
+    if (t < lim) { float a = dt * G(float, 0x6468ac) * *(float*)(g + 0x60), b = dt * G(float, 0x6468b0); d = a <= b ? a : b; }
+    return d;
+}
+float test_link_drain(u8 *g) { return link_drain(g); }
 static void (MSABI *o_gauge_update)(u8 *g);
 static void MSABI gauge_update_hook(u8 *g) {
     tick(g);
+    if (linkcharge_on()) *(float*)(g + 0x64) += link_drain(g);
     o_gauge_update(g);
     bar_update(g);
     menu_frame(g);

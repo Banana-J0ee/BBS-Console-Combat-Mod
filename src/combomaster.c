@@ -39,7 +39,12 @@
    a debug command-board entry: category DEBUG, never shown; the Abilities menu reads only its name pointer, 3f1b20),
    its choice in bit 26 of the same u32 (Combo Master 23, the BBS Armor mod 24-25).  The list holds up to 33 with the
    rows' positions moved out (menu+0x288 .. +0x2c0, where the row objects start), so both fit on Critical too.  What
-   it does is mp.c's (physical deck commands cost Focus instead of SP). */
+   it does is mp.c's (physical deck commands cost Focus instead of SP).
+
+   Link Charge (2026-10-23), the third: id 0x1c1 (ENCHANT_KIND_Unknown, a command-board status entry no board uses:
+   its "loc" 28 is no panel of any board; the 0x1c1 immediates at 40517f / 405af3 are layout sequence numbers, as
+   0x1c2 / 0x1c3 are elsewhere), bit 27.  With all three the list is 33 on Critical: the room there is.  What it does
+   is mp.c's (starting a D-Link refills SP only with it, and the link then drains twice as fast). */
 #include "core.h"
 #include <stdio.h>
 #include <string.h>
@@ -51,6 +56,7 @@ extern int g_debug;
 
 #define CM_ID        0x1c3
 #define FX_ID        0x1c2
+#define LC_ID        0x1c1
 #define NAME_PTR(id) G(const char*, 0x814908 + (u32)(id) * 0x18)
 #define LIST_FN      0x3f1ce0u
 static const u32 LIST_CALLS[3] = { 0x3f2979, 0x3f2f55, 0x3f39a6 };
@@ -69,9 +75,10 @@ static const u32 HELP_CALLS[2] = { 0x3f2711, 0x3f3562 };
 #define SAVE_FLAG    G(u32, 0x10fa3d08 + 0x18cc + 5 * 4)   /* EXP Zero's u32 in the save in memory [1403600f0] */
 /* the abilities of this file, in the order they are added to the end of Support */
 typedef struct { u16 id; u32 bit; int enabled; char name[48], help[256]; u32 rec; const char *key, *tag; } Extra;
-static Extra g_ab[2] = {
+static Extra g_ab[3] = {
     { CM_ID, 1u << 23, 1, "", "", 0, "ComboMaster", "combo master" },
     { FX_ID, 1u << 26, 1, "", "", 0, "FocusExchange", "focus exchange" },
+    { LC_ID, 1u << 27, 1, "", "", 0, "LinkCharge", "link charge" },
 };
 #define NAB ((int)(sizeof g_ab / sizeof *g_ab))
 static Extra *ab_of(int id) { for (int i = 0; i < NAB; i++) if (g_ab[i].enabled && g_ab[i].id == id) return &g_ab[i]; return NULL; }
@@ -166,6 +173,7 @@ void combomaster_texts(u8 *self) {
 }
 int combomaster_on(void) { return c_enabled && is_on(); }
 int focusx_on(void) { return g_ab[1].enabled && ab_on(&g_ab[1]); }
+int linkcharge_on(void) { return g_ab[2].enabled && ab_on(&g_ab[2]); }
 
 /* ---- the effect: the normal combo's window ---- */
 static u64 MSABI window_hook(u8 *pl, float frame) {
@@ -186,9 +194,10 @@ static int call_ok(u32 rva, u32 target) {
     return p[0] == 0xE8 && (u32)(rva + 5 + d) == target;
 }
 int combomaster_check(void) {
-    static const char *names[2] = { "Combo Master", "Focus Exchange" };
-    static const char *helps[2] = { "Lets you keep your Attack combo going even when your\nattacks miss.",
-                                    "Physical commands use the Focus Gauge instead of SP.\nA command needs its full cost in Focus to be used." };
+    static const char *names[3] = { "Combo Master", "Focus Exchange", "Link Charge" };
+    static const char *helps[3] = { "Lets you keep your Attack combo going even when your\nattacks miss.",
+                                    "Physical commands use the Focus Gauge instead of SP.\nA command needs its full cost in Focus to be used.",
+                                    "Starting a D-Link fully restores your SP, but the\nD-Link Gauge drains twice as fast." };
     for (int i = 0; i < NAB; i++) {
         char k[64]; Extra *a = &g_ab[i];
         a->enabled = ini_get(a->key, 1);
@@ -196,7 +205,8 @@ int combomaster_check(void) {
         snprintf(k, sizeof k, "%sHelp", a->key); if (!ini_str(k, a->help, sizeof a->help)) snprintf(a->help, sizeof a->help, "%s", helps[i]);
     }
     rec_update();
-    if (!g_ab[0].enabled && !g_ab[1].enabled) return 1;
+    int any = 0; for (int i = 0; i < NAB; i++) any |= g_ab[i].enabled;
+    if (!any) return 1;
     int bad = 0;
     for (int i = 0; i < 3; i++) if (!call_ok(LIST_CALLS[i], LIST_FN)) { LOG("combo master: list call %x does not match", LIST_CALLS[i]); bad++; }
     for (int i = 0; i < 2; i++) if (!call_ok(HELP_CALLS[i], HELP_FN)) { LOG("combo master: help call %x does not match", HELP_CALLS[i]); bad++; }
@@ -211,7 +221,9 @@ int combomaster_check(void) {
 void combomaster_apply(void) {
     if (!c_enabled) LOG("combo master: off");
     if (!g_ab[1].enabled) LOG("focus exchange: off");
-    if (!g_ab[0].enabled && !g_ab[1].enabled) return;
+    if (!g_ab[2].enabled) LOG("link charge: off");
+    int any = 0; for (int i = 0; i < NAB; i++) any |= g_ab[i].enabled;
+    if (!any) return;
     for (int i = 0; i < 3; i++) hook_call(LIST_CALLS[i], LIST_FN, list_hook, "abilities list (Combo Master)");
     for (int i = 0; i < 2; i++) hook_call(HELP_CALLS[i], HELP_FN, help_hook, "ability help (Combo Master)");
     hook_call(SWITCH_CALL, SWITCH_FN, switch_hook, "ability switch (Combo Master)");
@@ -240,5 +252,8 @@ void test_fx_set(int on) { if (on) SAVE_FLAG |= g_ab[1].bit; else SAVE_FLAG &= ~
 u32 *test_fx_rec(void) { return &g_ab[1].rec; }
 const char *test_fx_help(void) { return g_ab[1].help; }
 int *test_fx_enabled(void) { return &g_ab[1].enabled; }
+void test_lc_set(int on) { if (on) SAVE_FLAG |= g_ab[2].bit; else SAVE_FLAG &= ~g_ab[2].bit; }
+u32 *test_lc_rec(void) { return &g_ab[2].rec; }
+const char *test_lc_help(void) { return g_ab[2].help; }
 u64 test_cm_detail(u8 *menu) { Ctx c; memset(&c, 0, sizeof c); c.rbx = (u64)menu; return detail_hook(&c); }
 #endif

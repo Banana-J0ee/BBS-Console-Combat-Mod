@@ -180,6 +180,11 @@ static void t_use(void) {
       for (int i = 0; i < 200; i++) frame();
       float before = *test_charge();
       CHECK(*test_burn() == 1 && before > 0 && before < 100, "in MP charge (%.1f %%)", before);
+      /* without the Link Charge ability: the link starts, the bar is left alone */
+      { extern void test_lc_set(int on); *(u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4) = 0;
+        u8 *r0 = test_dlink_pick(lp);
+        CHECK(r0 == (u8*)lk && *test_burn() == 1 && *test_charge() == before, "no Link Charge: the D-Link starts, SP charge goes on (%.1f %%)", *test_charge());
+        *(u32*)(lp + 0x60) = 0; test_lc_set(1); }
       u8 *r = test_dlink_pick(lp);
       CHECK(r == (u8*)lk && (*(u32*)(lp + 0x60) & 2), "the game takes the entry");
       CHECK(*test_burn() == 0 && *test_mp() == *test_mpmax() && *test_mp() > 0, "D-Link started: charge over, MP full (%.0f / %.0f)", *test_mp(), *test_mpmax());
@@ -199,7 +204,8 @@ static void t_use(void) {
       /* switched off */
       lk[0] = 0x163; *test_link_refill() = 0;
       CHECK(test_dlink_pick(lp) == (u8*)lk && *test_mp() == 30, "DLinkRefillsMP = 0: the bar is left alone");
-      *test_link_refill() = 1; }
+      *test_link_refill() = 1;
+      { extern void test_lc_set(int on); test_lc_set(0); } }
     printf("t_use done\n");
 }
 /* Focus Exchange: physical deck commands cost Focus (gauge+0x68) instead of SP, need the whole cost, work in an MP charge */
@@ -252,6 +258,34 @@ static void t_fx(void) {
     c = test_use(plate[0]); CHECK(c && FOCUS == 80 && *test_mp() == 90, "off: SP again (SP %.0f, Focus %.0f)", *test_mp(), FOCUS);
     #undef FOCUS
     printf("t_fx done\n");
+}
+/* Link Charge: an active D-Link drains twice as fast (the game's gauge update, 209f20, run through our hook) */
+static void t_linkdrain(void) {
+    extern void test_lc_set(int on); extern float test_link_drain(u8 *g); extern void test_gauge_update(u8 *g);
+    static const u16 ids[] = { 0x83 };
+    world(1, ids);
+    if (!G(void*, 0x8f87ff8)) G(void*, 0x8f87ff8) = calloc(1, 0x40);   /* an empty list of loaded 2D files: lookups by name fail */
+    *(u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4) = 0;
+    float drop[2];
+    for (int on = 0; on < 2; on++) {
+        test_lc_set(on);
+        *(u32*)(gauge + 0x84) = 0x300; *(float*)(gauge + 0x60) = 80; *(float*)(gauge + 0x64) = 0; *(float*)(gauge + 0xac) = 100;
+        float d = test_link_drain(gauge);
+        test_gauge_update(gauge);
+        drop[on] = 80 - *(float*)(gauge + 0x60);
+        CHECK(d < 0, "the game's drain this frame: %.4f", d);
+    }
+    CHECK(drop[0] > 0 && drop[1] > drop[0] * 1.99f && drop[1] < drop[0] * 2.01f, "a frame of an active link: %.4f off, %.4f with Link Charge", drop[0], drop[1]);
+    /* late in a link (7200 ticks): the flat rate, doubled as well */
+    test_lc_set(1); *(u32*)(gauge + 0x84) = 0x300; *(float*)(gauge + 0x60) = 80; *(float*)(gauge + 0xac) = 8000; test_gauge_update(gauge);
+    float late = 80 - *(float*)(gauge + 0x60);
+    CHECK(late > 0.399f && late < 0.401f, "late in the link: 2 x 0.2 a frame (%.4f)", late);
+    /* not linked, pinned full, or skipped this frame: nothing added */
+    *(u32*)(gauge + 0x84) = 0x100; CHECK(test_link_drain(gauge) == 0, "no link: no drain");
+    *(u32*)(gauge + 0x84) = 0x1300; CHECK(test_link_drain(gauge) == 0, "pinned full (0x1000): none");
+    *(u32*)(gauge + 0x84) = 0x700; CHECK(test_link_drain(gauge) == 0, "the game's skip flag (0x400): none");
+    test_lc_set(0);
+    printf("t_linkdrain done\n");
 }
 static void t_ether(void) {
     static const u16 ids[] = { 0x83, 0xbf };
@@ -1556,12 +1590,13 @@ static void t_cm(void) {
         test_cm_append(menu);
         if (critical) {
             CHECK(n == 30 && G(u8, 0x814901 + 0x1c9 * 0x18) == 0x11 && G(u8, 0x811083 + 0x1c9 * 0x1e) == 1, "Critical: 30 abilities with EXP Zero (%d)", n);
-            CHECK(*(s16*)(menu + 0x94) == 32 && *(u16*)(menu + 0x290) == 0x1c3 && *(u16*)(menu + 0x2a0) == 0x1c2 && menu[0x2a8 + 0xa] == 0 && menu[0x2b8] == 0x5a,
-                  "Critical: Combo Master the 31st, Focus Exchange the 32nd, nothing written past them (%d)", *(s16*)(menu + 0x94));
-            test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 32, "never added twice");
+            CHECK(*(s16*)(menu + 0x94) == 33 && *(u16*)(menu + 0x290) == 0x1c3 && *(u16*)(menu + 0x2a0) == 0x1c2 && *(u16*)(menu + 0x2b0) == 0x1c1 && menu[0x2b8] == 0x5a,
+                  "Critical: Combo Master the 31st, Focus Exchange the 32nd, Link Charge the 33rd, nothing written past them (%d)", *(s16*)(menu + 0x94));
+            test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 33, "never added twice");
         } else {
             CHECK(n == 29, "other difficulties: 29 abilities (%d)", n);
-            CHECK(*(s16*)(menu + 0x94) == 31 && *(u16*)(menu + 0xa8 + 30 * 0x10 + 8) == 0x1c2 && menu[0x2b8] == 0x5a, "Combo Master takes the 30th place, Focus Exchange the 31st");
+            CHECK(*(s16*)(menu + 0x94) == 32 && *(u16*)(menu + 0xa8 + 30 * 0x10 + 8) == 0x1c2 && *(u16*)(menu + 0xa8 + 31 * 0x10 + 8) == 0x1c1 && menu[0x2b8] == 0x5a,
+                  "Combo Master takes the 30th place, Focus Exchange the 31st, Link Charge the 32nd");
         }
     }
     u8 *e = menu + 0xa8 + n * 0x10;
@@ -1572,7 +1607,7 @@ static void t_cm(void) {
     { u8 *f = menu + 0xa8 + (n + 1) * 0x10;
       CHECK(*(u16*)(f + 8) == 0x1c2 && f[0xa] == 2 && f[0xb] == 0 && f[0xd] == 1 && f[0xe] == 1 && *(u32**)f == test_fx_rec()
             && (*test_fx_rec() & 0xc000) == 0xc000 && !(*test_fx_rec() & 0x200), "Focus Exchange after it, in Support, one copy learned of one, off (%08x)", *test_fx_rec()); }
-    test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 31, "not added twice");
+    test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 32, "not added twice");
     /* a full list (33: the room with the rows' positions moved out) gets nothing; 32 gets one of the two */
     { u8 *m = calloc(1, 0x500); *(s16*)(m + 0x94) = 33; *(u16*)(m + 0xa8 + 32 * 0x10 + 8) = 0x1d0; test_cm_append(m);
       CHECK(*(s16*)(m + 0x94) == 33, "a full list (33) gets nothing more");
@@ -1598,6 +1633,14 @@ static void t_cm(void) {
     sw(0x1c2, 0, 1); CHECK(test_fx_on() == 1 && test_cm_on() == 0 && *exp0 == 0x4000000u && (*test_fx_rec() & 0x200), "Focus Exchange on: bit 26 only (%08x)", *exp0);
     sw(0x1c3, 0, 1); CHECK(test_fx_on() == 1 && test_cm_on() == 1 && *exp0 == 0x4800000u, "both on");
     sw(0x1c2, 0, 0); CHECK(test_fx_on() == 0 && test_cm_on() == 1 && *exp0 == 0x800000u, "Focus Exchange off, Combo Master stays");
+    { extern void test_lc_set(int on); extern int linkcharge_on(void); extern u32 *test_lc_rec(void); extern const char *test_lc_help(void);
+      *exp0 = 0; CHECK(!linkcharge_on(), "Link Charge: off in a new game");
+      sw(0x1c1, 0, 1); CHECK(linkcharge_on() && *exp0 == 0x8000000u && (*test_lc_rec() & 0x200), "Link Charge on: bit 27 only (%08x)", *exp0);
+      sw(0x1c1, 0, -1); CHECK(!linkcharge_on() && *exp0 == 0, "and off");
+      u8 cb[8] = {0}; *(u16*)(cb + 6) = 0x1c1; const char *(MSABI *hl)(u8*) = (void*)call_target(0x3f2711);
+      CHECK(hl(cb) == test_lc_help() && strstr(test_lc_help(), "twice"), "Link Charge's description: %s", test_lc_help());
+      int w = 0, m = 0, lines = 1; for (const char *c = test_lc_help(); *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
+      CHECK(lines <= 3 && m <= 54, "it fits the help box: %d lines, longest %d", lines, m); }
     *exp0 = 0;
     const char *(MSABI *help)(u8*) = (void*)call_target(0x3f2711);
     const char *(MSABI *help2)(u8*) = (void*)call_target(0x3f3562);
@@ -1623,6 +1666,8 @@ static void t_cm(void) {
           CHECK(nm && !strcmp(nm, "Combo Master"), "its name: %s", nm ? nm : "-");
           const char *fx = G(const char*, 0x814908 + 0x1c2 * 0x18);
           CHECK(fx && !strcmp(fx, "Focus Exchange"), "Focus Exchange's name: %s", fx ? fx : "-");
+          const char *lc = G(const char*, 0x814908 + 0x1c1 * 0x18);
+          CHECK(lc && !strcmp(lc, "Link Charge"), "Link Charge's name: %s", lc ? lc : "-");
           CHECK(!strcmp(G(const char*, 0x814908 + 0x1c9 * 0x18), "Zero EXP") && G(const char*, 0x814908 + 0x1c4 * 0x18)[0], "the names around them are the game's"); }
       else printf("  (name skipped: BBS_MSG_NAMES not set)\n"); }
     /* the effect: the normal combo's window (the game's 14021c140 through the hooked call at 22902e) */
@@ -3133,6 +3178,7 @@ int main(int argc, char **argv) {
     int bad = 0;
     bad |= run("t_use", t_use);
     bad |= run("t_fx", t_fx);
+    bad |= run("t_linkdrain", t_linkdrain);
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
