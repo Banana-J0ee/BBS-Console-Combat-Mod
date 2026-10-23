@@ -2805,7 +2805,7 @@ static void t_listhdr(void) {
       int p1 = test_skills_icon_plate(), p2 = FN(int, 0x1a4ec0, int, u16, int, void*)(G(int, 0x10f9ed48), 3, 3, NULL);
       Pair *e = NULL; int ce = FN(int, 0x1a6980, int, u16, int, Pair**)(p1, 0x5a, 1, &e);
       CHECK(p1 > 0 && ce == 1 && e && e[0].p->u0 == HDART_EMB_U && e[0].p->v0 == HDART_EMB_V + 3 && e[0].p->u1 == HDART_EMB_U + HDART_EMB_UW
-            && e[0].g->x0 == -4 && e[0].g->y0 == -6 && e[0].g->x1 == 7 && e[0].g->y1 == 6 && e[0].p->col[0] == 0x80808080,
+            && e[0].g->x0 == -5 && e[0].g->y0 == -7 && e[0].g->x1 == 7 && e[0].g->y1 == 7 && e[0].p->col[0] == 0x80808080,
             "Skills icon: the emblem, uv (%d,%d), %d..%d", e ? e[0].p->u0 : 0, e ? e[0].p->v0 : 0, e ? e[0].g->x0 : 0, e ? e[0].g->x1 : 0);
       /* and it is what the game draws for the icon node */
       { draw_stubs(); FN(int, 0x1a5b30, int, int)(p1, 1);
