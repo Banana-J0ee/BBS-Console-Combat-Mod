@@ -1449,3 +1449,20 @@ HD DDS textures go through 4e19b0 → the call to 4e1630 at 4e1e47 (the PNG path
 Pickup sound: record +0x44 (bank, -1 = system) / +0x46 (SE id) → 1b2e40 (system bank "se0000",
 sound/win/se/common/se0000.win32.scd) or 1b2c70 (bank*0x400+id).  HP 11, D-Link 12, munny 13.  Bounce sounds come
 from 1e8d30 / 1e93c0 by command (0x3c / 0x3d / 0x3e) - the orb (0x1ef) has none.
+
+### SP orbs: KH2's pickup sound (2026-10-23)
+
+KH2 (PC exe): prize kinds table at 0x5c7390, {u8 kind, f32 height, i32 bounce SE, i32 pickup SE}; the pickup plays
+it at 413730 through 1de150 (SE id = file * 1000 + sound, file 0 = se/se000.win32.scd).  HP orbs 16, munny 15, MP
+orbs 17 (kinds 5 / 6, which add MP through 3d3cf0 - the same function spells take their cost with).  Sound 17 = one
+track (16: KeyOn, wait 462 ms, KeyOff) of audio entry 167 (MS-ADPCM, mono, 47978 Hz).  tools/genorbse.py copies
+the track and the entry to src/orbse_gen.h.
+BBS: the common bank's resource handler 553160 registers "se0000" with the sound engine at 553472 (4c3fb0(0, scd,
+size, 0, 0); a transfer thread copies the buffer, 4c4f20; the bank number is the SCD's u16 at 0x36).  The hook
+hands the engine an extended copy (sporb.c se_extend): BBS's SCD is version 3 (KH2's 4: longer sound entries, same
+track and audio formats); the four offset tables (sounds at 0x50, tracks [0x38], audio [0x3c], per-sound 0x80
+blocks [0x40] -> [0x48]) each get one more slot, everything after them moves on by the same 16-aligned amount, and
+the new sound (a copy of the D-Link pickup's 0x14 entry and block, number = old count = 164, volume 1.0), the
+track and the audio entry go at the end.  The header's u32 at 0x10 moves on by the added size.  The orb's prize
+type then has +0x44 -1 / +0x46 164.  The engine plays MS-ADPCM (AdpcmStreamDataTransferEx) as well as its own
+Vorbis; BBS's own pickups are full-scale samples at volume 0.2-0.4, KH2's is quieter at 1.0 - about as loud.

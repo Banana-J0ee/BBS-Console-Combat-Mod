@@ -323,6 +323,41 @@ static void t_sporb(void) {
     pick(other, 0x1ef, 0, 0); CHECK(*test_mp() == m0, "picked up by someone else (a friend): nothing");
     printf("t_sporb done\n");
 }
+/* KH2's MP orb sound added to BBS's common SE bank as it is registered (the call at 553472) */
+static const u8 *g_bk_scd; static u32 g_bk_size, g_bk_id;
+static u32 MSABI s_bank(u32 id, const u8 *scd, u32 size, u32 a4, int a5) { (void)a4; (void)a5; g_bk_id = id; g_bk_scd = scd; g_bk_size = size; return 7; }
+static void t_orbse(void) {
+    extern u32 test_sporb_bank(u32 id, const u8 *scd, u32 size); extern int test_sporb_se(void); extern u8 *test_sporb_rec(void);
+    const char *fn = getenv("BBS_SE0000");
+    FILE *f = fn ? fopen(fn, "rb") : NULL;
+    if (!f) { printf("t_orbse: BBS_SE0000 not set, skipped\n"); return; }
+    fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
+    u8 *b = malloc(n); CHECK(fread(b, 1, n, f) == (size_t)n, "read the bank"); fclose(f);
+    stub_jmp(0x4c3fb0, s_bank);
+    CHECK(*(u8*)RVA(0x553472) == 0xe8 && sp_ct(0x553472) != RVA(0x4c3fb0), "the common SE bank call is hooked");
+    u32 r = test_sporb_bank(0, b, (u32)n);
+    CHECK(r == 7 && g_bk_scd != b && g_bk_size > (u32)n + 15000, "the engine gets an extended copy (%u -> %u bytes)", (u32)n, g_bk_size);
+    const u8 *o = g_bk_scd;
+    u32 ns = *(u16*)(b + 0x30), nt = *(u16*)(b + 0x32), na = *(u16*)(b + 0x34);
+    CHECK(*(u16*)(o + 0x30) == ns + 1 && *(u16*)(o + 0x32) == nt + 1 && *(u16*)(o + 0x34) == na + 1 && test_sporb_se() == (int)ns, "one more sound (%d), track, audio entry", test_sporb_se());
+    #define OFF(x, t, i) (((const u32*)((x) + ((t) ? *(u32*)((x) + (t)) : 0x50)))[i])
+    int same = 1;
+    for (u32 i = 0; i < ns; i++) same &= !memcmp(o + OFF(o, 0, i), b + OFF(b, 0, i), 0x14) && !memcmp(o + OFF(o, 0x40, i), b + OFF(b, 0x40, i), 0x80);
+    for (u32 i = 0; i < nt; i++) same &= !memcmp(o + OFF(o, 0x38, i), b + OFF(b, 0x38, i), 0x40);
+    for (u32 i = 0; i < na; i++) { const u8 *x = b + OFF(b, 0x3c, i); u32 len = 0x20 + *(u32*)(x + 0x18) + *(u32*)x; same &= !memcmp(o + OFF(o, 0x3c, i), x, len); }
+    CHECK(same, "every old sound, block, track and audio entry is still there, unchanged");
+    const u8 *ns_e = o + OFF(o, 0, ns);
+    CHECK(ns_e[0] == 1 && *(u32*)(ns_e + 0xc) == ns && *(u16*)(ns_e + 0x10) == nt && *(u16*)(ns_e + 0x12) == na && *(float*)(ns_e + 8) == 1.0f, "the new sound: one track, its own track and audio");
+    const u8 *au = o + OFF(o, 0x3c, na);
+    CHECK(*(u32*)(au + 0xc) == 12 && *(u32*)(au + 8) == 47978 && *(u32*)(o + 0x10) == *(u32*)(b + 0x10) + (g_bk_size - (u32)n), "its audio: KH2's MS-ADPCM entry; the size field moved on by as much");
+    CHECK(*(s16*)(test_sporb_rec() + 0x44) == -1 && *(s16*)(test_sporb_rec() + 0x46) == (s16)ns, "the orb's pickup sound: the common bank's sound %d", ns);
+    const char *out = getenv("BBS_SE0000_OUT");
+    if (out && (f = fopen(out, "wb"))) { fwrite(o, 1, g_bk_size, f); fclose(f); }
+    /* another bank (se7777's 0x1e61 is its own call; a bank number other than 0): left alone */
+    u8 *c = malloc(n); memcpy(c, b, n); *(u16*)(c + 0x36) = 3;
+    test_sporb_bank(5, c, (u32)n); CHECK(g_bk_scd == c && g_bk_size == (u32)n, "another bank: passed on as it is");
+    printf("t_orbse done\n");
+}
 /* Link Charge: an active D-Link drains twice as fast (the game's gauge update, 209f20, run through our hook) */
 static void t_linkdrain(void) {
     extern void test_lc_set(int on); extern float test_link_drain(u8 *g); extern void test_gauge_update(u8 *g);
@@ -3250,6 +3285,7 @@ int main(int argc, char **argv) {
     bad |= run("t_fx", t_fx);
     bad |= run("t_linkdrain", t_linkdrain);
     bad |= run("t_sporb", t_sporb);
+    bad |= run("t_orbse", t_orbse);
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
