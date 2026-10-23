@@ -2803,15 +2803,24 @@ static void t_listhdr(void) {
       test_set_emb_art(1);
       *(u8*)RVA(0x1aa620) = 0xC3;                         /* text objects need the font system */
       int p1 = test_skills_icon_plate(), p2 = FN(int, 0x1a4ec0, int, u16, int, void*)(G(int, 0x10f9ed48), 3, 3, NULL);
-      Pair *e = NULL; int ce = FN(int, 0x1a6980, int, u16, int, Pair**)(p1, 0x5a, 3, &e);
+      Pair *e = NULL; int ce = FN(int, 0x1a6980, int, u16, int, Pair**)(p1, 0x5a, 1, &e);
       CHECK(p1 > 0 && ce == 1 && e && e[0].p->u0 == HDART_EMB_U && e[0].p->v0 == HDART_EMB_V && e[0].p->u1 == HDART_EMB_U + HDART_EMB_UW
-            && e[0].g->x0 == -HDART_EMB_UW / 2 && e[0].g->y0 == -11 && e[0].g->y1 == -11 + HDART_EMB_UH,
+            && e[0].g->x0 == -5 && e[0].g->y0 == -7 && e[0].g->x1 == 7 && e[0].g->y1 == 9 && e[0].p->col[0] == 0x80808080,
             "Skills icon: the emblem, uv (%d,%d), %d..%d", e ? e[0].p->u0 : 0, e ? e[0].p->v0 : 0, e ? e[0].g->x0 : 0, e ? e[0].g->x1 : 0);
+      /* and it is what the game draws for the icon node */
+      { draw_stubs(); FN(int, 0x1a5b30, int, int)(p1, 1);
+        u8 *lc = FN(u8*, 0x1a65c0, int)(p1), *nd = NULL, *nds = *(u8**)(lc + 0x98);
+        for (int i = 0; i < *(s16*)(lc + 0xa8); i++) if (*(s16*)(nds + i * 0xb8 + 0xb0) == 0x5a) nd = nds + i * 0xb8;
+        int ok = 0;
+        if (nd) { G(u8, 0x8f88020 + (s8)nd[0x86]) = 1; G(u8, 0x8f8802c) = 1; g_vcalls = 0; memset(g_vtx, 0, sizeof g_vtx);
+            FN(void, 0x1aaea0, u8*, int)(nd, 0);
+            ok = g_vcalls == 1 && g_vn[0] == 4 && g_vtx[0][4] == HDART_EMB_U && g_vtx[0][5] == HDART_EMB_V; }
+        CHECK(ok, "Skills icon: the node draws the emblem (%d draws, uv %.0f,%.0f)", g_vcalls, g_vtx[0][4], g_vtx[0][5]); }
       printf("  Skills icon: plate %d, uv (%d,%d) %d x %d\n", p1, e ? e[0].p->u0 : -1, e ? e[0].p->v0 : -1, e ? e[0].g->x1 - e[0].g->x0 : 0, e ? e[0].g->y1 - e[0].g->y0 : 0);
       if (p2 > 0) {
           FN(int, 0x1a7fb0, int, u16, int, u16, int)(p2, 0x5a, G(int, 0x10f9ed4c), 0x21, 3);
-          Pair *o = NULL; int co = FN(int, 0x1a6980, int, u16, int, Pair**)(p2, 0x5a, 3, &o);
-          CHECK(co <= 0 || (o && o[0].p->u0 == 338 && o[0].p->v0 == 2), "another plate with the hat keeps the hat (%d)", co > 0 && o ? o[0].p->u0 : -1);
+          Pair *o = NULL; int co = FN(int, 0x1a6980, int, u16, int, Pair**)(p2, 0x5a, 1, &o);
+          CHECK(co <= 0 || (o && o[0].p->u0 == 26 && o[0].p->v0 == 98), "another plate with the hat keeps the hat (%d)", co > 0 && o ? o[0].p->u0 : -1);
       }
       test_set_emb_art(0); }
     Pair *q = NULL; int c = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x47, 2, &q);

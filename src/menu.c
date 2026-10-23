@@ -895,24 +895,22 @@ static void link_icon(int h) {
     FN(int, 0x1a7ec0, int, u16, float, float)(h, 0x5a, c_link_icon_x, c_link_icon_y);
 }
 /* The Skills entry's icon (2026-10-22): the gold emblem of the game's menu sheet in place of the magic hat.  The
-   entry keeps the hat's sequence (0x21; the hat is its object 3 in every control: sprite 6, (-10,-11)..(10,10), texture
-   338,2..378,44); its own copy of that sprite is pointed at the emblem, which tex.c adds to the command texture
-   (hdart_gen.h HDART_EMB_*).  Only this plate's copy changes: the hat stays the hat everywhere else.  Done every frame,
-   as a control change may give the node its shared sprite back. */
+   entry keeps the hat's sequence (0x21).  In the plate's control 3 the hat on screen is its object 1: sprite 4, one
+   quad (-6,-6)..(8,8) of the node (97,3..111,17 on the plate), texture 26,98..54,126 (a grey hat its quad colour makes purple); object 3, the large hat
+   (sprite 6, 338,2..), is not drawn in that control.  This plate's own copy of sprite 4 is pointed at the emblem,
+   which tex.c adds to the command texture (hdart_gen.h HDART_EMB_*), with a neutral colour.  Only this plate's copy
+   changes: the hat stays the hat everywhere else.  Checked every frame, as a control change may give the node its
+   shared sprite back. */
 static void skills_icon(int h) {
-    if (!c_skill_icon) return;
-    if (!tex_emblem_ready()) { static int said0; if (!said0) { said0 = 1; LOG("menu: Skills icon: emblem not in the texture yet"); } return; }
+    if (!c_skill_icon || !tex_emblem_ready()) return;
     Pair *q;
-    int n = node_quads(h, 0x5a, 3, &q);
-    if (n <= 0 || !q) { L2D_CloneNodeSprite(h, 0x5a, 3); n = node_quads(h, 0x5a, 3, &q); }
-    static int said;
-    if (n != 1 || !q || !q[0].g || !q[0].p) { if (!(said & 1)) { said |= 1; LOG("menu: Skills icon: node has %d quads (ctl %d), left alone", n, L2D_GetNodeControl(h, 0x5a)); } return; }
+    int n = node_quads(h, 0x5a, 1, &q);
+    if (n <= 0 || !q) { L2D_CloneNodeSprite(h, 0x5a, 1); n = node_quads(h, 0x5a, 1, &q); }
+    if (n != 1 || !q || !q[0].g || !q[0].p) return;
     if (q[0].p->u0 == HDART_EMB_U && q[0].p->v0 == HDART_EMB_V) return;                 /* done */
-    if (q[0].p->u0 != 338 || q[0].p->v0 != 2) { if (!(said & 2)) { said |= 2; LOG("menu: Skills icon: sprite uv %d,%d (ctl %d), not the hat, left alone", (int)q[0].p->u0, (int)q[0].p->v0, L2D_GetNodeControl(h, 0x5a)); } return; }
-    if (!(said & 4)) { said |= 4; LOG("menu: Skills icon set (ctl %d)", L2D_GetNodeControl(h, 0x5a)); }
-    /* 16 x 22 texels (the emblem with its clear rim) at one screen unit each: about the hat's height, centred where it was */
-    quad(&q[0], -HDART_EMB_UW / 2, -11, HDART_EMB_UW / 2, -11 + HDART_EMB_UH, HDART_EMB_U, HDART_EMB_V,
-         HDART_EMB_U + HDART_EMB_UW, HDART_EMB_V + HDART_EMB_UH, q[0].p->col[0]);
+    if (q[0].p->u0 != 26 || q[0].p->v0 != 98 || q[0].g->x0 != -6 || q[0].g->y0 != -6) return;      /* not the hat we know */
+    /* 12 x 16 units (the emblem with its clear rim, 16 x 22 texels), centred where the hat was (1, 1) */
+    quad(&q[0], -5, -7, 7, 9, HDART_EMB_U, HDART_EMB_V, HDART_EMB_U + HDART_EMB_UW, HDART_EMB_V + HDART_EMB_UH, 0x80808080);
 }
 static int entry_alive(int i) { l2d_live(&g_entry[i]); return g_entry[i] > 0 && L2D_GetControl(g_entry[i]) != 8; }
 static void entry_create(int e, int battle) {
