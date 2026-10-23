@@ -1466,3 +1466,28 @@ the new sound (a copy of the D-Link pickup's 0x14 entry and block, number = old 
 track and the audio entry go at the end.  The header's u32 at 0x10 moves on by the added size.  The orb's prize
 type then has +0x44 -1 / +0x46 164.  The engine plays MS-ADPCM (AdpcmStreamDataTransferEx) as well as its own
 Vorbis; BBS's own pickups are full-scale samples at volume 0.2-0.4, KH2's is quieter at 1.0 - about as loud.
+
+### SP orbs: KH2's bubble (2026-10-23)
+
+Not by editing shared data.  Prize effects (s_ex_prz_00.fep) hold no textures: their five texture resources are
+references (ids 0xf00000xx, resolved at FEP registration by 161880 -> texture manager +0x28 with owner 0), and the
+units draw sprites of shared ANM resources in resident.frr (program 0x98 FecAnm_plus: unit parameter +0xc indexes
+the FEP's animation resources [0x38]; header +0x10 = the slot in the ANM manager).  The small D-Link prize (ed 1)
+draws ANM 0xf00000a4: texrefs {0xf0000012, 0xf000000a}; parts 0x1c bytes {texref, colour (0x80 = 1.0), vertex
+count, vertex offset (from the ANM), blend, ...}; vertices 10 bytes {u16 u, u16 v, s16 x, y, z}, uv 0x4000 = 1.0.
+It samples texture 0x12 at u 0-.25 / v .5-1 (the star, normal blending) and u .25-.5 / v .5-1 (white star, additive
+glow), and 0x0a at u .13-.25 / v 0-.12 (sparkles).
+Textures: texture manager G(0x8f869d0), 192 slots of {object, id, owner, refs} at +0x28; register = vtable +0x18
+(4bbd00 -> 158b70(mgr, owner, tex): first free slot, id from tex+4), release +0x30 (158cb0).  FRR textures are made
+by 1a1770(frr, 0) at 11d818 (inside the mutex, after 131460 registered them), freed at 11d4a4.  A TEX record: "TEX",
++4 id, +0xc made, +0x10 format, +0x14 levels, +0x18 palette offset (from +0x10; 0 = 32-bit, format forced to 3),
++0x1c / +0x20 size, +0x24 pixel offset (then the renderer's handle).  4bc160 -> 522790: the HD picture is found by
+where the pixels lie in a loaded asset (532da0: offset in the arc -> its remastered entry); pixels the mod owns have
+none, so they are used as they are: 32-bit RGBA (alpha 0xff opaque), PSP-swizzled in 16-byte x 8-row blocks.
+The swap: FecAnm_plus vtable 63de18 slot 3 (1779c0(self, ctx, params, float, work); the float is xmm3) wrapped;
+ctx+0x78 = the effect leaf (15b0d0: tag 'e', +0x198 FEP, +0x158/+0x160 end callback 12a890 and the effect object),
+ctx+0xa8 the ANM manager (+slot*0x20+0x30 -> object, +8 the ANM).  The effect object (12a600): +0x30 handle, +0x48
+leaf, +0x50 flags (0x8000 ended); the prize keeps the handle at +0x244, 130c00(handle) -> the object.  An orb's
+(object, handle, leaf) is noted when it is made; for those draws ANM 0xa4's texref slots point at the orb texture.
+tools/genorbtex.py: the bubble from KH2 obj/PRIZE.mdlx remastered texture 1 (left 128x128), tinted, 60x60 in the
+star's cell, a soft glow in the white star's, the rest clear (no sparkles).

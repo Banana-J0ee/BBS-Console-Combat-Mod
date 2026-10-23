@@ -290,12 +290,12 @@ static void t_sporb(void) {
     for (int i = 0; i < g_mk_n && i < 64; i++) { if (g_mk_kind[i] == 0) hp++; else if (g_mk_kind[i] == 6 || (g_mk_kind[i] == 5 && *(u8**)(g_mk_obj[i] + 0x250) != test_sporb_rec())) dl++; else if (*(u8**)(g_mk_obj[i] + 0x250) == test_sporb_rec()) orb++; }
     CHECK(hp == 2 && dl == 4 && orb == 4 && test_sporb_counts()[0] == 4, "Flood defeated: its 2 HP and 4 D-Link prizes, and 4 SP orbs (%d / %d / %d)", hp, dl, orb);
     { int lk = 0, dk = 0; for (int i = 0; i < g_mk_n && i < 64; i++) {
-          if (*(u8**)(g_mk_obj[i] + 0x250) == test_sporb_rec()) lk += !strcmp(g_mk_look[i], "SYS_PRZ_100_0");
+          if (*(u8**)(g_mk_obj[i] + 0x250) == test_sporb_rec()) lk += !strcmp(g_mk_look[i], "SYS_PRZ_001_0");
           else if (g_mk_kind[i] == 5) dk += !strcmp(g_mk_look[i], "SYS_PRZ_001_0"); }
       CHECK(lk == 4 && dk == 3 && !strcmp(*(char**)RVA(0x817b30 + 5 * 0x50 + 0x28), "SYS_PRZ_001_0"), "made with their own effect (%d), the D-Link prizes with theirs (%d), kind 5 put back", lk, dk); }
     CHECK(*(u32*)(test_sporb_rec() + 0x40) == 0x1ef && !memcmp(test_sporb_rec(), RVA(0x817b30 + 5 * 0x50), 0x28)
-          && !memcmp(test_sporb_rec() + 0x30, RVA(0x817b30 + 5 * 0x50 + 0x30), 0x10) && !strcmp(*(char**)(test_sporb_rec() + 0x28), "SYS_PRZ_100_0"),
-          "the orb's prize type: the small D-Link prize's, command 1ef, drawn with SYS_PRZ_100_0");
+          && !memcmp(test_sporb_rec() + 0x30, RVA(0x817b30 + 5 * 0x50 + 0x30), 0x10) && !strcmp(*(char**)(test_sporb_rec() + 0x28), "SYS_PRZ_001_0"),
+          "the orb's prize type: the small D-Link prize's, command 1ef, drawn with its effect (Look 3: and the bubble)");
     /* a boss: no orbs */
     strcpy((char*)ent + 0xf0, "b10ex00"); g_mk_n = 0; test_sporb_reset();
     drop(ent, pos, 100, 0, 0);
@@ -322,6 +322,78 @@ static void t_sporb(void) {
     u8 *other = calloc(1, 0x800); float m0 = *test_mp();
     pick(other, 0x1ef, 0, 0); CHECK(*test_mp() == m0, "picked up by someone else (a friend): nothing");
     printf("t_sporb done\n");
+}
+/* KH2's bubble: a texture of the mod's own, swapped into the D-Link prize's sprite only while an orb is drawn */
+static int g_reg_n, g_rel_n, g_make_n, g_drop_n, g_seen[4]; static u8 *g_reg_tex;
+static int MSABI s_reg(u8 *mgr, u64 owner, u8 *tex) { (void)mgr; g_reg_n++; g_reg_tex = tex; return owner == 0 ? 77 : -1; }
+static void MSABI s_rel(u8 *mgr, int slot) { (void)mgr; if (slot == 77) g_rel_n++; }
+static void MSABI s_texmake(u8 *tex) { g_make_n += tex == g_reg_tex; }
+static void MSABI s_texdrop(u8 *tex) { g_drop_n += tex == g_reg_tex; }
+static void MSABI s_frr(u8 *frr, int mode) { (void)frr; (void)mode; }
+static u8 *g_t_anm;
+static float g_seen_f;
+static void MSABI s_anmdraw(void *self, u8 *ctx, u8 *prm, float a4, u8 *work) {
+    (void)self; (void)ctx; (void)prm; (void)work; g_seen_f = a4;
+    u32 *tr = (u32*)(g_t_anm + *(int*)(g_t_anm + 0x28)); g_seen[0] = (int)tr[1]; g_seen[1] = (int)tr[3];
+}
+static u8 *g_t_efx;
+static u8 *MSABI s_efxget(int h) { return h == 0x1234 ? g_t_efx : NULL; }
+static void t_orbtex(void) {
+    extern u8 *test_sporb_tex(void); extern int *test_sporb_slot(void); extern int test_sporb_draws(void);
+    extern void test_sporb_note(u8 *prize); extern int *test_sporb_look(void);
+    CHECK(*test_sporb_look() == 3, "Look 3 (the bubble) by default");
+    /* the texture manager: a vtable whose register / release are the game's (stubbed here) */
+    static void *vt[16]; u8 *mgr = calloc(1, 0x100); *(void***)mgr = vt;
+    vt[3] = RVA(0x4bbd00); vt[6] = RVA(0x158cb0);
+    stub_jmp(0x4bbd00, s_reg); stub_jmp(0x158cb0, s_rel); stub_jmp(0x4bc160, s_texmake); stub_jmp(0x4bc1f0, s_texdrop); stub_jmp(0x1a1770, s_frr);
+    G(u8*, 0x8f869d0) = mgr;
+    CHECK(sp_ct(0x11d818) != RVA(0x1a1770) && sp_ct(0x11d4a4) != RVA(0x1a1770), "the FRR texture make / free calls are hooked");
+    void (MSABI *load)(u8*, int) = (void*)sp_ct(0x11d818), (MSABI *unload)(u8*, int) = (void*)sp_ct(0x11d4a4);
+    u8 *frr = calloc(1, 0x100); *(u32*)(frr + 4) = 0x12345678;
+    load(frr, 0); CHECK(g_reg_n == 0, "another FRR: no texture added");
+    *(u32*)(frr + 4) = 0x80003800;
+    load(frr, 0); load(frr, 0);
+    CHECK(g_reg_n == 1 && g_make_n == 1 && *test_sporb_slot() == 77, "resident.frr: the orb texture registered (owner 0) and made, once (%d)", g_reg_n);
+    u8 *t = test_sporb_tex();
+    CHECK(!memcmp(t, "TEX", 4) && *(u32*)(t + 4) == 0xf0000040 && *(u32*)(t + 0x18) == 0 && *(u32*)(t + 0x1c) == 256 && *(u32*)(t + 0x20) == 128 && *(u32*)(t + 0x24) == 0x30 && ((size_t)t & 15) == 0,
+          "its record: id f0000040, 256 x 128, no palette, pixels at +0x30, 16-aligned");
+    /* unswizzled (as 522790 does), the bubble sits at x 0-63, y 64-127; the rest of the top half is clear */
+    static u8 lin[128][256][4]; const u8 *q = t + 0x30;
+    for (int by = 0; by < 16; by++) for (int bx = 0; bx < 64; bx++) for (int r = 0; r < 8; r++, q += 16) memcpy(&lin[by * 8 + r][bx * 4], q, 16);
+    int a_bub = 0, a_top = 0, a_glow = 0;
+    for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++) { a_bub += lin[64 + y][x][3]; a_top += lin[y][x][3]; a_glow += lin[64 + y][64 + x][3]; }
+    CHECK(a_bub > 64 * 64 * 20 && a_top == 0 && a_glow > 0 && lin[96][32][2] >= lin[96][32][0], "bubble in the solid cell (blue), glow beside it, the sparkle area clear");
+    /* an orb's effect, as the game builds it */
+    u8 *e = calloc(1, 0x100), *leaf = calloc(1, 0x200), *fep = calloc(1, 0x100), *amgr = calloc(1, 0x400), *ao = calloc(1, 0x20), *anm = calloc(1, 0x100);
+    u8 *ctx = calloc(1, 0x100), *prm = calloc(1, 0x40), *prize = calloc(1, 0x300);
+    g_t_efx = e; g_t_anm = anm; stub_jmp(0x130c00, s_efxget); stub_jmp(0x1779c0, s_anmdraw);
+    *(int*)(e + 0x30) = 0x1234; *(u8**)(e + 0x48) = leaf;
+    leaf[0] = 'e'; *(u8**)(leaf + 0x158) = RVA(0x12a890); *(u8**)(leaf + 0x160) = e; *(u8**)(leaf + 0x198) = fep;
+    *(int*)(fep + 0x38) = 0x40; *(int*)(fep + 0x40 + 4) = 0x60; *(int*)(fep + 0x60 + 0x10) = 3;     /* animation header 1 -> slot 3 */
+    *(u8**)(amgr + 3 * 0x20 + 0x30) = ao; *(u8**)(ao + 8) = anm;
+    memcpy(anm, "ANM", 4); *(u32*)(anm + 4) = 0xf00000a4; *(int*)(anm + 0x18) = 2; *(int*)(anm + 0x28) = 0x3c;
+    u32 *tr = (u32*)(anm + 0x3c); tr[0] = 0xf0000012; tr[1] = 21; tr[2] = 0xf000000a; tr[3] = 9;
+    *(u8**)(ctx + 0x78) = leaf; *(u8**)(ctx + 0xa8) = amgr; *(int*)(prm + 0xc) = 1;
+    void (MSABI *draw)(void*, u8*, u8*, float, u8*) = *(void**)RVA(0x63de30);
+    CHECK((void*)draw != RVA(0x1779c0), "the sprite draw (FecAnm_plus vtable) is wrapped");
+    draw(NULL, ctx, prm, 0, NULL);
+    CHECK(g_seen[0] == 21 && g_seen[1] == 9 && test_sporb_draws() == 0, "a D-Link prize (not an orb): drawn with its own textures");
+    *(int*)(prize + 0x244) = 0x1234; test_sporb_note(prize);
+    draw(NULL, ctx, prm, 0.75f, NULL);
+    CHECK(g_seen_f == 0.75f, "the draw's 4th argument (a float) passed on");
+    CHECK(g_seen[0] == 77 && g_seen[1] == 77 && tr[1] == 21 && tr[3] == 9 && test_sporb_draws() == 1, "an orb: drawn with the orb texture (%d %d), the sprite's own put back", g_seen[0], g_seen[1]);
+    *(u32*)(e + 0x50) |= 0x8000; draw(NULL, ctx, prm, 0, NULL);
+    CHECK(g_seen[0] == 21, "its effect ended (the leaf may be reused): its own textures again");
+    *(u32*)(e + 0x50) = 0; *(int*)(e + 0x30) = 0x999; draw(NULL, ctx, prm, 0, NULL);
+    CHECK(g_seen[0] == 21, "the effect object reused for another effect (new handle): its own textures");
+    *(int*)(e + 0x30) = 0x1234; *(u32*)(anm + 4) = 0xf00000a5; draw(NULL, ctx, prm, 0, NULL);
+    CHECK(g_seen[0] == 21, "another sprite of the orb's effect: left alone");
+    *(u32*)(anm + 4) = 0xf00000a4;
+    unload(frr, 1);
+    CHECK(g_drop_n == 1 && g_rel_n == 1 && *test_sporb_slot() == -1, "resident.frr released: the orb texture too");
+    draw(NULL, ctx, prm, 0, NULL); CHECK(g_seen[0] == 21, "no texture: orbs look like D-Link prizes");
+    load(frr, 0); CHECK(g_reg_n == 2 && *test_sporb_slot() == 77, "loaded again: added again");
+    printf("t_orbtex done\n");
 }
 /* KH2's MP orb sound added to BBS's common SE bank as it is registered (the call at 553472) */
 static const u8 *g_bk_scd; static u32 g_bk_size, g_bk_id;
@@ -3286,6 +3358,7 @@ int main(int argc, char **argv) {
     bad |= run("t_linkdrain", t_linkdrain);
     bad |= run("t_sporb", t_sporb);
     bad |= run("t_orbse", t_orbse);
+    bad |= run("t_orbtex", t_orbtex);
     bad |= run("t_ether", t_ether);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);

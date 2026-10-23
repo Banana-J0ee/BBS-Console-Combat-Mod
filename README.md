@@ -34,7 +34,8 @@ file is changed, and removing the mod puts everything back.
   gravity off); a ground attack only rises into the air for an enemy at least 1.1 m above you, as Sora's
   does in KH2 (the game rises for nearly any enemy above your feet); after an aerial attack you fall instead of hanging; spells go off and unlock at KH2's times.
 - **SP orbs**: like KH2's MP orbs. A regular enemy that drops D-Link prizes when defeated also drops SP orbs (not
-  bosses); each gives back 2 % of the SP bar, or moves an SP charge on by as much, with KH2's MP orb pickup sound.
+  bosses); each gives back 2 % of the SP bar, or moves an SP charge on by as much. They are KH2's blue bubbles, with KH2's
+  MP orb pickup sound.
 - **New abilities** (off until you equip them): **Focus Exchange** - physical commands (the red key icon) cost
   Focus instead of SP, and need the full amount; **Link Charge** - starting a D-Link refills SP, but the link
   drains twice as fast.
