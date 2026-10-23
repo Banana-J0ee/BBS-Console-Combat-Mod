@@ -1330,7 +1330,8 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
   (-6,-6)..(8,8), uv 26,98..54,126 (a grey hat, purple from its quad colour).  Object 3 (sprite 6, the large hat at
   338,2) has kind 0x81 in that control = not drawn; the first version changed that one, so the game kept showing the
   hat (found with the draw capture: the node's only draw was uv 26,98).  Each frame the plate's own copy of sprite 4
-  (L2D_CloneNodeSprite) is pointed at the emblem: texels 0..16 x 3..21 of it (the art sits low in its block) on 12 x 14 units, x -5..7, y -6..8 -
-  the art's middle at the hat's (1, 0.6), the plate's middle; neutral colour (first try, the whole block, sat low).
+  (L2D_CloneNodeSprite) is pointed at the emblem: texels 0..16 x 3..21 of it (the art sits low in its block) on 11 x 12 units, x -4..7, y -6..6,
+  neutral colour.  Placed from the user's screenshots: the plate's black inside is node y -6.9..8.1; the whole block
+  (y -7..9) and then the art on y -6..8 both showed the emblem low and nearly filling the inside.
   Other plates with the hat keep it.  Test: t_listhdr (the art in all three sheets and both byte orders; on the layout
   runtime the Skills plate's icon, what the node draws, and another plate's hat).
