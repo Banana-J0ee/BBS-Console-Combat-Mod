@@ -1397,7 +1397,8 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
   frames, counterattack on flinch, group shouts, no attack limit, no difficulty reads) - scratch tools in
   /home/claude/kh2mob (bdx.py disassembler) and /home/claude/mobs (decompiled mob scripts, upvalue dumps).
 * Asked for: only shorter waits, for the Unversed and Maleficent's goons.  RV.mobs: m01..m22, m25, m50..m57 (31
-  Unversed by OpenKH's model names) and m01sb00 / m02sb00 (goons).  Out: Prize Pod m23 (only runs), Disney Town
+  Unversed by OpenKH's model names) and m01sb00 / m02sb00 (goons), plus the other story versions the same scripts
+  register (m08ex00b, m14ex00b, m19ex00b, m22ex00s, m02sb00b; added on request).  Out: Prize Pod m23 (only runs), Disney Town
   m03dc00 / m07dc00, Heartless m40..m42, the Mirage Arena "vs" copies, bosses, allies (Peter Pan included).
 * How: attachMob wraps the factory record's Create of a listed name (not when it has a boss cfg), tracks the state
   through GotoStateSub and puts the entity in the SetTimer pace table the bosses use (P.by).  The state decides:

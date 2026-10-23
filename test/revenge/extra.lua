@@ -893,7 +893,8 @@ do
     check(mv("idle", 30) == 18 and mv("idle", 15) == 15 and mv("idle", 60) == 30 and mv("idle", 300) == 150, "floor 0.3 s: 30 -> 18, 15 stays, 60 -> 30, 300 -> 150 (" .. mv("idle", 30) .. ")")
     check(mv(nil, 300) == 300 and mv("recover", 300) == 300, "other states and the stagger: as the game has them")
     -- a boss is not paced as a mob, and a mob not listed (Prize Pod) is left alone
-    check(RVx.mobs.m23ex00 == nil and RVx.mobs.b20pp00 == nil and RVx.mobs.m01sb00 and RVx.mobs.m57ex00, "list: Prize Pod and Peter Pan out, goons and Final Mix Unversed in")
+    check(RVx.mobs.m23ex00 == nil and RVx.mobs.b20pp00 == nil and RVx.mobs.m01sb00 and RVx.mobs.m57ex00 and RVx.mobs.m22ex00s and RVx.mobs.m02sb00b and RVx.mobs.m18vs00 == nil,
+          "list: Prize Pod, Peter Pan and the arena copies out; goons, Final Mix Unversed and the story variants in")
     RVx.mobOn = 0
     local e2 = M.create("m02ex00")
     check(e2 ~= nil and rawget(e2, "__rvmob") == nil, "Enabled=0: no pace")

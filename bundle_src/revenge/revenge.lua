@@ -146,7 +146,9 @@ RV.mobs = {}
 for _, n in ipairs { "m01ex00", "m02ex00", "m03ex00", "m04ex00", "m05ex00", "m06ex00", "m07ex00", "m08ex00", "m09ex00",
                      "m10ex00", "m11ex00", "m12ex00", "m13ex00", "m14ex00", "m15ex00", "m16ex00", "m17ex00", "m18ex00",
                      "m19ex00", "m20ex00", "m21ex00", "m22ex00", "m25ex00", "m50ex00", "m51ex00", "m52ex00", "m53ex00",
-                     "m54ex00", "m55ex00", "m56ex00", "m57ex00", "m01sb00", "m02sb00" } do RV.mobs[n] = true end
+                     "m54ex00", "m55ex00", "m56ex00", "m57ex00", "m01sb00", "m02sb00",
+                     -- other story versions of the same enemies (registered by the same scripts)
+                     "m08ex00b", "m14ex00b", "m19ex00b", "m22ex00s", "m02sb00b" } do RV.mobs[n] = true end
 -- their states that set a wait (read from all 33 scripts): what kind of wait each is
 local MOB_KIND = {
   Idling = "idle", Idling2 = "idle", InIdling = "idle", InIdlingNeedle = "idle", Rock_Idling = "idle",
