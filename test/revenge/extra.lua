@@ -313,7 +313,7 @@ do
     end
   end
   check(shots == 20, "Braig: escape, then one of his shots, in " .. shots .. " of 20 break-outs")
-  check(st3.limit >= 5 and st3.limit <= 7, "Braig in the Keyblade Graveyard: limit 6 +- 1 (" .. st3.limit .. ")")
+  check(st3.limit >= 7 and st3.limit <= 9, "Braig in the Keyblade Graveyard: limit 8 +- 1 (" .. st3.limit .. ")")
   -- his escape warp goes far, his other warps keep their range
   local got
   rawset(e3, "__wt", nil)
