@@ -1525,3 +1525,6 @@ inside the bubble.
 ## Final Braig's revenge limit back up (2026-10-24)
 * Asked for: Braig in the Keyblade Graveyard (Aqua's final episode, b30ex00 = braigLate) 6 -> 8 (re-rolled +-1 after
   each break-out as every boss).  His other fight (b32ex00) stays 9.
+## Final Braig's revenge limit back up (2026-10-24)
+* Asked for: Braig in the Keyblade Graveyard (Aqua's final episode, b30ex00 = braigLate) 6 -> 8 (re-rolled +-1 after
+  each break-out as every boss).  His other fight (b32ex00) stays 9.
