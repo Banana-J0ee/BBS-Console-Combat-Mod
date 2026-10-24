@@ -281,6 +281,7 @@ static void t_sporb(void) {
     g_drop_tab[0] = 0; g_drop_tab[1] = 2 | 100u << 16; g_drop_tab[2] = 5; g_drop_tab[3] = 3 | 100u << 16; g_drop_tab[4] = 6; g_drop_tab[5] = 1 | 100u << 16;
     u8 *ent = calloc(1, 0x400), *epd = calloc(1, 0x100); *(u8**)(ent + 0x250) = epd; *(u32*)(epd + 0x98) = 3;
     float pos[4] = { 1, 2, 3, 1 };
+    CHECK(*test_sporb_cfg() == 0.5f, "PerDLinkPrize 0.5 by default"); *test_sporb_cfg() = 1.0f;
     CHECK(*(u8*)RVA(0x2d8f16) == 0xe8 && sp_ct(0x2d8f16) != RVA(0x2d5b30) && sp_ct(0x2defd8) != RVA(0x2d5b30), "both defeat drop calls are hooked");
     void (MSABI *drop)(u8*, void*, int, int, int) = (void*)sp_ct(0x2d8f16);
     /* a regular enemy (Flood) */
@@ -314,10 +315,10 @@ static void t_sporb(void) {
     void (MSABI *pick)(u8*, u64, int, int) = (void*)sp_ct(0x273408);
     *test_mp() = 50; *test_burn() = 0;
     pick(pl, 0x1ef, 0, 0);
-    CHECK(*test_mp() > 50.9f && *test_mp() < 51.1f && test_sporb_counts()[1] == 1, "an orb: 50 -> %.1f SP (1 %% of 100)", *test_mp());
+    CHECK(*test_mp() > 51.9f && *test_mp() < 52.1f && test_sporb_counts()[1] == 1, "an orb: 50 -> %.1f SP (2 %% of 100)", *test_mp());
     *test_burn() = 1; *test_charge() = 40;
     pick(pl, 0x1ef, 0, 0);
-    CHECK(*test_charge() > 40.9f && *test_charge() < 41.1f, "in an SP charge: the recharge 40 -> %.1f %%", *test_charge());
+    CHECK(*test_charge() > 41.9f && *test_charge() < 42.1f, "in an SP charge: the recharge 40 -> %.1f %%", *test_charge());
     *test_burn() = 0;
     u8 *other = calloc(1, 0x800); float m0 = *test_mp();
     pick(other, 0x1ef, 0, 0); CHECK(*test_mp() == m0, "picked up by someone else (a friend): nothing");

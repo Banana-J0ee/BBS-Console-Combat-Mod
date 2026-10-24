@@ -1503,7 +1503,7 @@ star's cell, a soft glow in the white star's, the rest clear (no sparkles).
 Later (asked for): the glow cell is clear as well - the D-Link prize's pulsing additive glow parts showed as a shine
 inside the bubble.
 
-### SP orbs: half as much (2026-10-23)
+### SP orbs: half the drops (2026-10-23)
 * Measured in game (debug log, Terra early, max SP 70): every pickup exactly +1.4 SP (2 %), one log line per orb, no
   double counts; kills drop 2-3 orbs at once, so six pickups took 50 -> 58.4 SP in 7 s against a 10 SP command.
-  Asked for: half as much - SPPercent 2 -> 1 (default and ini).
+  Asked for: half the drop rate, 2 % kept - PerDLinkPrize 1 -> 0.5 (default and ini).
