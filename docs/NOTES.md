@@ -1528,3 +1528,5 @@ star's cell, a soft glow in the white star's, the rest clear (no sparkles).
     the page's tail, 1110dd00; every rel32 / rip-relative operand re-encoded.
 * Test: the whole suite against the Epic exe (BBS_EXE=bbs_epic.exe, BBS_COMBO_RUNS=...): 36 runs exit 0, install=1
   errors=0, ALL OK, LOOP TEST OK.
+Later (asked for): the glow cell is clear as well - the D-Link prize's pulsing additive glow parts showed as a shine
+inside the bubble.
