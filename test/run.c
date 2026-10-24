@@ -314,10 +314,10 @@ static void t_sporb(void) {
     void (MSABI *pick)(u8*, u64, int, int) = (void*)sp_ct(0x273408);
     *test_mp() = 50; *test_burn() = 0;
     pick(pl, 0x1ef, 0, 0);
-    CHECK(*test_mp() > 51.9f && *test_mp() < 52.1f && test_sporb_counts()[1] == 1, "an orb: 50 -> %.1f SP (2 %% of 100)", *test_mp());
+    CHECK(*test_mp() > 50.9f && *test_mp() < 51.1f && test_sporb_counts()[1] == 1, "an orb: 50 -> %.1f SP (1 %% of 100)", *test_mp());
     *test_burn() = 1; *test_charge() = 40;
     pick(pl, 0x1ef, 0, 0);
-    CHECK(*test_charge() > 41.9f && *test_charge() < 42.1f, "in an SP charge: the recharge 40 -> %.1f %%", *test_charge());
+    CHECK(*test_charge() > 40.9f && *test_charge() < 41.1f, "in an SP charge: the recharge 40 -> %.1f %%", *test_charge());
     *test_burn() = 0;
     u8 *other = calloc(1, 0x800); float m0 = *test_mp();
     pick(other, 0x1ef, 0, 0); CHECK(*test_mp() == m0, "picked up by someone else (a friend): nothing");
