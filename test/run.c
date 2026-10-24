@@ -213,6 +213,7 @@ static void t_fx(void) {
     extern void test_fx_set(int on); extern int mp_fx(int id); extern int mp_fx_any(u8 *cmd); extern int mp_would_burn(int id);
     extern const char *test_desc(int id, const char *text);
     static const u16 ids[] = { 0x65 /*Strike Raid 10*/, 0x83 /*Fire 10*/, 0x62 /*Sonic Rave 20*/, 0xbc /*Potion*/ };
+    extern int *test_rebalance(void); *test_rebalance() = 0;  /* Sonic Blade at its reload-time cost, 20 */
     world(4, ids);
     *(u32*)RVA(0x10fa4408 + 0x18cc + 5 * 4) = 0;            /* a new save: both abilities off */
     frame();
@@ -487,8 +488,20 @@ static void t_ether(void) {
       CHECK(mp_cost(0x83) == 10 && mp_cost(0x84) == 15 && mp_cost(0x85) == 20 && mp_cost(0x86) == 25, "Fire 10 / Fira 15 / Firaga 20 / Dark Firaga 25 (%.0f %.0f %.0f %.0f)", mp_cost(0x83), mp_cost(0x84), mp_cost(0x85), mp_cost(0x86));
       CHECK(mp_cost(0x8a) == 10 && mp_cost(0x8b) == 15 && mp_cost(0x8c) == 20 && mp_cost(0x8e) == 10 && mp_cost(0x8f) == 15 && mp_cost(0x90) == 20 && mp_cost(0x91) == 25, "Blizzard and Thunder families the same way");
       CHECK(mp_cost(0xb8) == 10 && mp_cost(0xb9) == 15 && mp_cost(0xba) == 20, "Stop 10 / Stopra 15 / Stopga 20");
-      CHECK(mp_cost(0x95) == 20 && mp_cost(0xad) == 25 && mp_cost(0xaf) == 25 && mp_cost(0xae) == 30 && mp_cost(0xac) == 50, "other magic: 15 -> 20, 20 -> 25, the rest as it was");
-      CHECK(mp_cost(0x5b) == 10 && mp_cost(0x5c) == 15 && mp_cost(0x62) == 20 && mp_cost(0x6f) == 25 && mp_cost(0xd3) == 40, "attack and friendship commands keep their reload times"); }
+      extern int *test_rebalance(void); extern int mp_would_burn(int id); extern s16 *mp_cost_overrides(void);
+      *test_rebalance() = 0;
+      CHECK(mp_cost(0x95) == 20 && mp_cost(0xad) == 25 && mp_cost(0xaf) == 25 && mp_cost(0xae) == 30 && mp_cost(0xac) == 50, "Rebalanced=0 - other magic: 15 -> 20, 20 -> 25, the rest as it was");
+      CHECK(mp_cost(0x5b) == 10 && mp_cost(0x5c) == 15 && mp_cost(0x62) == 20 && mp_cost(0x6f) == 25 && mp_cost(0xd3) == 40, "Rebalanced=0 - attack and friendship commands keep their reload times");
+      *test_rebalance() = 1; *test_mp() = 100; *test_burn() = 0;
+      CHECK(mp_cost(0xaf) == 50 && mp_cost(0xaa) == 50 && mp_cost(0x7c) == 50 && mp_cost(0x63) == 50 && mp_cost(0x70) == 50 && mp_cost(0x6f) == 50, "Rebalanced: Meteor, Firaga Burst, Salvation, Chaos Blade, Time Splicer, Ars Arcanum 50");
+      CHECK(mp_cost(0xad) == 45 && mp_cost(0x98) == 45 && mp_cost(0x97) == 40 && mp_cost(0x96) == 35 && mp_cost(0x80) == 35, "Quake / Seeker Mine 45, Mine Square 40, Mine Shield / Geo Impact 35");
+      CHECK(mp_cost(0x62) == 30 && mp_cost(0x68) == 30 && mp_cost(0x81) == 30 && mp_cost(0x89) == 30 && mp_cost(0xa5) == 30 && mp_cost(0xa8) == 30, "30: Sonic Blade, Spark Raid, Sacrifice, Crawling Fire, Warp, Glacier");
+      CHECK(mp_cost(0x88) == 25 && mp_cost(0x8d) == 25 && mp_cost(0x7f) == 25 && mp_cost(0x7b) == 25 && mp_cost(0x5c) == 20 && mp_cost(0x6a) == 20 && mp_cost(0x6c) == 20, "25 Triples / magnets, 20 Blitz / Surges");
+      CHECK(mp_cost(0xa7) == 25 && mp_cost(0xac) == 50 && mp_cost(0x85) == 20 && mp_cost(0x83) == 10 && mp_cost(0x6b) == 15, "unchanged: Deep Freeze 25, Mega Flare 50, Firaga 20, Fire 10, Barrier Surge 15");
+      CHECK(mp_would_burn(0xa6) == 1 && mp_would_burn(0xaf) == 0, "Faith uses all remaining SP like the cures; Meteor does not");
+      mp_cost_overrides()[0xa6] = 40; mp_cost_overrides()[0xaf] = 33;
+      CHECK(mp_cost(0xa6) == 40 && mp_would_burn(0xa6) == 0 && mp_cost(0xaf) == 33, "[Cost] still wins: a6=40, af=33");
+      mp_cost_overrides()[0xa6] = 0; mp_cost_overrides()[0xaf] = 0; }
     /* the commands only D-Link decks have: by class, as the game costs ordinary commands; their two heals as Cure */
     { extern int *test_dlink_cost(void); extern s16 *mp_cost_overrides(void); extern int mp_would_burn(int id);
       static const struct { int id, cost; const char *name; } dl[] = {

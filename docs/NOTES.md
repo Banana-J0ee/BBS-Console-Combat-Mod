@@ -1535,3 +1535,16 @@ inside the bubble.
     the page's tail, 1110dd00; every rel32 / rip-relative operand re-encoded.
 * Test: the whole suite against the Epic exe (BBS_EXE=bbs_epic.exe, BBS_COMBO_RUNS=...): 36 runs exit 0, install=1
   errors=0, ALL OK, LOOP TEST OK.
+## Rebalanced SP costs (2026-10-24; mp.c k_rebalance, ini [MP] Rebalanced)
+* Asked for: re-evaluate the costs of the strong commands (up to 50 or the whole bar).  First an investigation of
+  the command data (no changes): the per-command parameters at 140811080 + id*0x1e, +0xa: ten s16 "pw" values read
+  at the command's start indexed by level - attack commands (1402232a0) pw[lv-1], magic and the D-Link-only commands
+  (140265920) pw[lv] (pw[0] a level-0 value), D-Link-only by D-Link level pw[0..2]; the power is a percent of the
+  stat (Strength for attack commands, Magic for magic, 140219fe0) per hit; other slots are counts (mines, Faith's
+  columns, Quake's waves, written to pl+0x338), durations (x2 = 60 Hz ticks), chances, heal percent.  Cure family:
+  Magic + pw[lv]; Faith 300..325 per hit and 50..100 % of max HP; Salvation 40..90 %.  Hit counts from code / bullet
+  data where they could be read (keyblade swing hit data was not in the extracted files - one hit per swing assumed).
+* Costs set (by strength per use, Fire 200 / 10 and Mega Flare 1350 / 50 as the yardsticks; the user's own picks
+  for Seeker Mine 45 and the three chains 50, Deep Freeze kept at 25): see k_rebalance.  Faith is a cure for
+  CureUsesAllMP (all remaining SP; 50 without).  [Cost] overrides still win.  Test: t_ether's cost block (with
+  Rebalanced=0 the old values), t_fx runs with Rebalanced=0 (its Sonic Blade is the 20-SP command).
