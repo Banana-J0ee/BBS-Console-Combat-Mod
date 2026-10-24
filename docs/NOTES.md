@@ -1500,6 +1500,8 @@ leaf, +0x50 flags (0x8000 ended); the prize keeps the handle at +0x244, 130c00(h
 (object, handle, leaf) is noted when it is made; for those draws ANM 0xa4's texref slots point at the orb texture.
 tools/genorbtex.py: the bubble from KH2 obj/PRIZE.mdlx remastered texture 1 (left 128x128), tinted, 60x60 in the
 star's cell, a soft glow in the white star's, the rest clear (no sparkles).
+Later (asked for): the glow cell is clear as well - the D-Link prize's pulsing additive glow parts showed as a shine
+inside the bubble.
 
 ## Epic Games Store port (2026-10-23, branch `epic`)
 * Asked for: the mod on the Epic version (C:\Program Files\Epic Games\KH_1.5_2.5), Steam and main untouched.
@@ -1528,5 +1530,3 @@ star's cell, a soft glow in the white star's, the rest clear (no sparkles).
     the page's tail, 1110dd00; every rel32 / rip-relative operand re-encoded.
 * Test: the whole suite against the Epic exe (BBS_EXE=bbs_epic.exe, BBS_COMBO_RUNS=...): 36 runs exit 0, install=1
   errors=0, ALL OK, LOOP TEST OK.
-Later (asked for): the glow cell is clear as well - the D-Link prize's pulsing additive glow parts showed as a shine
-inside the bubble.
