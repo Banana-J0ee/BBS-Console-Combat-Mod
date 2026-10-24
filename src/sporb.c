@@ -57,7 +57,7 @@ static const u32 DEATH_CALLS[2] = { 0x2d8c36, 0x2decf8 };
 #define DLINK_SE    12             /* the D-Link prize's pickup sound (the copy's template) */
 
 static int   c_on = 1;              /* [SPOrbs] Enabled */
-static float c_per = 1.0f;          /* orbs per D-Link prize (a fraction = that chance of one) */
+static float c_per = 0.5f;          /* orbs per D-Link prize (a fraction = that chance of one; 1 -> 0.5 on request, 2026-10-23) */
 static float c_pct = 2.0f;          /* percent of max SP per orb (also the recharge it adds in an SP charge) */
 static int   c_look = 3;            /* the effect it is drawn with: 0 the small D-Link prize's, 1 SYS_PRZ_100_0 (in the
                                        prize effects s_ex_prz_00.fep but used by no prize type), 2 SYS_PRZ_003_0,
@@ -299,7 +299,7 @@ static float ini_f(const char *key, float def) {
 }
 int sporb_check(void) {
     c_on = (int)ini_f("Enabled", (float)c_on);
-    c_per = ini_f("PerDLinkPrize", c_per); if (!(c_per >= 0 && c_per <= 5)) c_per = 1.0f;
+    c_per = ini_f("PerDLinkPrize", c_per); if (!(c_per >= 0 && c_per <= 5)) c_per = 0.5f;
     c_pct = ini_f("SPPercent", c_pct); if (!(c_pct >= 0 && c_pct <= 100)) c_pct = 2.0f;
     c_look = (int)ini_f("Look", (float)c_look); if (c_look < 0 || c_look > 3) c_look = 3;
     c_sound = (int)ini_f("Sound", (float)c_sound);

@@ -1503,6 +1503,11 @@ star's cell, a soft glow in the white star's, the rest clear (no sparkles).
 Later (asked for): the glow cell is clear as well - the D-Link prize's pulsing additive glow parts showed as a shine
 inside the bubble.
 
+### SP orbs: half the drops (2026-10-23)
+* Measured in game (debug log, Terra early, max SP 70): every pickup exactly +1.4 SP (2 %), one log line per orb, no
+  double counts; kills drop 2-3 orbs at once, so six pickups took 50 -> 58.4 SP in 7 s against a 10 SP command.
+  Asked for: half the drop rate, 2 % kept - PerDLinkPrize 1 -> 0.5 (default and ini).
+
 ## Epic Games Store port (2026-10-23, branch `epic`)
 * Asked for: the mod on the Epic version (C:\Program Files\Epic Games\KH_1.5_2.5), Steam and main untouched.
 * The Epic BBS exe (sha256 d5c0cf12..., 9 345 296 bytes, built ~3 h after Steam's 375a8112...) is the same code with

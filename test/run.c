@@ -281,6 +281,7 @@ static void t_sporb(void) {
     g_drop_tab[0] = 0; g_drop_tab[1] = 2 | 100u << 16; g_drop_tab[2] = 5; g_drop_tab[3] = 3 | 100u << 16; g_drop_tab[4] = 6; g_drop_tab[5] = 1 | 100u << 16;
     u8 *ent = calloc(1, 0x400), *epd = calloc(1, 0x100); *(u8**)(ent + 0x250) = epd; *(u32*)(epd + 0x98) = 3;
     float pos[4] = { 1, 2, 3, 1 };
+    CHECK(*test_sporb_cfg() == 0.5f, "PerDLinkPrize 0.5 by default"); *test_sporb_cfg() = 1.0f;
     CHECK(*(u8*)RVA(0x2d8c36) == 0xe8 && sp_ct(0x2d8c36) != RVA(0x2d5850) && sp_ct(0x2decf8) != RVA(0x2d5850), "both defeat drop calls are hooked");
     void (MSABI *drop)(u8*, void*, int, int, int) = (void*)sp_ct(0x2d8c36);
     /* a regular enemy (Flood) */
