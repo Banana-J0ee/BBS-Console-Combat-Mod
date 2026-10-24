@@ -895,6 +895,28 @@ do
     -- a boss is not paced as a mob, and a mob not listed (Prize Pod) is left alone
     check(RVx.mobs.m23ex00 == nil and RVx.mobs.b20pp00 == nil and RVx.mobs.m01sb00 and RVx.mobs.m57ex00 and RVx.mobs.m22ex00s and RVx.mobs.m02sb00b and RVx.mobs.m18vs00 == nil,
           "list: Prize Pod, Peter Pan and the arena copies out; goons, Final Mix Unversed and the story variants in")
+    -- the Heartless: a lighter scale (HeartlessScale 0.75) for their waits, their stagger as the others
+    check(RVx.mobHeartless == 0.75 and RVx.mobs.m40ex00 and RVx.mobs.m41ex00 and RVx.mobs.m42ex00, "Heartless listed, scale 0.75 (marker unpatched)")
+    check(mv("wander", 300, "m40ex00") == 225 and mv("idle", 300, "m42ex00") == 225 and mv("recover", 480, "m41ex00") == 480
+          and mv("idle", 20, "m42ex00") == 18 and mv("idle", 15, "m42ex00") == 15 and mv("idle", 300, "m01ex00") == 150, "Heartless: 300 -> 225 (Unversed 150), stagger kept, the 0.3 s floor")
+    M.script("m42ex00")
+    local d = M.create("m42ex00")
+    check(d ~= nil and rawget(d, "__rvmob") ~= nil, "Darkball gets the pace")
+    rawset(d, "Update", function() end)
+    M.num["Script.Random"] = 1.0
+    set = {}; pcall(d.GotoState, d, "Move")
+    local want = nil
+    M.num["Script.Random"] = nil
+    check(set[1] ~= nil and set[1] > 30, "Darkball Move (its drift between attacks): " .. tostring(set[1]))
+    set = {}; pcall(d.GotoState, d, "Bite")
+    check(#set == 0 or set[1] == nil or set[1] >= 0, "Darkball Bite (an attack): its own timer")
+    M.script("m40ex00")
+    local sh = M.create("m40ex00")
+    check(sh ~= nil and rawget(sh, "__rvmob") ~= nil and rawget(sh, "__rvmob").pace ~= nil, "Shadow gets the pace")
+    local sst = rawget(sh, "__rvmob"); sst.state = "ShadowMove"
+    check(sst.pace(rawget(sh, "myHandle"), 300) == 225, "Shadow crawl (ShadowMove) 300 -> " .. tostring(sst.pace(rawget(sh, "myHandle"), 300)))
+    sst.state = "Piercing"
+    check(sst.pace(rawget(sh, "myHandle"), 300) == 300, "Shadow attack (Piercing): its own timer")
     RVx.mobOn = 0
     local e2 = M.create("m02ex00")
     check(e2 ~= nil and rawget(e2, "__rvmob") == nil, "Enabled=0: no pace")

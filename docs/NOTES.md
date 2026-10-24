@@ -1415,6 +1415,15 @@ Elixir / Megalixir descriptions; README and modmanager/README.  Not yet: the HUD
   (markers replaced, ini values written).  A smoke run of all 33 through the stand-in: every listed enemy is paced,
   the halved values come out (scratch mobsmoke.lua).  Not seen in the game by me.
 
+* The Heartless too (2026-10-23, asked for: "attack slightly more", not bosses): m40ex00 Shadow, m41ex00 Neoshadow,
+  m42ex00 Darkball (named by their moves) in RV.mobs, their waits x HeartlessScale 0.75 (marker 9008.5) instead of
+  WaitScale / WanderScale; stagger (Stiff, 8 s) x RecoveryScale.  Shadow / Neoshadow have no idle wait: Idling
+  decides at once (when Enemy.CanAttack), so their wait is the shadow crawl before the attack they picked
+  (ShadowMove, SetTimer 300, ends early on arrival) and Neoshadow's SideMove (300): MOB_OWN "wander".  Darkball:
+  Move (8 + 0..300 frames, between attacks) "idle"; its Idling (480 + 0..60, before its first attack) by MOB_KIND.
+  Attack timers (ShadowOut, AirRush, Bite, Ranbu, DarkCnage, DarkMove) untouched.  Upvalues dumped with
+  /home/claude/mobs/upv2.lua (the class from EntityFactory, the Heartless scripts keep it local).
+
 ## SP orbs (2026-10-23; sporb.c, `[SPOrbs]`)
 * Asked for: KH2's MP orbs as SP orbs - dropped whenever an enemy drops D-Link prizes, only on defeat, not by
   bosses, weaker than KH2's; later the KH2 bubble look and the MP sound.

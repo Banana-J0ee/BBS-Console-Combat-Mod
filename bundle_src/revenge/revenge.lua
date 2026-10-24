@@ -140,15 +140,23 @@ if RV.mobWait > 100 or RV.mobWait <= 0 then RV.mobWait = 0.5 end
 if RV.mobFloor > 100 or RV.mobFloor < 0 then RV.mobFloor = 0.3 end
 if RV.mobWander > 100 or RV.mobWander <= 0 then RV.mobWander = 0.5 end
 if RV.mobRecover > 100 or RV.mobRecover <= 0 then RV.mobRecover = 1.0 end
--- the 31 Unversed (base game m01..m22, m25 Blobmob; Final Mix m50..m57) and the two goons of Enchanted Dominion.
--- Not here: Prize Pod (m23, it only runs), the Disney Town fruitball copies, the Heartless, bosses, allies.
+-- the Heartless (2026-10-23, asked for: "slightly more"): their waits x RV.mobHeartless instead of WaitScale /
+-- WanderScale (the stagger as the others: RV.mobRecover); same floor
+RV.mobHeartless = 9008.5
+if RV.mobHeartless > 100 or RV.mobHeartless <= 0 then RV.mobHeartless = 0.75 end
+-- the 31 Unversed (base game m01..m22, m25 Blobmob; Final Mix m50..m57), the two goons of Enchanted Dominion and
+-- the three Heartless (m40 Shadow, m41 Neoshadow, m42 Darkball, by their moves).
+-- Not here: Prize Pod (m23, it only runs), the Disney Town fruitball copies, bosses, allies.
 RV.mobs = {}
 for _, n in ipairs { "m01ex00", "m02ex00", "m03ex00", "m04ex00", "m05ex00", "m06ex00", "m07ex00", "m08ex00", "m09ex00",
                      "m10ex00", "m11ex00", "m12ex00", "m13ex00", "m14ex00", "m15ex00", "m16ex00", "m17ex00", "m18ex00",
                      "m19ex00", "m20ex00", "m21ex00", "m22ex00", "m25ex00", "m50ex00", "m51ex00", "m52ex00", "m53ex00",
                      "m54ex00", "m55ex00", "m56ex00", "m57ex00", "m01sb00", "m02sb00",
                      -- other story versions of the same enemies (registered by the same scripts)
-                     "m08ex00b", "m14ex00b", "m19ex00b", "m22ex00s", "m02sb00b" } do RV.mobs[n] = true end
+                     "m08ex00b", "m14ex00b", "m19ex00b", "m22ex00s", "m02sb00b",
+                     -- the Heartless
+                     "m40ex00", "m41ex00", "m42ex00" } do RV.mobs[n] = true end
+local HEARTLESS = { m40ex00 = true, m41ex00 = true, m42ex00 = true }
 -- their states that set a wait (read from all 33 scripts): what kind of wait each is
 local MOB_KIND = {
   Idling = "idle", Idling2 = "idle", InIdling = "idle", InIdlingNeedle = "idle", Rock_Idling = "idle",
@@ -159,11 +167,18 @@ local MOB_KIND = {
   Stiff = "recover", Stiffening = "recover", Dizzy = "recover",
 }
 RV.mobKind = MOB_KIND
--- per enemy: Yellow Mustard decides inside its hover (Move): 70 % an attack, 30 % a wait it sets there
-local MOB_OWN = { m18ex00 = { Move = "idle" } }
-local function mobValue(kind, v)
+-- per enemy: Yellow Mustard decides inside its hover (Move): 70 % an attack, 30 % a wait it sets there.
+-- The Heartless: Shadow / Neoshadow decide at once in Idling and crawl as a shadow (ShadowMove, up to 5 s) or
+-- side-step (Neoshadow SideMove) before the attack they picked; Darkball drifts (Move, 0.1-5 s) between attacks and
+-- waits in Idling before its first.  Their attacks' own timers (ShadowOut, AirRush, Bite ...) are not touched.
+local MOB_OWN = { m18ex00 = { Move = "idle" },
+                  m40ex00 = { ShadowMove = "wander" },
+                  m41ex00 = { ShadowMove = "wander", SideMove = "wander" },
+                  m42ex00 = { Move = "idle" } }
+local function mobValue(kind, v, name)
   if type(v) ~= "number" then return v end
   local k = kind == "idle" and RV.mobWait or kind == "wander" and RV.mobWander or kind == "recover" and RV.mobRecover or 1
+  if name ~= nil and HEARTLESS[name] and (kind == "idle" or kind == "wander") then k = RV.mobHeartless end
   if k == 1 then return v end
   local fl = RV.mobFloor * 60
   if v <= fl then return v end
@@ -1289,7 +1304,7 @@ local function attachMob(ent, name, handle)
       local mh = rawget(ent, "myHandle")
       if mh ~= nil and mh ~= h then return v end
       local own = MOB_OWN[name]
-      return mobValue((own ~= nil and own[st.state]) or MOB_KIND[st.state], v)
+      return mobValue((own ~= nil and own[st.state]) or MOB_KIND[st.state], v, name)
     end
     local gss = ent.GotoStateSub
     if type(gss) == "function" then

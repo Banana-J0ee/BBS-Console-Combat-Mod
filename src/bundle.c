@@ -97,7 +97,7 @@ static u64 MSABI rsrc_loaded(u8 *r) {
    compiled Lua (type byte 3 + the float) with marker values that are replaced by the ini's here. */
 static float c_aggr = 0.4f, c_walkcap = 2.0f;
 /* [Mobs] (2026-10-23): the regular enemies' waits, carried by the same script (RV.mob*) */
-static float c_mob_on = 1.0f, c_mob_wait = 0.5f, c_mob_floor = 0.3f, c_mob_wander = 0.5f, c_mob_recover = 1.0f;
+static float c_mob_on = 1.0f, c_mob_wait = 0.5f, c_mob_floor = 0.3f, c_mob_wander = 0.5f, c_mob_recover = 1.0f, c_mob_heartless = 0.75f;
 static u8 rv_buf[sizeof rv_factory];
 static int pace_patch(float marker, float value, const char *what) {
     u8 pat[5] = {3}; memcpy(pat + 1, &marker, 4);
@@ -116,10 +116,10 @@ static void pace_config(void) {
     GetPrivateProfileStringA("Bosses", "WalkCap", d, b, sizeof b, g_ini); c_walkcap = (float)atof(b);
     if (!(c_aggr >= 0.1f && c_aggr <= 1.0f)) c_aggr = 0.4f;
     if (!(c_walkcap >= 0.0f && c_walkcap <= 30.0f)) c_walkcap = 2.0f;
-    float *mf[5] = { &c_mob_on, &c_mob_wait, &c_mob_floor, &c_mob_wander, &c_mob_recover };
-    static const char *mk[5] = { "Enabled", "WaitScale", "WaitFloor", "WanderScale", "RecoveryScale" };
-    static const float lo[5] = { 0, 0.05f, 0, 0.05f, 0.05f }, hi[5] = { 1, 1, 5, 1, 1 }, df[5] = { 1, 0.5f, 0.3f, 0.5f, 1 };
-    for (int i = 0; i < 5; i++) {
+    float *mf[6] = { &c_mob_on, &c_mob_wait, &c_mob_floor, &c_mob_wander, &c_mob_recover, &c_mob_heartless };
+    static const char *mk[6] = { "Enabled", "WaitScale", "WaitFloor", "WanderScale", "RecoveryScale", "HeartlessScale" };
+    static const float lo[6] = { 0, 0.05f, 0, 0.05f, 0.05f, 0.05f }, hi[6] = { 1, 1, 5, 1, 1, 1 }, df[6] = { 1, 0.5f, 0.3f, 0.5f, 1, 0.75f };
+    for (int i = 0; i < 6; i++) {
         snprintf(d, sizeof d, "%g", *mf[i]);
         GetPrivateProfileStringA("Mobs", mk[i], d, b, sizeof b, g_ini); *mf[i] = (float)atof(b);
         if (!(*mf[i] >= lo[i] && *mf[i] <= hi[i])) *mf[i] = df[i];
@@ -135,6 +135,7 @@ static void mob_patch(void) {
     pace_patch(9005.5f, c_mob_floor, "Mobs WaitFloor");
     pace_patch(9006.5f, c_mob_wander, "Mobs WanderScale");
     pace_patch(9007.5f, c_mob_recover, "Mobs RecoveryScale");
+    pace_patch(9008.5f, c_mob_heartless, "Mobs HeartlessScale");
 }
 
 /* Debug only: BBS_Log(...) for the revenge script, its arguments written to the log as one line.
@@ -377,7 +378,7 @@ int test_lua_swap(const char **buf, size_t *n) {      /* the decision of lua_loa
 float *test_mob_cfg(void) { return &c_mob_on; }
 void test_mob_apply(float on, float wait, float floor_, float wander, float rec) { c_mob_on = on; c_mob_wait = wait; c_mob_floor = floor_; c_mob_wander = wander; c_mob_recover = rec;
     memcpy(rv_buf, rv_factory, sizeof rv_buf); pace_patch(9003.5f, c_mob_on, "on"); pace_patch(9004.5f, c_mob_wait, "w"); pace_patch(9005.5f, c_mob_floor, "f");
-    pace_patch(9006.5f, c_mob_wander, "wa"); pace_patch(9007.5f, c_mob_recover, "r"); }
+    pace_patch(9006.5f, c_mob_wander, "wa"); pace_patch(9007.5f, c_mob_recover, "r"); pace_patch(9008.5f, c_mob_heartless, "h"); }
 int test_rv_find(float marker) { u8 pat[5] = {3}; memcpy(pat + 1, &marker, 4); int n = 0; for (size_t i = 0; i + 5 <= sizeof rv_buf; i++) if (!memcmp(rv_buf + i, pat, 5)) n++; return n; }
 void test_pace(float aggr, float walk) { c_aggr = aggr; c_walkcap = walk; memcpy(rv_buf, rv_factory, sizeof rv_buf);
     pace_patch(9001.5f, c_aggr, "Aggression"); pace_patch(9002.5f, c_walkcap, "WalkCap"); mob_patch(); }
