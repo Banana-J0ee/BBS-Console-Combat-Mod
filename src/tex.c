@@ -152,17 +152,17 @@ static void *MSABI tex_hook(void *dev, u8 *desc, u8 *pix, const char *name, int 
             else if (g_debug) LOG("mp art: 1024x512 texture '%.40s' is not the gauge sheet", name ? name : "");
         }
     }
-    return FN(void*, 0x4e1630, void*, u8*, u8*, const char*, int)(dev, desc, pix, name, e);
+    return FN(void*, 0x4df900, void*, u8*, u8*, const char*, int)(dev, desc, pix, name, e);
 }
 
 int tex_check(void) {
-    u8 *p = g_base + 0x4e1ee4; s32 d; memcpy(&d, p + 1, 4);
-    if (p[0] == 0xE8 && (u32)(0x4e1ee4 + 5 + d) == 0x4e1630) return 1;
+    u8 *p = g_base + 0x4e01b4; s32 d; memcpy(&d, p + 1, 4);
+    if (p[0] == 0xE8 && (u32)(0x4e01b4 + 5 + d) == 0x4df900) return 1;
     LOG("call site 4e1ee4 does not match");
     return 0;
 }
 void tex_apply(void) {
-    hook_call(0x4e1ee4, 0x4e1630, tex_hook, "png_texture");
+    hook_call(0x4e01b4, 0x4df900, tex_hook, "png_texture");
 }
 
 #ifndef _WIN32      /* offline test access */

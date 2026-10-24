@@ -40,15 +40,15 @@
 extern char g_ini[MAX_PATH + 32];
 extern int g_debug;
 
-#define L2D_CreateLayout(file, id, ctl)   FN(int, 0x1a4ec0, int, u16, int, void*)(file, id, ctl, NULL)
-#define L2D_Destroy(h)                    FN(void, 0x1a57f0, int)(h)
-#define L2D_Show(h, on)                   FN(int, 0x1a5b30, int, int)(h, on)
-#define L2D_GetControl(h)                 FN(int, 0x1a60e0, int)(h)          /* 8 = dead handle */
-#define L2D_SetControl(h, c)              FN(int, 0x1a7520, int, int)(h, c)
-#define L2D_SetPos(h, x, y)               FN(int, 0x1a7660, int, float, float)(h, x, y)
-#define L2D_SetPriority(h, p)             FN(int, 0x1a7600, int, s16, int)(h, p, 0)
-#define L2D_SetNodeText(h, n, s)          FN(int, 0x1a8330, int, u16, const char*, int, void*)(h, n, s, 0, NULL)
-#define L2D_ReplaceNodeSeq(h, n, sq, id, c) FN(int, 0x1a7fb0, int, u16, int, u16, int)(h, n, sq, id, c)
+#define L2D_CreateLayout(file, id, ctl)   FN(int, 0x1a4d60, int, u16, int, void*)(file, id, ctl, NULL)
+#define L2D_Destroy(h)                    FN(void, 0x1a5690, int)(h)
+#define L2D_Show(h, on)                   FN(int, 0x1a59d0, int, int)(h, on)
+#define L2D_GetControl(h)                 FN(int, 0x1a5f80, int)(h)          /* 8 = dead handle */
+#define L2D_SetControl(h, c)              FN(int, 0x1a73c0, int, int)(h, c)
+#define L2D_SetPos(h, x, y)               FN(int, 0x1a7500, int, float, float)(h, x, y)
+#define L2D_SetPriority(h, p)             FN(int, 0x1a74a0, int, s16, int)(h, p, 0)
+#define L2D_SetNodeText(h, n, s)          FN(int, 0x1a81d0, int, u16, const char*, int, void*)(h, n, s, 0, NULL)
+#define L2D_ReplaceNodeSeq(h, n, sq, id, c) FN(int, 0x1a7e50, int, u16, int, u16, int)(h, n, sq, id, c)
 
 /* draw priority of the offer and its timer bar: under the Magic / Items / D-Link lists and their headers (12, the row
    under the cursor 13), which can grow tall enough to reach it, and over the command menu (5 / 7) */
@@ -92,7 +92,7 @@ static u64 MSABI style_decide(Ctx *c) {
     g_cand = cand;                                              /* the candidate can still change while the offer is up */
     u8 *mgr = *(u8**)(cmd + 0x68);
     /* accepted - unless a context prompt is up: triangle answers that one first (menu.c) */
-    if (mgr && !menu_react_prompt(cmd) && FN(int, 0x272c20, u8*)(mgr + 0x58)) {
+    if (mgr && !menu_react_prompt(cmd) && FN(int, 0x272940, u8*)(mgr + 0x58)) {
         g_active = 0; g_flash = 30.0f;
         if (g_debug) LOG("style: %x accepted", cand);
         return 0;
@@ -103,13 +103,13 @@ static u64 MSABI style_decide(Ctx *c) {
     if (g_left <= 0) {                                          /* declined */
         g_active = 0;
         if (g_debug) LOG("style: %x not taken", cand);
-        return (u64)(g_base + 0x236a82);
+        return (u64)(g_base + 0x2367a2);
     }
-    return (u64)(g_base + 0x236b49);
+    return (u64)(g_base + 0x236869);
 }
 
 /* 234115: the button that fires an available finisher */
-static int MSABI finisher_pad(u8 *pad) { return FN(int, 0x272c20, u8*)(pad); }
+static int MSABI finisher_pad(u8 *pad) { return FN(int, 0x272940, u8*)(pad); }
 
 /* 236d67: the call to 233f70 (finisher button and finisher end) in the input part of the cmd update */
 static void MSABI finisher_hook(u8 *cmd) {
@@ -121,7 +121,7 @@ static void MSABI finisher_hook(u8 *cmd) {
                as it does itself when a prompt closes (205890 at level 0, 205910 above) */
             int lv = *(int*)(cmd + 0x1a8);
             u8 *P = (lv >= 0 && lv <= 2) ? *(u8**)(cmd + 0x1b0 + lv * 8) : NULL;
-            if (P && !(*(u32*)(P + 0x60) & 0x80000000u)) FN(void, lv == 0 ? 0x205890 : 0x205910, u8*)(P);
+            if (P && !(*(u32*)(P + 0x60) & 0x80000000u)) FN(void, lv == 0 ? 0x2055b0 : 0x205630, u8*)(P);
             if (g_debug) LOG("finisher: %x offered", *(u16*)*(u8**)(*(u8**)(cmd + 0x1d0) + 0x58));
         } else {
             float dt = *(float*)(cmd + 0x20);
@@ -133,7 +133,7 @@ static void MSABI finisher_hook(u8 *cmd) {
                 int stay = c_keep && *(int*)(cmd + 0x1a8) > 0 && (f64 & 0x20);     /* in a style: it is not lost */
                 if (stay) *(u32*)(cmd + 0x64) = f64 & ~0x20u;
                 *(u32*)(cmd + 0x60) = (f60 | 0x4000) & ~0x8000u;
-                FN(void, 0x233f70, u8*)(cmd);
+                FN(void, 0x233c90, u8*)(cmd);
                 *(u32*)(cmd + 0x60) |= keep;
                 if (stay) *(u32*)(cmd + 0x64) |= 0x20;
                 g_fin = 0;
@@ -144,7 +144,7 @@ static void MSABI finisher_hook(u8 *cmd) {
     } else if (g_fin && g_fin_cmd == cmd) {
         g_fin = 0;
     }
-    FN(void, 0x233f70, u8*)(cmd);
+    FN(void, 0x233c90, u8*)(cmd);
     if (g_fin && (*(u32*)(cmd + 0x60) & 0x4000)) { g_fin = 0; if (g_debug) LOG("finisher: fired"); }
 }
 
@@ -156,10 +156,10 @@ static const char *finisher_name(u8 *cmd) {
     u8 *P = *(u8**)(cmd + 0x1d0);
     u16 *k = P ? *(u16**)(P + 0x58) : NULL;
     int id = k ? k[0] : 0;
-    const char *own = (const char*)(g_base + 0x10f9eeb0 + 0x1b0);
+    const char *own = (const char*)(g_base + 0x10f9f5b0 + 0x1b0);
     int in_style = *(int*)(cmd + 0x1a8) > 0;
     if (own[0] && id != 0x11 && !in_style && !(P && (*(u32*)(P + 0x60) & 0x400))) return own;
-    const char *g = (id > 0 && id < 0x23a) ? G(const char*, 0x814908 + (u32)id * 0x18) : NULL;
+    const char *g = (id > 0 && id < 0x23a) ? G(const char*, 0x815908 + (u32)id * 0x18) : NULL;
     return (g && g[0]) ? g : "Finish";
 }
 
@@ -167,7 +167,7 @@ static const char *finisher_name(u8 *cmd) {
 static const char *style_name(int id) {
     static const char *en[15] = { "Critical Impact", "Spellweaver", "Fever Pitch", "Firestorm", "Diamond Dust", "Thunderbolt", "Cyclone",
         "Bladecharge", "Sky Climber", "Rockbreaker", "Ghost Drive", "Rhythm Mixer", "Dark Impulse", "Wingblade", "Frozen Fortune" };
-    const char *g = (id > 0 && id < 0x23a) ? G(const char*, 0x814908 + (u32)id * 0x18) : NULL;
+    const char *g = (id > 0 && id < 0x23a) ? G(const char*, 0x815908 + (u32)id * 0x18) : NULL;
     if (g && g[0]) return g;
     return (id >= 0x152 && id <= 0x160) ? en[id - 0x152] : "Style";
 }
@@ -197,8 +197,8 @@ void style_frame(u8 *cmd, int hud, float x, float y) {
     }
     if (plate_alive() && g_plate_kind != kind) plate_destroy();
     if (!plate_alive()) {
-        int file = G(int, 0x10f9ed48), sq = G(int, 0x10f9ed4c);     /* bc01_00.l2d and its sprite block */
-        G(u8, 0x8f88028) = 0; G(u8, 0x8f8802a) = 0;                 /* created hidden, HUD group */
+        int file = G(int, 0x10f9f448), sq = G(int, 0x10f9f44c);     /* bc01_00.l2d and its sprite block */
+        G(u8, 0x8f88728) = 0; G(u8, 0x8f8872a) = 0;                 /* created hidden, HUD group */
         g_plate = L2D_CreateLayout(file, kind == 1 ? 7 : 9, 0); g_plate_cand = 0; g_plate_kind = kind;
         if (g_plate <= 0) { g_plate = 0; return; }
         if (kind == 1) L2D_ReplaceNodeSeq(g_plate, 0x5a, sq, 0x197, 0);
@@ -241,7 +241,7 @@ static u64 MSABI h_style_air(Ctx *c) {
     u8 *pl = (u8*)c->rdi, *cmd = *(u8**)(pl + 0x390);
     if (!cmd) return 0;
     u16 id = *(u16*)(cmd + 0x190);
-    if (id >= 0x23a || G(u8, 0x814900 + (u32)id * 0x18) != 6) return 0;
+    if (id >= 0x23a || G(u8, 0x815900 + (u32)id * 0x18) != 6) return 0;
     c->rax = 0;
     *(float*)(pl + 0x50c) = 0.0f; *(float*)(pl + 0x510) = 0.0f;
     if (g_debug) LOG("style: change to %x in the air", id);
@@ -261,7 +261,7 @@ int style_check(void) {
     if (c_air_change && memcmp(g_base + S_style_air.rva, S_style_air.bytes, S_style_air.len) != 0) { LOG("style: site 28ac22 does not match"); c_air_change = 0; }
     if (!c_on) return 1;
     if (memcmp(g_base + S_style_decide.rva, S_style_decide.bytes, S_style_decide.len) != 0) { LOG("style: site 2368f2 does not match"); return 0; }
-    if (!call_ok(0x236d67, 0x233f70) || !call_ok(0x234115, 0x272860) || memcmp(g_base + 0x236d98, jne_attack, 6) != 0) {
+    if (!call_ok(0x236a87, 0x233c90) || !call_ok(0x233e35, 0x272580) || memcmp(g_base + 0x236ab8, jne_attack, 6) != 0) {
         LOG("style: finisher sites do not match"); return 0;
     }
     return 1;
@@ -271,9 +271,9 @@ void style_apply(void) {
     if (!c_on) { LOG("style prompt: off"); return; }
     static const u8 nops[6] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
     hook_ctx(&S_style_decide, style_decide, "style_decide");
-    hook_call(0x236d67, 0x233f70, finisher_hook, "finisher");
-    hook_call(0x234115, 0x272860, finisher_pad, "finisher pad");
-    patch_bytes(0x236d98, jne_attack, nops, 6, "attack with a finisher available");
+    hook_call(0x236a87, 0x233c90, finisher_hook, "finisher");
+    hook_call(0x233e35, 0x272580, finisher_pad, "finisher pad");
+    patch_bytes(0x236ab8, jne_attack, nops, 6, "attack with a finisher available");
 }
 
 void style_own(char *out, int n) { own_add(out, n, "offer", g_plate); own_add(out, n, "offertimer", g_bar); }

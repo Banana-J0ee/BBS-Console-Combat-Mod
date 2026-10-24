@@ -34,18 +34,18 @@
 extern char g_dir[MAX_PATH], g_ini[MAX_PATH + 32];
 extern int g_debug;
 
-#define PAD_HELD  G(u32, 0x8f64930)
-#define PAD_EDGE  G(u32, 0x8f64934)
-#define PAD_CHG   G(u32, 0x8f64938)
-#define PAD_REP   G(u32, 0x8f6493c)
-#define PAD_OFF   G(u32, 0x8f6499c)
+#define PAD_HELD  G(u32, 0x8f65030)
+#define PAD_EDGE  G(u32, 0x8f65034)
+#define PAD_CHG   G(u32, 0x8f65038)
+#define PAD_REP   G(u32, 0x8f6503c)
+#define PAD_OFF   G(u32, 0x8f6509c)
 #define B_L1   0x400u
 #define B_R1   0x800u
 #define B_FACE 0xf000u
 #define B_DPAD 0x00f0u                  /* up, right, down, left */
-#define CMD     G(u8*, 0x10f9ed40)
-#define GFLAGS  G(u32, 0x10f9ee48)
-#define CHARA   G(u8, 0x10fa0880)        /* 0..2: whose save this is (the menu's name message is 0x300 + this) */
+#define CMD     G(u8*, 0x10f9f440)
+#define GFLAGS  G(u32, 0x10f9f548)
+#define CHARA   G(u8, 0x10fa0f80)        /* 0..2: whose save this is (the menu's name message is 0x300 + this) */
 
 /* rows in KH2's order: circle, triangle, square, cross */
 static const u32 row_bit[SC_ROWS] = { 0x2000, 0x1000, 0x8000, 0x4000 };
@@ -70,7 +70,7 @@ const char *sc_row_icon(int row) { static char t[SC_ROWS][4]; t[row & 3][0] = (c
 int sc_sets(void) { return c_sets; }
 int sc_page(void) { return c_sets > 1 ? g_page : 0; }
 /* the save's byte for buttons n, n + 1 (n = set * 4 + row): low nibble even n, high nibble odd n */
-#define SAVE_SC(i)  G(u8, 0x10fa3d08 + 0x18cc + (1 + (i)) * 4 + 3)
+#define SAVE_SC(i)  G(u8, 0x10fa4408 + 0x18cc + (1 + (i)) * 4 + 3)
 static int saved_nibble(int set, int row) {
     int n = (set & 1) * SC_ROWS + (row & 3);
     u8 b = SAVE_SC(n >> 1);
@@ -141,8 +141,8 @@ static u32 g_face_prev;                 /* face buttons (and the d-pad) down las
 static u32 g_face_block;                /* down while the list was shown and not let go since: not the game's */
 static void hide_face(u32 m) {
     PAD_HELD &= ~m; PAD_EDGE &= ~m; PAD_CHG &= ~m; PAD_REP &= ~m;
-    u32 i = G(u32, 0x8f64954) & 7;                                     /* this frame's entries of the pad history */
-    G(u32, 0x8f64958 + i * 4) &= ~m; G(u32, 0x8f64978 + i * 4) &= ~m;
+    u32 i = G(u32, 0x8f65054) & 7;                                     /* this frame's entries of the pad history */
+    G(u32, 0x8f65058 + i * 4) &= ~m; G(u32, 0x8f65078 + i * 4) &= ~m;
 }
 static void pad_frame(void) {
     g_tap = 0;
@@ -169,20 +169,20 @@ static void pad_frame(void) {
     if (g_want_t > 0 && --g_want_t == 0) g_want = -1;
     if (press & B_DPAD) {                                               /* the other set */
         g_page ^= 1; sc_done();
-        FN(u64, 0x1b2e40, int, float, u64, u32, u32)(1, G(float, 0x6420b8), 0, 4, 0);      /* the menus' cursor sound */
+        FN(u64, 0x1b2c60, int, float, u64, u32, u32)(1, G(float, 0x6421e8), 0, 4, 0);      /* the menus' cursor sound */
         if (g_debug) LOG("shortcuts: set %d", g_page + 1);
     }
     for (int r = 0; r < SC_ROWS; r++) if (press & row_bit[r]) { g_want = r; g_want_t = c_buffer; break; }
     hide_face(mine);
 }
 static void MSABI pad_hook(float dt) {
-    FN(void, 0xed040, float)(dt);
+    FN(void, 0xecfb0, float)(dt);
     pad_frame();
 }
 /* 22b5df: "turn the camera behind the character" */
 static int MSABI cam_reset_pad(u8 *pad) {
     u32 fl = *(u32*)(pad + 0xa0);
-    if (((fl >> 1) & 3) != 0) return FN(int, 0x2729c0, u8*)(pad);      /* other control types: as the game */
+    if (((fl >> 1) & 3) != 0) return FN(int, 0x2726e0, u8*)(pad);      /* other control types: as the game */
     if (*(float*)(pad + 0x24) != 0.0f) return 0;                        /* R1 held */
     return g_tap && (fl & 1) && *(float*)(pad + 0x54) <= 0.0f;
 }
@@ -208,14 +208,14 @@ int shortcut_check(void) {
     if (c_buffer < 1) c_buffer = 1;
     load();
     if (!c_on) return 1;
-    if (!call_ok(0xe3716, 0xed040) || !call_ok(0x22b5df, 0x2729c0) || !call_ok(0x2650d4, 0x272b80)) { LOG("shortcuts: pad call sites do not match"); return 0; }
+    if (!call_ok(0xe3696, 0xecfb0) || !call_ok(0x22b2ff, 0x2726e0) || !call_ok(0x264df4, 0x2728a0)) { LOG("shortcuts: pad call sites do not match"); return 0; }
     return 1;
 }
 void shortcut_apply(void) {
     if (!c_on) return;
-    hook_call(0xe3716, 0xed040, pad_hook, "pad state");
-    hook_call(0x22b5df, 0x2729c0, cam_reset_pad, "camera reset pad");
-    hook_call(0x2650d4, 0x272b80, target_pad, "target pad");
+    hook_call(0xe3696, 0xecfb0, pad_hook, "pad state");
+    hook_call(0x22b2ff, 0x2726e0, cam_reset_pad, "camera reset pad");
+    hook_call(0x264df4, 0x2728a0, target_pad, "target pad");
     LOG("shortcuts: L1 + face buttons (file %s)", g_file);
 }
 

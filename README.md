@@ -1,6 +1,8 @@
 # BBS KH2-Style
 
-A mod for **Kingdom Hearts Birth by Sleep Final Mix** (Steam, HD 1.5+2.5 ReMIX) that makes it play more like
+**This is the Epic Games Store build** (branch `epic`; the Steam build is on `main`).
+
+A mod for **Kingdom Hearts Birth by Sleep Final Mix** (Epic Games Store, HD 1.5+2.5 ReMIX) that makes it play more like
 Kingdom Hearts II: a KH2 command menu, SP instead of command reloads, Command Styles as offers, faster pacing and
 a KH2-style camera.
 
@@ -51,14 +53,15 @@ file is changed, and removing the mod puts everything back.
 
 ## Requirements
 
-- Steam version of KINGDOM HEARTS HD 1.5+2.5 ReMIX.
+- Epic Games Store version of KINGDOM HEARTS HD 1.5+2.5 ReMIX. (Steam: use the Steam build of the mod - the
+  two game builds differ, and each build of the mod only changes the one it was made for.)
 - [OpenKH](https://github.com/OpenKH/OpenKh) Mod Manager set up for the PC version **with the mod loader
   (Panacea)**. The mod is a DLL the mod loader starts together with the game; the Mod Manager's "patch the game
   files" way of installing mods will not load it.
 
 ## Install
 
-1. Download [`dist/BBS-KH2-Style.zip`](dist/BBS-KH2-Style.zip).
+1. Download [`dist/BBS-KH2-Style-Epic.zip`](dist/BBS-KH2-Style-Epic.zip).
 2. In the Mod Manager choose **Birth by Sleep** as the game.
 3. *Mods > Install a New Mod > Select and install Mod Archive*, pick the zip.
 4. Tick the mod, then *Mod Loader > Build and Run* (or *Build Only* and start the game yourself).
@@ -92,7 +95,7 @@ x86_64 mingw-w64 compiler:
 
 ```sh
 CC=/path/to/x86_64-w64-mingw32-clang ./build.sh   # -> out/dinput8.dll
-tools/package.sh                                  # -> dist/BBS-KH2-Style.zip
+tools/package.sh                                  # -> dist/BBS-KH2-Style-Epic.zip
 ```
 
 It only works with the game build it was written for: at start-up every place it patches is compared with the
@@ -104,7 +107,7 @@ bytes it expects, and if anything differs nothing is changed.
 and runs the patched game code natively:
 
 ```sh
-BBS_EXE="/path/to/KINGDOM HEARTS Birth by Sleep FINAL MIX.exe" test/run.sh
+BBS_EXE="/path/to/KINGDOM HEARTS Birth by Sleep FINAL MIX.exe" test/run.sh     # the Epic exe
 ```
 
 Some tests also need files extracted from the game (layouts and textures, named by `BBS_...` environment

@@ -23,9 +23,9 @@
 extern char g_ini[MAX_PATH + 32];
 extern int g_debug;
 
-#define VT_STATUS    0x677440
+#define VT_STATUS    0x677490
 #define VT_UPDATE    (VT_STATUS + 8)
-#define FN_UPDATE    0x42ab80
+#define FN_UPDATE    0x42a590
 #define CAMP_BLOCK   "camp:0"
 #define SEQ_QUADS    0x184          /* "charge_tab_grd": one sprite of three quads, no colour of its own */
 #define SEQ_TEXT     0xb0           /* "font_02": the sequence of the value texts */
@@ -45,14 +45,14 @@ static u32 c_col = 0xfff37e01;      /* AABBGGRR as shown on screen: the top colo
 static int g_parent, g_quads, g_text;
 static u64 (MSABI *o_destroy)(int h);
 
-static int alive(int h) { return h > 0 && FN(int, 0x1a60e0, int)(h) != 8; }
+static int alive(int h) { return h > 0 && FN(int, 0x1a5f80, int)(h) != 8; }
 static void drop(void) {
     int own[2] = { g_quads, g_text };
     g_quads = g_text = 0;
     for (int i = 0; i < 2; i++) {
         if (!alive(own[i])) continue;
-        FN(int, 0x1a5a50, int, int)(g_parent, own[i]);         /* Detach; nothing happens if the parent is gone */
-        if (o_destroy) o_destroy(own[i]); else FN(void, 0x1a57f0, int)(own[i]);
+        FN(int, 0x1a58f0, int, int)(g_parent, own[i]);         /* Detach; nothing happens if the parent is gone */
+        if (o_destroy) o_destroy(own[i]); else FN(void, 0x1a5690, int)(own[i]);
     }
     g_parent = 0;
 }
@@ -66,13 +66,13 @@ int l2d_destroy_hook(void) {
     if (!o_destroy) o_destroy = hook_fn(&S_l2d_destroy, destroy_hook, "l2d destroy");
     return o_destroy != NULL;
 }
-void l2d_destroy(int h) { if (o_destroy) o_destroy(h); else FN(void, 0x1a57f0, int)(h); }
+void l2d_destroy(int h) { if (o_destroy) o_destroy(h); else FN(void, 0x1a5690, int)(h); }
 int l2d_destroy_site_ok(void) { return memcmp(g_base + S_l2d_destroy.rva, S_l2d_destroy.bytes, S_l2d_destroy.len) == 0; }
 
 static void node_to(int h, u16 node, float x0, float y0, float x1, float y1) {
     float x = -1000, y = -1000;
-    if (!FN(int, 0x1a6880, int, u16, float*, float*)(h, node, &x, &y)) return;
-    if (x == x0 && y == y0) FN(int, 0x1a7ec0, int, u16, float, float)(h, node, x1, y1);
+    if (!FN(int, 0x1a6720, int, u16, float*, float*)(h, node, &x, &y)) return;
+    if (x == x0 && y == y0) FN(int, 0x1a7d60, int, u16, float, float)(h, node, x1, y1);
 }
 static void set_quad(Pair *q, int x0, int y0, int x1, int y1, int u0, int v0, int u1, int v1, u32 c) {
     q->g->x0 = (s16)x0; q->g->x1 = (s16)x1; q->g->y0 = (s16)y0; q->g->y1 = (s16)y1;
@@ -82,14 +82,14 @@ static void set_quad(Pair *q, int x0, int y0, int x1, int y1, int u0, int v0, in
 /* a new instance of a sequence of the menu's file, attached to a node of a layout instance (pc = its control
    object); it takes the parent's draw priority, queue and timer group.  0 on failure */
 int l2d_attach_seq(int parent, u8 *pc, u16 node, u16 seq) {
-    u8 vis = G(u8, 0x8f88028), grp = G(u8, 0x8f8802a);
-    G(u8, 0x8f88028) = 0;                       /* created hidden */
-    G(u8, 0x8f8802a) = pc[0x86];                /* the panel's timer / draw group */
-    int h = FN(int, 0x1a5350, const char*, u16, int, void*)(CAMP_BLOCK, seq, 0, NULL);
-    G(u8, 0x8f88028) = vis; G(u8, 0x8f8802a) = grp;
+    u8 vis = G(u8, 0x8f88728), grp = G(u8, 0x8f8872a);
+    G(u8, 0x8f88728) = 0;                       /* created hidden */
+    G(u8, 0x8f8872a) = pc[0x86];                /* the panel's timer / draw group */
+    int h = FN(int, 0x1a51f0, const char*, u16, int, void*)(CAMP_BLOCK, seq, 0, NULL);
+    G(u8, 0x8f88728) = vis; G(u8, 0x8f8872a) = grp;
     if (h <= 0) return 0;
-    u8 *c = FN(u8*, 0x1a5fd0, int)(h);
-    if (!c || !FN(int, 0x1a4e10, int, u16, int)(parent, node, h)) { FN(void, 0x1a57f0, int)(h); return 0; }
+    u8 *c = FN(u8*, 0x1a5e70, int)(h);
+    if (!c || !FN(int, 0x1a4cb0, int, u16, int)(parent, node, h)) { FN(void, 0x1a5690, int)(h); return 0; }
     *(s16*)(c + 0x10) = *(s16*)(pc + 0x10);     /* same draw priority and queue; made later = drawn on top of the plate */
     *(s16*)(c + 0x12) = *(s16*)(pc + 0x12);
     return h;
@@ -98,7 +98,7 @@ int l2d_attach_seq(int parent, u8 *pc, u16 node, u16 seq) {
 static void frame(u8 *self) {
     int h = *(int*)(self + 0x20);
     if (!alive(h)) { if (g_parent) drop(); return; }
-    u8 *pc = FN(u8*, 0x1a65c0, int)(h);
+    u8 *pc = FN(u8*, 0x1a6460, int)(h);
     if (!pc) return;
     if (h != g_parent) { drop(); g_parent = h; }
 
@@ -108,8 +108,8 @@ static void frame(u8 *self) {
     node_to(h, N_NEXT_LABEL, 0, 51, 0, 51 + ROW);
     node_to(h, N_NEXT_VALUE, 69, 58, 69, 58 + ROW);
     Pair *q = NULL;
-    int n = FN(int, 0x1a6980, int, u16, int, Pair**)(h, N_PLATE, 5, &q);
-    if (!n) { FN(int, 0x1a83f0, int, u16, int)(h, N_PLATE, 5); n = FN(int, 0x1a6980, int, u16, int, Pair**)(h, N_PLATE, 5, &q); }
+    int n = FN(int, 0x1a6820, int, u16, int, Pair**)(h, N_PLATE, 5, &q);
+    if (!n) { FN(int, 0x1a8290, int, u16, int)(h, N_PLATE, 5); n = FN(int, 0x1a6820, int, u16, int, Pair**)(h, N_PLATE, 5, &q); }
     int lines = n == 4 && q;                    /* yellow, green, orange, white: 3 high at y 0, 11, 22, 41 */
     if (lines) {
         if (q[2].g->y0 == 22 && q[2].g->y1 == 25) { q[2].g->y0 += ROW; q[2].g->y1 += ROW; }
@@ -119,11 +119,11 @@ static void frame(u8 *self) {
     /* the MP row.  The plate's lines sit at (-2, 25) from the plate node; labels are 2 texels per unit */
     if (!alive(g_quads)) {
         g_quads = l2d_attach_seq(h, pc, N_PLATE, SEQ_QUADS);
-        if (g_quads) FN(int, 0x1a7be0, int, int)(g_quads, 1);
+        if (g_quads) FN(int, 0x1a7a80, int, int)(g_quads, 1);
     }
     if (g_quads) {
         Pair *m = NULL;
-        int k = FN(int, 0x1a6350, int, int, Pair**)(g_quads, 1, &m);
+        int k = FN(int, 0x1a61f0, int, int, Pair**)(g_quads, 1, &m);
         if (k >= 3 && m) {
             u32 c = 0x80000000u | (c_col & 0xffffff);
             int art = tex_stat_art_ready();
@@ -146,18 +146,18 @@ static void frame(u8 *self) {
             u32 half = 0xff000000u | (((c_col & 0xff) + 1) >> 1) | ((((c_col >> 8) & 0xff) + 1) >> 1) << 8 | ((((c_col >> 16) & 0xff) + 1) >> 1) << 16;
             fp.text = ""; fp.colour = half; fp.pitch = 8; fp.align = 6; fp.size = 4; fp.kind = 1;
             fp.flags = 0x01 | 0x02 | 0x04 | 0x08 | 0x40 | 0x80;
-            FN(int, 0x1a7450, int, FontParam*, int)(g_text, &fp, 0);
-            FN(int, 0x1a7660, int, float, float)(g_text, 69.0f, 39.0f);
+            FN(int, 0x1a72f0, int, FontParam*, int)(g_text, &fp, 0);
+            FN(int, 0x1a7500, int, float, float)(g_text, 69.0f, 39.0f);
         }
     }
     if (g_text) {
         float cur = 0, max = 0; mp_get(&cur, &max);
         char b[32]; snprintf(b, sizeof b, "%d/%d", (int)(cur + 0.5f), (int)(max + 0.5f));
-        FN(void, 0x1a7b20, int, const char*, int, void*)(g_text, b, 0, NULL);
+        FN(void, 0x1a79c0, int, const char*, int, void*)(g_text, b, 0, NULL);
     }
-    int vis = FN(int, 0x1a6060, int)(h) != 0;
-    if (g_quads) FN(int, 0x1a5b30, int, int)(g_quads, vis);
-    if (g_text) FN(int, 0x1a5b30, int, int)(g_text, vis);
+    int vis = FN(int, 0x1a5f00, int)(h) != 0;
+    if (g_quads) FN(int, 0x1a59d0, int, int)(g_quads, vis);
+    if (g_text) FN(int, 0x1a59d0, int, int)(g_text, vis);
 }
 static u64 MSABI update_hook(u8 *self) {
     u64 r = FN(u64, FN_UPDATE, u8*)(self);

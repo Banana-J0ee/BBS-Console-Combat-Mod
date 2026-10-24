@@ -93,7 +93,7 @@ extern float *test_mp(void), *test_mpmax(void), *test_charge(void); extern int *
 extern void test_tick(u8 *g), test_gauge_update(u8 *g); extern u8 *test_use(u8 *P);
 float mp_cost(int id);
 
-#define PD ((u8*)RVA(0x10f9eeb0))
+#define PD ((u8*)RVA(0x10f9f5b0))
 static u8 *cmd, *pl, *mgr, *gauge, *plate[8];
 static u64 *deck;
 /* L2D instance manager stand-in: lookup always fails, so every L2D wrapper is a no-op */
@@ -101,29 +101,29 @@ static void *MSABI l2d_lookup(void *mgr_, int h) { (void)mgr_; (void)h; return N
 static void world(int n, const u16 *ids) {
     static void *vt[8]; static void *obj[4];
     for (int i = 0; i < 8; i++) vt[i] = l2d_lookup;
-    obj[0] = vt; G(void*, 0x8f87fe0) = obj; G(void*, 0x8f87fd8) = obj;
+    obj[0] = vt; G(void*, 0x8f886e0) = obj; G(void*, 0x8f886d8) = obj;
     pl = calloc(1, 0x800); mgr = calloc(1, 0x200); cmd = calloc(1, 0x360); gauge = calloc(1, 0xc8);
-    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9ee40) = mgr; G(u8*, 0x10f9ed40) = cmd; G(u8*, 0x10f9ec60) = gauge;
+    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9f540) = mgr; G(u8*, 0x10f9f440) = cmd; G(u8*, 0x10f9f368) = gauge;
     *(u8**)(cmd + 0x70) = pl; *(u8**)(cmd + 0x68) = mgr; *(u8**)(pl + 0x390) = cmd; *(u8**)(pl + 0x398) = gauge;
     *(float*)(gauge + 0x20) = 1.0f; *(float*)(cmd + 0x20) = 1.0f;
     PD[0x31] = 1; PD[0x36] = 4;                 /* 4 deck slots: 60 + 4 x 10 = 100 MP */
-    deck = RVA(0x8187b0);
+    deck = RVA(0x8197b0);
     *(u16*)(cmd + 0x220) = n; *(u16*)(cmd + 0x222) = n;
     for (int i = 0; i < n; i++) {
         deck[i] = ids[i] | (1 << 16);
         u8 *P = calloc(1, 0x70); plate[i] = P; *(u8**)(cmd + 0x1e0 + i * 8) = P;
         P[0x30] = 2; P[0x33] = i; P[0x6c] = i; *(u64**)(P + 0x58) = &deck[i]; *(u32*)(P + 0x60) = 0x200; *(float*)(P + 0x64) = 100.0f;
         *(float*)(P + 0x20) = 1.0f;
-        if (G(u8, 0x814900 + ids[i] * 0x18 + 1) == 3) { *(u32*)(P + 0x60) |= 0x800; ((u8*)&deck[i])[2] = 3; }
-        G(u8, 0x8187a8 + i) = (u8)i;            /* working-deck entry i came from deck slot i */
+        if (G(u8, 0x815900 + ids[i] * 0x18 + 1) == 3) { *(u32*)(P + 0x60) |= 0x800; ((u8*)&deck[i])[2] = 3; }
+        G(u8, 0x8197a8 + i) = (u8)i;            /* working-deck entry i came from deck slot i */
     }
-    for (int i = n; i < 8; i++) G(u8, 0x8187a8 + i) = 0xff;
+    for (int i = n; i < 8; i++) G(u8, 0x8197a8 + i) = 0xff;
 }
 #define PCT(i) (*(float*)(plate[i] + 0x64))
 #define FLG(i) (*(u32*)(plate[i] + 0x60))
 static void frame(void) {           /* one game frame: our tick, then every plate's update */
     test_tick(gauge);
-    for (int i = 0; i < *(u16*)(cmd + 0x220); i++) FN(void, 0x206930, u8*)(plate[i]);
+    for (int i = 0; i < *(u16*)(cmd + 0x220); i++) FN(void, 0x206650, u8*)(plate[i]);
 }
 static void t_use(void) {
     static const u16 ids[] = { 0x83 /*Fire rl10*/, 0x65 /*Strike Raid rl10*/, 0x92 /*Cure*/, 0xbc /*Potion*/, 0xac /*Mega Flare rl50*/ };
@@ -156,7 +156,7 @@ static void t_use(void) {
     { extern int mp_blocks_link(void); extern int *test_link_in_burn(void);
       CHECK(*test_link_in_burn() == 1 && mp_blocks_link() == 0, "MP charge does not stand in a D-Link's way");
       *test_link_in_burn() = 0;
-      CHECK(mp_blocks_link() == 1 && FN(int, 0x2388a0, u8*)(cmd) == 0, "DLinkDuringCharge = 0: D-Link list refused in burn");
+      CHECK(mp_blocks_link() == 1 && FN(int, 0x2385c0, u8*)(cmd) == 0, "DLinkDuringCharge = 0: D-Link list refused in burn");
       *test_link_in_burn() = 1; }
     /* recharge: 25 s x 60 ticks */
     for (int i = 0; i < 750; i++) frame();
@@ -181,7 +181,7 @@ static void t_use(void) {
       float before = *test_charge();
       CHECK(*test_burn() == 1 && before > 0 && before < 100, "in MP charge (%.1f %%)", before);
       /* without the Link Charge ability: the link starts, the bar is left alone */
-      { extern void test_lc_set(int on); *(u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4) = 0;
+      { extern void test_lc_set(int on); *(u32*)RVA(0x10fa4408 + 0x18cc + 5 * 4) = 0;
         u8 *r0 = test_dlink_pick(lp);
         CHECK(r0 == (u8*)lk && *test_burn() == 1 && *test_charge() == before, "no Link Charge: the D-Link starts, SP charge goes on (%.1f %%)", *test_charge());
         *(u32*)(lp + 0x60) = 0; test_lc_set(1); }
@@ -214,7 +214,7 @@ static void t_fx(void) {
     extern const char *test_desc(int id, const char *text);
     static const u16 ids[] = { 0x65 /*Strike Raid 10*/, 0x83 /*Fire 10*/, 0x62 /*Sonic Rave 20*/, 0xbc /*Potion*/ };
     world(4, ids);
-    *(u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4) = 0;            /* a new save: both abilities off */
+    *(u32*)RVA(0x10fa4408 + 0x18cc + 5 * 4) = 0;            /* a new save: both abilities off */
     frame();
     #define FOCUS (*(float*)(gauge + 0x68))
     FOCUS = 50;
@@ -263,7 +263,7 @@ static void t_fx(void) {
 static int g_mk_kind[64], g_mk_n; static u8 *g_mk_obj[64];
 static const char *g_mk_look[64];
 static u8 *MSABI s_make(void *pos, int kind, u64 a3, int a4, float a5, float a6) { (void)pos; (void)a3; (void)a4; (void)a5; (void)a6;
-    u8 *o = calloc(1, 0x3a0); if (g_mk_n < 64) g_mk_look[g_mk_n] = *(const char**)RVA(0x817b30 + kind * 0x50 + 0x28); *(u8**)(o + 0x250) = RVA(0x817b30 + kind * 0x50); if (g_mk_n < 64) { g_mk_kind[g_mk_n] = kind; g_mk_obj[g_mk_n] = o; } g_mk_n++; return o; }
+    u8 *o = calloc(1, 0x3a0); if (g_mk_n < 64) g_mk_look[g_mk_n] = *(const char**)RVA(0x818b30 + kind * 0x50 + 0x28); *(u8**)(o + 0x250) = RVA(0x818b30 + kind * 0x50); if (g_mk_n < 64) { g_mk_kind[g_mk_n] = kind; g_mk_obj[g_mk_n] = o; } g_mk_n++; return o; }
 static u32 g_drop_tab[8];
 static void *MSABI s_droptab(int id) { (void)id; return g_drop_tab; }
 static int MSABI s_zero(void) { return 0; }
@@ -276,13 +276,13 @@ static void t_sporb(void) {
     extern int *test_sporb_counts(void); extern void test_sporb_reset(void); extern u8 *test_sporb_rec(void); extern float *test_sporb_cfg(void);
     static const u16 ids[] = { 0x83 };
     world(1, ids);
-    stub_jmp(0x1e83e0, s_make); stub_jmp(0x53f640, s_droptab); stub_jmp(0x221900, s_zero); stub_jmp(0x236390, s_zero); stub_jmp(0x285550, s_zobj);
+    stub_jmp(0x1e8100, s_make); stub_jmp(0x53ee30, s_droptab); stub_jmp(0x221620, s_zero); stub_jmp(0x2360b0, s_zero); stub_jmp(0x285270, s_zobj);
     /* an enemy's drop table: 2 HP prizes (kind 0), 3 small D-Link prizes (kind 5), 1 big (kind 6), all at 100 % */
     g_drop_tab[0] = 0; g_drop_tab[1] = 2 | 100u << 16; g_drop_tab[2] = 5; g_drop_tab[3] = 3 | 100u << 16; g_drop_tab[4] = 6; g_drop_tab[5] = 1 | 100u << 16;
     u8 *ent = calloc(1, 0x400), *epd = calloc(1, 0x100); *(u8**)(ent + 0x250) = epd; *(u32*)(epd + 0x98) = 3;
     float pos[4] = { 1, 2, 3, 1 };
-    CHECK(*(u8*)RVA(0x2d8f16) == 0xe8 && sp_ct(0x2d8f16) != RVA(0x2d5b30) && sp_ct(0x2defd8) != RVA(0x2d5b30), "both defeat drop calls are hooked");
-    void (MSABI *drop)(u8*, void*, int, int, int) = (void*)sp_ct(0x2d8f16);
+    CHECK(*(u8*)RVA(0x2d8c36) == 0xe8 && sp_ct(0x2d8c36) != RVA(0x2d5850) && sp_ct(0x2decf8) != RVA(0x2d5850), "both defeat drop calls are hooked");
+    void (MSABI *drop)(u8*, void*, int, int, int) = (void*)sp_ct(0x2d8c36);
     /* a regular enemy (Flood) */
     strcpy((char*)ent + 0xf0, "m01ex00"); g_mk_n = 0; test_sporb_reset();
     drop(ent, pos, 100, 0, 0);
@@ -292,9 +292,9 @@ static void t_sporb(void) {
     { int lk = 0, dk = 0; for (int i = 0; i < g_mk_n && i < 64; i++) {
           if (*(u8**)(g_mk_obj[i] + 0x250) == test_sporb_rec()) lk += !strcmp(g_mk_look[i], "SYS_PRZ_001_0");
           else if (g_mk_kind[i] == 5) dk += !strcmp(g_mk_look[i], "SYS_PRZ_001_0"); }
-      CHECK(lk == 4 && dk == 3 && !strcmp(*(char**)RVA(0x817b30 + 5 * 0x50 + 0x28), "SYS_PRZ_001_0"), "made with their own effect (%d), the D-Link prizes with theirs (%d), kind 5 put back", lk, dk); }
-    CHECK(*(u32*)(test_sporb_rec() + 0x40) == 0x1ef && !memcmp(test_sporb_rec(), RVA(0x817b30 + 5 * 0x50), 0x28)
-          && !memcmp(test_sporb_rec() + 0x30, RVA(0x817b30 + 5 * 0x50 + 0x30), 0x10) && !strcmp(*(char**)(test_sporb_rec() + 0x28), "SYS_PRZ_001_0"),
+      CHECK(lk == 4 && dk == 3 && !strcmp(*(char**)RVA(0x818b30 + 5 * 0x50 + 0x28), "SYS_PRZ_001_0"), "made with their own effect (%d), the D-Link prizes with theirs (%d), kind 5 put back", lk, dk); }
+    CHECK(*(u32*)(test_sporb_rec() + 0x40) == 0x1ef && !memcmp(test_sporb_rec(), RVA(0x818b30 + 5 * 0x50), 0x28)
+          && !memcmp(test_sporb_rec() + 0x30, RVA(0x818b30 + 5 * 0x50 + 0x30), 0x10) && !strcmp(*(char**)(test_sporb_rec() + 0x28), "SYS_PRZ_001_0"),
           "the orb's prize type: the small D-Link prize's, command 1ef, drawn with its effect (Look 3: and the bubble)");
     /* a boss: no orbs */
     strcpy((char*)ent + 0xf0, "b10ex00"); g_mk_n = 0; test_sporb_reset();
@@ -302,7 +302,7 @@ static void t_sporb(void) {
     CHECK(g_mk_n == 6 && test_sporb_counts()[0] == 0, "a boss (Vanitas): its own prizes only (%d)", g_mk_n);
     /* a drop outside a defeat (the prize call reached without the defeat hook): no orbs */
     strcpy((char*)ent + 0xf0, "m01ex00"); g_mk_n = 0; test_sporb_reset();
-    FN(void, 0x2d5b30, u8*, void*, int, int, int)(ent, pos, 100, 0, 0);
+    FN(void, 0x2d5850, u8*, void*, int, int, int)(ent, pos, 100, 0, 0);
     CHECK(g_mk_n == 6 && test_sporb_counts()[0] == 0, "hit drops (not a defeat): no orbs");
     /* half an orb per D-Link prize: about half */
     *test_sporb_cfg() = 0.5f; int tot = 0;
@@ -310,8 +310,8 @@ static void t_sporb(void) {
     CHECK(tot > 60 && tot < 140, "PerDLinkPrize 0.5: %d orbs for 200 D-Link prizes", tot);
     *test_sporb_cfg() = 1.0f;
     /* pickup: through the one call of 273420 */
-    CHECK(*(u8*)RVA(0x273408) == 0xe8 && sp_ct(0x273408) != RVA(0x273420), "the pickup call is hooked");
-    void (MSABI *pick)(u8*, u64, int, int) = (void*)sp_ct(0x273408);
+    CHECK(*(u8*)RVA(0x273128) == 0xe8 && sp_ct(0x273128) != RVA(0x273140), "the pickup call is hooked");
+    void (MSABI *pick)(u8*, u64, int, int) = (void*)sp_ct(0x273128);
     *test_mp() = 50; *test_burn() = 0;
     pick(pl, 0x1ef, 0, 0);
     CHECK(*test_mp() > 51.9f && *test_mp() < 52.1f && test_sporb_counts()[1] == 1, "an orb: 50 -> %.1f SP (2 %% of 100)", *test_mp());
@@ -344,11 +344,11 @@ static void t_orbtex(void) {
     CHECK(*test_sporb_look() == 3, "Look 3 (the bubble) by default");
     /* the texture manager: a vtable whose register / release are the game's (stubbed here) */
     static void *vt[16]; u8 *mgr = calloc(1, 0x100); *(void***)mgr = vt;
-    vt[3] = RVA(0x4bbd00); vt[6] = RVA(0x158cb0);
-    stub_jmp(0x4bbd00, s_reg); stub_jmp(0x158cb0, s_rel); stub_jmp(0x4bc160, s_texmake); stub_jmp(0x4bc1f0, s_texdrop); stub_jmp(0x1a1770, s_frr);
-    G(u8*, 0x8f869d0) = mgr;
-    CHECK(sp_ct(0x11d818) != RVA(0x1a1770) && sp_ct(0x11d4a4) != RVA(0x1a1770), "the FRR texture make / free calls are hooked");
-    void (MSABI *load)(u8*, int) = (void*)sp_ct(0x11d818), (MSABI *unload)(u8*, int) = (void*)sp_ct(0x11d4a4);
+    vt[3] = RVA(0x4bb460); vt[6] = RVA(0x158b50);
+    stub_jmp(0x4bb460, s_reg); stub_jmp(0x158b50, s_rel); stub_jmp(0x4bb8c0, s_texmake); stub_jmp(0x4bb950, s_texdrop); stub_jmp(0x1a1610, s_frr);
+    G(u8*, 0x8f870d0) = mgr;
+    CHECK(sp_ct(0x11d778) != RVA(0x1a1610) && sp_ct(0x11d404) != RVA(0x1a1610), "the FRR texture make / free calls are hooked");
+    void (MSABI *load)(u8*, int) = (void*)sp_ct(0x11d778), (MSABI *unload)(u8*, int) = (void*)sp_ct(0x11d404);
     u8 *frr = calloc(1, 0x100); *(u32*)(frr + 4) = 0x12345678;
     load(frr, 0); CHECK(g_reg_n == 0, "another FRR: no texture added");
     *(u32*)(frr + 4) = 0x80003800;
@@ -366,16 +366,16 @@ static void t_orbtex(void) {
     /* an orb's effect, as the game builds it */
     u8 *e = calloc(1, 0x100), *leaf = calloc(1, 0x200), *fep = calloc(1, 0x100), *amgr = calloc(1, 0x400), *ao = calloc(1, 0x20), *anm = calloc(1, 0x100);
     u8 *ctx = calloc(1, 0x100), *prm = calloc(1, 0x40), *prize = calloc(1, 0x300);
-    g_t_efx = e; g_t_anm = anm; stub_jmp(0x130c00, s_efxget); stub_jmp(0x1779c0, s_anmdraw);
+    g_t_efx = e; g_t_anm = anm; stub_jmp(0x130aa0, s_efxget); stub_jmp(0x177860, s_anmdraw);
     *(int*)(e + 0x30) = 0x1234; *(u8**)(e + 0x48) = leaf;
-    leaf[0] = 'e'; *(u8**)(leaf + 0x158) = RVA(0x12a890); *(u8**)(leaf + 0x160) = e; *(u8**)(leaf + 0x198) = fep;
+    leaf[0] = 'e'; *(u8**)(leaf + 0x158) = RVA(0x12a730); *(u8**)(leaf + 0x160) = e; *(u8**)(leaf + 0x198) = fep;
     *(int*)(fep + 0x38) = 0x40; *(int*)(fep + 0x40 + 4) = 0x60; *(int*)(fep + 0x60 + 0x10) = 3;     /* animation header 1 -> slot 3 */
     *(u8**)(amgr + 3 * 0x20 + 0x30) = ao; *(u8**)(ao + 8) = anm;
     memcpy(anm, "ANM", 4); *(u32*)(anm + 4) = 0xf00000a4; *(int*)(anm + 0x18) = 2; *(int*)(anm + 0x28) = 0x3c;
     u32 *tr = (u32*)(anm + 0x3c); tr[0] = 0xf0000012; tr[1] = 21; tr[2] = 0xf000000a; tr[3] = 9;
     *(u8**)(ctx + 0x78) = leaf; *(u8**)(ctx + 0xa8) = amgr; *(int*)(prm + 0xc) = 1;
-    void (MSABI *draw)(void*, u8*, u8*, float, u8*) = *(void**)RVA(0x63de30);
-    CHECK((void*)draw != RVA(0x1779c0), "the sprite draw (FecAnm_plus vtable) is wrapped");
+    void (MSABI *draw)(void*, u8*, u8*, float, u8*) = *(void**)RVA(0x63df60);
+    CHECK((void*)draw != RVA(0x177860), "the sprite draw (FecAnm_plus vtable) is wrapped");
     draw(NULL, ctx, prm, 0, NULL);
     CHECK(g_seen[0] == 21 && g_seen[1] == 9 && test_sporb_draws() == 0, "a D-Link prize (not an orb): drawn with its own textures");
     *(int*)(prize + 0x244) = 0x1234; test_sporb_note(prize);
@@ -405,8 +405,8 @@ static void t_orbse(void) {
     if (!f) { printf("t_orbse: BBS_SE0000 not set, skipped\n"); return; }
     fseek(f, 0, SEEK_END); long n = ftell(f); fseek(f, 0, SEEK_SET);
     u8 *b = malloc(n); CHECK(fread(b, 1, n, f) == (size_t)n, "read the bank"); fclose(f);
-    stub_jmp(0x4c3fb0, s_bank);
-    CHECK(*(u8*)RVA(0x553472) == 0xe8 && sp_ct(0x553472) != RVA(0x4c3fb0), "the common SE bank call is hooked");
+    stub_jmp(0x4c3700, s_bank);
+    CHECK(*(u8*)RVA(0x554f12) == 0xe8 && sp_ct(0x554f12) != RVA(0x4c3700), "the common SE bank call is hooked");
     u32 r = test_sporb_bank(0, b, (u32)n);
     CHECK(r == 7 && g_bk_scd != b && g_bk_size > (u32)n + 15000, "the engine gets an extended copy (%u -> %u bytes)", (u32)n, g_bk_size);
     const u8 *o = g_bk_scd;
@@ -435,8 +435,8 @@ static void t_linkdrain(void) {
     extern void test_lc_set(int on); extern float test_link_drain(u8 *g); extern void test_gauge_update(u8 *g);
     static const u16 ids[] = { 0x83 };
     world(1, ids);
-    if (!G(void*, 0x8f87ff8)) G(void*, 0x8f87ff8) = calloc(1, 0x40);   /* an empty list of loaded 2D files: lookups by name fail */
-    *(u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4) = 0;
+    if (!G(void*, 0x8f886f8)) G(void*, 0x8f886f8) = calloc(1, 0x40);   /* an empty list of loaded 2D files: lookups by name fail */
+    *(u32*)RVA(0x10fa4408 + 0x18cc + 5 * 4) = 0;
     float drop[2];
     for (int on = 0; on < 2; on++) {
         test_lc_set(on);
@@ -463,23 +463,23 @@ static void t_ether(void) {
     world(2, ids);
     frame();
     *test_mp() = 30;
-    *(s16*)(pl + 0x312) = 0xbf; *(u8**)(pl + 0x3b0) = RVA(0x811080 + 0xbf * 0x1e);   /* Ether: focus +50 */
+    *(s16*)(pl + 0x312) = 0xbf; *(u8**)(pl + 0x3b0) = RVA(0x812080 + 0xbf * 0x1e);   /* Ether: focus +50 */
     *(u8**)(cmd + 0x90) = plate[1];
-    FN(void, 0x2624e0, u8*)(pl);
+    FN(void, 0x262200, u8*)(pl);
     CHECK(*test_mp() == 80, "ether +50%%: mp %.1f", *test_mp());
     CHECK(*(float*)(gauge + 0x6c) == 50, "focus still restored: %.1f", *(float*)(gauge + 0x6c));
     *test_mp() = 5; test_use(plate[0]); frame();
     CHECK(*test_burn() == 1, "burn");
-    FN(void, 0x2624e0, u8*)(pl);
+    FN(void, 0x262200, u8*)(pl);
     CHECK(*test_burn() == 1 && *test_charge() >= 50, "ether in burn adds charge: %.1f", *test_charge());
-    FN(void, 0x2624e0, u8*)(pl);
+    FN(void, 0x262200, u8*)(pl);
     CHECK(*test_burn() == 0 && *test_mp() == 100, "second ether ends burn");
     /* level scaling and reset */
     PD[0x36] = 3; frame(); CHECK(*test_mpmax() == 90 && *test_mp() == 90, "3 deck slots: max MP %.1f, MP clamped to it (%.1f)", *test_mpmax(), *test_mp());
     PD[0x36] = 8; PD[0x31] = 41; frame(); CHECK(*test_mpmax() == 140, "8 deck slots: max MP %.1f (level does not count)", *test_mpmax());
-    G(u8, 0x10fa0881) = 3; frame(); CHECK(*test_mpmax() == 100 && *test_mp() <= 100, "Critical, 8 slots: baseline 20 -> max MP %.1f (MP %.1f)", *test_mpmax(), *test_mp());
+    G(u8, 0x10fa0f81) = 3; frame(); CHECK(*test_mpmax() == 100 && *test_mp() <= 100, "Critical, 8 slots: baseline 20 -> max MP %.1f (MP %.1f)", *test_mpmax(), *test_mp());
     PD[0x36] = 3; frame(); CHECK(*test_mpmax() == 50 && *test_mp() == 50, "Critical, 3 slots: max MP %.1f, MP clamped (%.1f)", *test_mpmax(), *test_mp());
-    for (int d = 0; d < 3; d++) { G(u8, 0x10fa0881) = d; frame(); CHECK(*test_mpmax() == 90, "difficulty %d, 3 slots: max MP %.1f", d, *test_mpmax()); }
+    for (int d = 0; d < 3; d++) { G(u8, 0x10fa0f81) = d; frame(); CHECK(*test_mpmax() == 90, "difficulty %d, 3 slots: max MP %.1f", d, *test_mpmax()); }
     PD[0x36] = 4; PD[0x31] = 1; *test_mp() = 100; frame(); CHECK(*test_mpmax() == 100 && *test_mp() == 100, "4 slots: %.1f/%.1f", *test_mp(), *test_mpmax());
     /* costs: reload seconds, magic spread out by tier */
     { extern float mp_cost(int id);
@@ -495,8 +495,8 @@ static void t_ether(void) {
           { 0xe9, 30, "Doc" }, { 0xea, 15, "Grumpy" }, { 0xeb, 15, "Sneezy" }, { 0xec, 10, "Happy" }, { 0xed, 15, "Sleepy" },
           { 0xee, 15, "Bashful" }, { 0xef, 20, "Dopey" }, { 0xf0, 20, "DarkAxis" }, { 0xf1, 20, "DarkSplicer" } };
       for (unsigned i = 0; i < sizeof dl / sizeof *dl; i++)
-          CHECK(G(u8, 0x814900 + dl[i].id * 0x18 + 1) == 8 && G(u8, 0x811080 + dl[i].id * 0x1e + 3) == 5 && mp_cost(dl[i].id) == dl[i].cost,
-                "%s (%x): category %d, reload %d, cost %.0f, expected %d", dl[i].name, dl[i].id, G(u8, 0x814900 + dl[i].id * 0x18 + 1), G(u8, 0x811080 + dl[i].id * 0x1e + 3), mp_cost(dl[i].id), dl[i].cost);
+          CHECK(G(u8, 0x815900 + dl[i].id * 0x18 + 1) == 8 && G(u8, 0x812080 + dl[i].id * 0x1e + 3) == 5 && mp_cost(dl[i].id) == dl[i].cost,
+                "%s (%x): category %d, reload %d, cost %.0f, expected %d", dl[i].name, dl[i].id, G(u8, 0x815900 + dl[i].id * 0x18 + 1), G(u8, 0x812080 + dl[i].id * 0x1e + 3), mp_cost(dl[i].id), dl[i].cost);
       CHECK(mp_cost(0xe3) == 2 && mp_cost(0xf2) == 20, "the commands either side of them are as they were (%.0f, %.0f)", mp_cost(0xe3), mp_cost(0xf2));
       *test_mp() = 100; *test_burn() = 0;
       CHECK(mp_would_burn(0xe8) == 1 && mp_would_burn(0xe9) == 1 && mp_would_burn(0x94) == 1 && mp_would_burn(0xe7) == 0, "the two heals use all MP like Curaga; Wish Shot does not");
@@ -539,8 +539,8 @@ extern int *test_fresh(void);
 extern const char *test_berserk_help(void);
 static u8 *slurp(const char *fn, size_t *n);
 static int charge_ticks(int magic, int attack) {
-    pl[0x4a3 + G(u8, 0x814900 + 0x1d0 * 0x18 + 7)] = (u8)magic;
-    pl[0x4a3 + G(u8, 0x814900 + 0x1cf * 0x18 + 7)] = (u8)attack;
+    pl[0x4a3 + G(u8, 0x815900 + 0x1d0 * 0x18 + 7)] = (u8)magic;
+    pl[0x4a3 + G(u8, 0x815900 + 0x1cf * 0x18 + 7)] = (u8)attack;
     *test_mp() = 0; *test_burn() = 1; *test_charge() = 0;
     int n = 0;
     while (*test_burn() && n < 100000) { test_tick(gauge); n++; }
@@ -556,14 +556,14 @@ static void t_haste(void) {
     world(3, ids);
     *test_fresh() = 0;
     CHECK(*test_charge_seconds() == 25.0f && *test_haste_bonus() == 0.10f, "25 s, 0.10 a copy (%g, %g)", *test_charge_seconds(), *test_haste_bonus());
-    CHECK(G(u8, 0x814900 + 0x1d0 * 0x18 + 7) == 13 && G(u8, 0x814900 + 0x1cf * 0x18 + 7) == 12, "the two abilities' slots");
-    CHECK(FN(u8, 0x221900, u8*, u16)(pl, 0x1d0) == 0, "none installed");
+    CHECK(G(u8, 0x815900 + 0x1d0 * 0x18 + 7) == 13 && G(u8, 0x815900 + 0x1cf * 0x18 + 7) == 12, "the two abilities' slots");
+    CHECK(FN(u8, 0x221620, u8*, u16)(pl, 0x1d0) == 0, "none installed");
     int base = charge_ticks(0, 0);
     printf("  MP charge in seconds:");
     for (int k = 0; k <= 5; k++) {
         int n = charge_ticks(k, 0); float want = 1500.0f / (1.0f + 0.10f * (float)k);
         printf(" %d x MP Haste %.1f", k, (float)n / 60.0f);
-        CHECK(FN(u8, 0x221900, u8*, u16)(pl, 0x1d0) == k, "%d installed", k);
+        CHECK(FN(u8, 0x221620, u8*, u16)(pl, 0x1d0) == k, "%d installed", k);
         CHECK((float)n >= want && (float)n < want + 2.0f, "%d copies: %d ticks, want %.1f", k, n, want);
     }
     printf("\n");
@@ -576,12 +576,12 @@ static void t_haste(void) {
     const char *nf = getenv("BBS_MSG_NAMES"), *hf = getenv("BBS_MSG_HELP");
     size_t nn, hn; u8 *names = nf ? slurp(nf, &nn) : NULL, *help = hf ? slurp(hf, &hn) : NULL;
     if (!names || !help) { printf("  (texts skipped: set BBS_MSG_NAMES and BBS_MSG_HELP)\n"); printf("t_haste done\n"); return; }
-    u64 (MSABI *ready)(u8*) = *(u64 (MSABI**)(u8*))RVA(0x637910);
-    CHECK((void*)ready != (void*)RVA(0x112ed0), "message file vtable slot is the mod's");
+    u64 (MSABI *ready)(u8*) = *(u64 (MSABI**)(u8*))RVA(0x637a40);
+    CHECK((void*)ready != (void*)RVA(0x112e30), "message file vtable slot is the mod's");
     const char *was = ctd_find(names, 0xfa01d0);
     CHECK(was && !strcmp(was, "Magic Haste"), "the game's name: %s", was ? was : "-");
     u8 *o1 = calloc(1, 0x100); *(u8**)(o1 + 0x70) = names; ready(o1);
-    #define NAME(id) G(const char*, 0x814908 + (u32)(id) * 0x18)
+    #define NAME(id) G(const char*, 0x815908 + (u32)(id) * 0x18)
     CHECK(NAME(0x1d0) && !strcmp(NAME(0x1d0), "SP Haste"), "name: %s", NAME(0x1d0) ? NAME(0x1d0) : "-");
     CHECK(NAME(0x1d0) == was, "written in the file itself");
     CHECK(NAME(0x1cf) && !strcmp(NAME(0x1cf), "SP Rage") && NAME(0x1cf) == ctd_find(names, 0xfa01cf), "Attack Haste is MP Rage: %s", NAME(0x1cf) ? NAME(0x1cf) : "-");
@@ -654,8 +654,8 @@ static void t_rage(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
     world(3, ids);
     *test_fresh() = 0;
-    CHECK(*test_rage() == 25.0f && G(u8, 0x811083 + 0x1cf * 0x1e) == 5, "a quarter of the MP bar per full HP bar at the full stack of 5 (%g)", *test_rage());
-    u8 slot = G(u8, 0x814900 + 0x1cf * 0x18 + 7);
+    CHECK(*test_rage() == 25.0f && G(u8, 0x812083 + 0x1cf * 0x1e) == 5, "a quarter of the MP bar per full HP bar at the full stack of 5 (%g)", *test_rage());
+    u8 slot = G(u8, 0x815900 + 0x1cf * 0x18 + 7);
     float mx = *test_mpmax();
     #define HP(v) (*(s16*)(pl + 0x4a0) = (s16)(v))
     #define NEAR(a, b) ((a) > (b) - 0.01f && (a) < (b) + 0.01f)
@@ -704,7 +704,7 @@ static void t_berserk(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
     world(3, ids);
     *test_fresh() = 0;
-    { static void *vt[8], *obj[2]; for (int i = 0; i < 8; i++) vt[i] = ent_lookup; obj[0] = vt; G(void*, 0x8f6d540) = obj; }
+    { static void *vt[8], *obj[2]; for (int i = 0; i < 8; i++) vt[i] = ent_lookup; obj[0] = vt; G(void*, 0x8f6dc40) = obj; }
     entity(1, 1, NULL, pl);                             /* the player */
     u8 *foe = entity(2, 2, NULL, NULL);                 /* an enemy */
     entity(3, 3, pl, NULL);                             /* something the player's (a spell in flight) */
@@ -713,9 +713,9 @@ static void t_berserk(void) {
     *(s16*)(atk + 0x82) = 105; *(s16*)(atk + 0x84) = 100; *(float*)(atk + 0x88) = 1.0f;
     *(s16*)(hit + 0xac) = 5; *(s16*)(hit + 0xae) = 9999; *(float*)(hit + 0xc4) = 1.0f;
     #define DMG(owner) (*(u32*)(atk + 0x94) = (owner), test_damage(atk, hit))
-    int slot = G(u8, 0x814900 + 0x1d9 * 0x18 + 7);
+    int slot = G(u8, 0x815900 + 0x1d9 * 0x18 + 7);
     CHECK(slot == 22, "Reload Boost's ability slot (%d)", slot);
-    { u8 *p = RVA(0x1f985a); s32 d; memcpy(&d, p + 1, 4); CHECK(p[0] == 0xE8 && (u32)(0x1f985a + 5 + d) != 0x1f9180, "the game's damage call goes through the mod"); }
+    { u8 *p = RVA(0x1f957a); s32 d; memcpy(&d, p + 1, 4); CHECK(p[0] == 0xE8 && (u32)(0x1f957a + 5 + d) != 0x1f8ea0, "the game's damage call goes through the mod"); }
     CHECK(*test_berserk_pct() == 5.0f, "5 %% by default (%g)", *test_berserk_pct());
     *test_burn() = 0; pl[0x4a3 + slot] = 1;
     CHECK(DMG(1) == 100, "the game's formula: (105 - 5) x 100 %% = %u", DMG(1));
@@ -772,15 +772,15 @@ static void t_bar(void) {
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x20000); size_t n = fread(img, 1, 0x20000, f); fclose(f);
     PD[0x31] = 1; PD[0x36] = 4;                 /* 100 MP */
-    *(u8*)RVA(0x111660) = 0xC3;                 /* task registration: not needed here */
-    *(u8*)RVA(0x10c5e0) = 0xC3;                 /* texture upload: no graphics device here */
-    memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);      /* resource lookup: nothing loaded */
-    FN(void, 0x1a6d70, void)();                 /* L2D runtime init */
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "gauge_01.l2d", 0);
-    printf("  registered gauge_01 (%zu bytes): data handle %d, block 0 handle %d\n", n, d, FN(int, 0x1a64f0, const char*)("gauge_01:0"));
+    *(u8*)RVA(0x1115c0) = 0xC3;                 /* task registration: not needed here */
+    *(u8*)RVA(0x10c540) = 0xC3;                 /* texture upload: no graphics device here */
+    memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);      /* resource lookup: nothing loaded */
+    FN(void, 0x1a6c10, void)();                 /* L2D runtime init */
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "gauge_01.l2d", 0);
+    printf("  registered gauge_01 (%zu bytes): data handle %d, block 0 handle %d\n", n, d, FN(int, 0x1a6390, const char*)("gauge_01:0"));
     CHECK(d > 0, "register");
     pl = calloc(1, 0x800); mgr = calloc(1, 0x200); gauge = calloc(1, 0xc8);
-    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9ee40) = mgr; G(u8*, 0x10f9ec60) = gauge; PD[0x31] = 1;
+    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9f540) = mgr; G(u8*, 0x10f9f368) = gauge; PD[0x31] = 1;
     *(float*)(gauge + 0x20) = 1.0f;
     { extern void test_bar_geom(float *io, int set); float g[4]; test_bar_geom(g, 0);
       CHECK(g[0] == 425.0f && g[1] == 254.6f && g[2] == 4.5f && g[3] == 57.6f, "default place and size: right %.1f top %.1f height %.1f length %.1f", g[0], g[1], g[2], g[3]);
@@ -789,7 +789,7 @@ static void t_bar(void) {
     test_bar_update(gauge);
     int h = *test_bar();
     CHECK(h > 0, "bar instance %d", h);
-    Pair *q = NULL; int cnt = FN(int, 0x1a6350, int, int, Pair**)(h, 3, &q);
+    Pair *q = NULL; int cnt = FN(int, 0x1a61f0, int, int, Pair**)(h, 3, &q);
     CHECK(cnt == 7 && q, "fill sprite has %d quads", cnt);
     /* without the KH2 art: the plain bar, length 50 -> 50 * 4 / (7.5 / 6.8 * 0.9) sprite units */
     CHECK(q && q[4].g->x1 - q[4].g->x0 == 201 && q[2].g->x1 - q[2].g->x0 == 201, "plain bar, full: fill %d of %d", q[4].g->x1 - q[4].g->x0, q[2].g->x1 - q[2].g->x0);
@@ -808,11 +808,11 @@ static void t_bar(void) {
     CHECK(q && q[4].g->x0 == 8 && q[4].g->x1 == 32 && q[4].p->u0 == 124 && q[4].p->u1 == 130 && q[4].p->col[0] == 0x80808080, "full bar: fill's round end %d..%d u %d..%d", q[4].g->x0, q[4].g->x1, q[4].p->u0, q[4].p->u1);
     CHECK(q && q[5].g->x0 == 32 && q[5].g->x1 == 533 && q[5].p->u0 == 168 && q[5].p->v0 == 188 && q[5].p->v1 == 204, "full bar: fill %d..%d u %d", q[5].g->x0, q[5].g->x1, q[5].p->u0);
     CHECK(q && q[6].g->x0 == 533 && q[6].g->x1 == 533 + 208 && q[6].g->y1 == 88 && q[6].p->u0 == 106 && q[6].p->u1 == 158, "MP plate %d..%d u %d..%d", q[6].g->x0, q[6].g->x1, q[6].p->u0, q[6].p->u1);
-    Pair *m = NULL; int mc = FN(int, 0x1a6350, int, int, Pair**)(h, 2, &m);
+    Pair *m = NULL; int mc = FN(int, 0x1a61f0, int, int, Pair**)(h, 2, &m);
     CHECK(mc == 1 && m && m[0].g->x1 == 0 && m[0].g->y0 == 0, "mask quad emptied (%d quads)", mc);
-    float x = 0, y = 0; FN(int, 0x1a6290, int, float*, float*)(h, &x, &y);
-    printf("  bar origin (%.2f, %.2f), visible %d, control %d\n", x, y, FN(int, 0x1a6060, int)(h), FN(int, 0x1a60e0, int)(h));
-    CHECK(FN(int, 0x1a6060, int)(h) == 0, "hidden while the HP gauge is hidden");
+    float x = 0, y = 0; FN(int, 0x1a6130, int, float*, float*)(h, &x, &y);
+    printf("  bar origin (%.2f, %.2f), visible %d, control %d\n", x, y, FN(int, 0x1a5f00, int)(h), FN(int, 0x1a5f80, int)(h));
+    CHECK(FN(int, 0x1a5f00, int)(h) == 0, "hidden while the HP gauge is hidden");
     {   /* right end of the plate's solid part at x 425, top of the bar at y 255.5 */
         float se = 7.5f / 20.0f / 4.0f;
         float rx = x + (533 + 51 * 4 - 77) * se, ty = y + (4 + 1) * se;
@@ -835,23 +835,23 @@ static void t_bar(void) {
             "square end: frame %d, inside %d..%d, plate at %d", q[0].g->x1, q[1].g->x0, q[1].g->x1, q[3].g->x0);
       *test_bar_round() = 1; test_bar_update(gauge); }
     /* the game's own focus gauge data must be untouched: a second instance still has the original sprite */
-    G(u8, 0x8f88028) = 0;
-    int h2 = FN(int, 0x1a5350, const char*, u16, int, void*)("gauge_01:0", 0x12d, 0, NULL);
-    FN(int, 0x1a7be0, int, int)(h2, 3); Pair *q2 = NULL; FN(int, 0x1a6350, int, int, Pair**)(h2, 3, &q2);
+    G(u8, 0x8f88728) = 0;
+    int h2 = FN(int, 0x1a51f0, const char*, u16, int, void*)("gauge_01:0", 0x12d, 0, NULL);
+    FN(int, 0x1a7a80, int, int)(h2, 3); Pair *q2 = NULL; FN(int, 0x1a61f0, int, int, Pair**)(h2, 3, &q2);
     CHECK(q2 && q2[1].p->col[0] == 0x8000ffff && q2[1].g->x0 == -5, "shared sprite data untouched: %08x %d", q2 ? q2[1].p->col[0] : 0, q2 ? q2[1].g->x0 : 0);
-    FN(void, 0x1a57f0, int)(h2);
-    FN(void, 0x1a57f0, int)(h);
+    FN(void, 0x1a5690, int)(h2);
+    FN(void, 0x1a5690, int)(h);
     test_bar_update(gauge);
     CHECK(*test_bar() > 0 && *test_bar() != h, "re-created after the instance was destroyed (%d -> %d)", h, *test_bar());
     /* the plain timer bar used by the style prompt: 84 x 2.6 at (18, 170), half full */
     { extern void hud_timer_bar(int *ph, float left, float top, float w, float hgt, float frac, u32 fill, int prio, int show);
       int tb = 0; hud_timer_bar(&tb, 18.0f, 170.0f, 84.0f, 2.6f, 0.5f, 0x8020a0ff, 0xc, 1);
       CHECK(tb > 0 && tb != *test_bar(), "timer bar instance %d", tb);
-      Pair *t = NULL; int tc = FN(int, 0x1a6350, int, int, Pair**)(tb, 3, &t);
+      Pair *t = NULL; int tc = FN(int, 0x1a61f0, int, int, Pair**)(tb, 3, &t);
       CHECK(tc == 7 && t && t[0].g->x1 == 672 && t[0].g->y1 == 21 && t[2].g->x0 == 4 && t[2].g->x1 == 4 + 332 && t[2].p->col[0] == 0x8020a0ff && t[3].g->x1 == 0,
             "timer bar quads: frame %d x %d, fill %d..%d", t ? t[0].g->x1 : 0, t ? t[0].g->y1 : 0, t ? t[2].g->x0 : 0, t ? t[2].g->x1 : 0);
-      float bx = 0, by = 0; FN(int, 0x1a6290, int, float*, float*)(tb, &bx, &by);
-      CHECK(bx - 77.0f / 8 > 17.99f && bx - 77.0f / 8 < 18.01f && by + 1.0f / 8 > 169.99f && by + 1.0f / 8 < 170.01f && FN(int, 0x1a6060, int)(tb) == 1, "timer bar placed and shown (%.2f, %.2f)", bx, by);
+      float bx = 0, by = 0; FN(int, 0x1a6130, int, float*, float*)(tb, &bx, &by);
+      CHECK(bx - 77.0f / 8 > 17.99f && bx - 77.0f / 8 < 18.01f && by + 1.0f / 8 > 169.99f && by + 1.0f / 8 < 170.01f && FN(int, 0x1a5f00, int)(tb) == 1, "timer bar placed and shown (%.2f, %.2f)", bx, by);
       hud_timer_bar(&tb, 0, 0, 0, 0, -1, 0, 0, 0);
       CHECK(tb == 0, "timer bar removed"); }
     printf("t_bar done\n");
@@ -866,18 +866,18 @@ static float g_uvscale[2] = { 1.0f, 1.0f };
 static void *MSABI s_uvscale(void) { return g_uvscale; }
 static void stub_jmp(u32 rva, void *fn) { u8 *p = RVA(rva); p[0] = 0x48; p[1] = 0xb8; memcpy(p + 2, &fn, 8); p[10] = 0xff; p[11] = 0xe0; }
 static void draw_stubs(void) {
-    static const u32 rets[] = { 0x521860, 0x5201f0, 0x520490, 0x5213a0, 0x5213c0, 0x4e3210, 0x10ccb0, 0x520510, 0x520420, 0x520370 };
+    static const u32 rets[] = { 0x51fad0, 0x51e460, 0x51e700, 0x51f610, 0x51f630, 0x4e14e0, 0x10cc10, 0x51e780, 0x51e690, 0x51e5e0 };
     for (unsigned i = 0; i < sizeof rets / sizeof *rets; i++) *(u8*)RVA(rets[i]) = 0xC3;
-    stub_jmp(0x4da890, s_valloc); stub_jmp(0x4eff50, s_mode); stub_jmp(0x4e48c0, s_uvscale);
+    stub_jmp(0x4d8b60, s_valloc); stub_jmp(0x4ee220, s_mode); stub_jmp(0x4e2b90, s_uvscale);
 }
 /* draws the instance; returns the vertices of its sprite with `quads` quads (NULL if none), *mode = the filter mode
    the game chose (3 = the pixel-exact path for unscaled sprites, 4 = the plain path for scaled ones) */
 static float *draw_capture(int h, int quads, int *mode) {
-    u8 *c = FN(u8*, 0x1a5fd0, int)(h);
+    u8 *c = FN(u8*, 0x1a5e70, int)(h);
     if (!c) return NULL;
-    G(u8, 0x8f88020 + (s8)c[0x86]) = 1; G(u8, 0x8f8802c) = 1;
+    G(u8, 0x8f88720 + (s8)c[0x86]) = 1; G(u8, 0x8f8872c) = 1;
     g_vcalls = 0; memset(g_vtx, 0, sizeof g_vtx);
-    FN(void, 0x1aaea0, u8*, int)(c, 0);
+    FN(void, 0x1aacc0, u8*, int)(c, 0);
     for (int i = 0; i < g_vcalls && i < 8; i++) if (g_vn[i] == quads * 4) { if (mode) *mode = g_vmode[i]; return g_vtx[i]; }
     return NULL;
 }
@@ -893,11 +893,11 @@ static void t_draw(void) {
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x20000); fread(img, 1, 0x20000, f); fclose(f);
     PD[0x31] = 1; PD[0x36] = 4;
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    FN(void, 0x1a6d70, void)();
-    CHECK(FN(int, 0x1a6fb0, void*, const char*, int)(img, "gauge_01.l2d", 0) > 0, "register gauge_01");
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    FN(void, 0x1a6c10, void)();
+    CHECK(FN(int, 0x1a6e50, void*, const char*, int)(img, "gauge_01.l2d", 0) > 0, "register gauge_01");
     pl = calloc(1, 0x800); mgr = calloc(1, 0x200); gauge = calloc(1, 0xc8);
-    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9ee40) = mgr; G(u8*, 0x10f9ec60) = gauge; *(float*)(gauge + 0x20) = 1.0f;
+    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9f540) = mgr; G(u8*, 0x10f9f368) = gauge; *(float*)(gauge + 0x20) = 1.0f;
     { extern void test_set_art(int); test_set_art(1); }
     test_tick(gauge); test_bar_update(gauge);
     int h = *test_bar();
@@ -926,7 +926,7 @@ static void t_draw(void) {
     /* the game's own rule, which ExactSize=0 leaves in force: an unscaled sequence is drawn on the pixel grid of the
        480 x 272 screen - the same bar comes out 8 high with borders of 1 */
     { extern int *test_bar_exact(void); *test_bar_exact() = 0;
-      FN(void, 0x1a57f0, int)(h); test_bar_update(gauge); h = *test_bar();
+      FN(void, 0x1a5690, int)(h); test_bar_update(gauge); h = *test_bar();
       v = draw_capture(h, 7, &mode);
       float fr[8], fi[8]; if (v) { quad_box(v, 1, fr); quad_box(v, 5, fi); }
       CHECK(v && mode == 3 && fr[1] == 255.0f && fr[3] == 263.0f && fi[1] == 256.0f && fi[3] == 262.0f, "ExactSize=0: on the pixel grid, frame %.3f..%.3f fill %.3f..%.3f (mode %d)", v ? fr[1] : 0, v ? fr[3] : 0, v ? fi[1] : 0, v ? fi[3] : 0, mode);
@@ -964,9 +964,9 @@ static void t_guard(void) {
     u8 *self = memalign(16, 0x100); memset(self, 0, 0x100);
     u8 *sd = memalign(16, 0x100); memset(sd, 0, 0x100);
     u8 *native = memalign(16, 0x100); memset(native, 0, 0x100); *(u32*)(native + 0x10) = 0x02f02eb5;
-    *(u64*)sd = (u64)(g_base + 0x641f40); strcpy((char*)sd + 8, "msn_00:1");
+    *(u64*)sd = (u64)(g_base + 0x642070); strcpy((char*)sd + 8, "msn_00:1");
     *(u8**)(self + 0x90) = sd; self[0x86] = 0; self[0xb2] = 1; *(u16*)(self + 0xb0) = 0x21;
-    G(u8, 0x8f88020) = 1; G(u8, 0x8f8802c) = 1;
+    G(u8, 0x8f88720) = 1; G(u8, 0x8f8872c) = 1;
     u8 *good = guard_tm2((u64)native), *stale = guard_tm2(0x74f111e420036048ull);    /* the value of both crashes */
     memcpy(stale, "\x11\x22\x33\x44", 4);
     /* a sound texture is left alone */
@@ -995,11 +995,11 @@ static void t_guard(void) {
       u8 *self2 = memalign(16, 0x100); memcpy(self2, self, 0x100);
       test_guard_lay(lay); CHECK(test_guard_seq(self2) == 2, "a node of a layout: not drawn"); test_guard_lay(NULL); }
     /* the game would not bind anything: nothing is checked, nothing changed */
-    G(u8, 0x8f8802c) = 0;
+    G(u8, 0x8f8872c) = 0;
     CHECK(test_guard_seq(self) == 0, "drawing switched off: left alone");
-    G(u8, 0x8f8802c) = 1; G(u8, 0x8f88020) = 0;
+    G(u8, 0x8f8872c) = 1; G(u8, 0x8f88720) = 0;
     CHECK(test_guard_seq(self) == 0, "timer group not drawn: left alone");
-    G(u8, 0x8f88020) = 1; self[0xb2] = 0;
+    G(u8, 0x8f88720) = 1; self[0xb2] = 0;
     CHECK(test_guard_seq(self) == 0, "no objects: left alone");
     self[0xb2] = 1;
     /* an image the game would not bind (no size): its pointer field is never read */
@@ -1031,16 +1031,16 @@ static void t_gone(void) {
     if (!fn) { printf("  (skipped: BBS_PLATE_L2D not set)\n"); return; }
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); size_t n = fread(img, 1, 0x80000, f); fclose(f); (void)n;
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    *(u8*)RVA(0x1aa620) = 0xC3;                                                  /* text objects need the font system */
-    FN(void, 0x1a6d70, void)();
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "bc01_00.l2d", 0);
-    int file = FN(int, 0x1a64f0, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a64f0, const char*)("bc01_00:0");
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    *(u8*)RVA(0x1aa440) = 0xC3;                                                  /* text objects need the font system */
+    FN(void, 0x1a6c10, void)();
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "bc01_00.l2d", 0);
+    int file = FN(int, 0x1a6390, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a6390, const char*)("bc01_00:0");
     CHECK(d > 0 && file > 0 && sq > 0, "bc01_00 registered (file %d, block %d)", file, sq);
-    G(u8, 0x8f88028) = 0;
-    int h = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 3, 3, NULL);          /* a deck plate, as the menu's entries */
-    int s2 = FN(int, 0x1a5350, const char*, u16, int, void*)("bc01_00:0", 0xb, 0, NULL);
-    u8 *lc = FN(u8*, 0x1a65c0, int)(h), *sc = FN(u8*, 0x1a5fd0, int)(s2);
+    G(u8, 0x8f88728) = 0;
+    int h = FN(int, 0x1a4d60, int, u16, int, void*)(file, 3, 3, NULL);          /* a deck plate, as the menu's entries */
+    int s2 = FN(int, 0x1a51f0, const char*, u16, int, void*)("bc01_00:0", 0xb, 0, NULL);
+    u8 *lc = FN(u8*, 0x1a6460, int)(h), *sc = FN(u8*, 0x1a5e70, int)(s2);
     CHECK(h > 0 && s2 > 0 && lc && sc, "a layout (%d) and a sequence (%d) of it", h, s2);
     int keep = h, keep2 = s2;
     CHECK(l2d_live(&h) == 1 && h == keep && l2d_live(&s2) == 1 && s2 == keep2, "file loaded: instances are live");
@@ -1048,14 +1048,14 @@ static void t_gone(void) {
     CHECK(test_guard_lay_draw(lc, guard_orig) == 0x1234 + 7 && g_guard_calls == 1, "file loaded: the layout is drawn");
     CHECK(test_guard_draw(sc, guard_orig) == 0x1234 + 7 && g_guard_calls == 2, "file loaded: the sequence is drawn");
     /* the game unloads the file with the instances still there */
-    FN(void, 0x1a5f20, int)(file);
-    CHECK(FN(u8*, 0x1a63b0, int)(file) == NULL && FN(u8*, 0x1a63b0, int)(sq) == NULL, "file and block unregistered");
-    CHECK(FN(u8*, 0x1a65c0, int)(h) == lc && FN(u8*, 0x1a5fd0, int)(s2) == sc, "the instances are still in the game's list");
+    FN(void, 0x1a5dc0, int)(file);
+    CHECK(FN(u8*, 0x1a6250, int)(file) == NULL && FN(u8*, 0x1a6250, int)(sq) == NULL, "file and block unregistered");
+    CHECK(FN(u8*, 0x1a6460, int)(h) == lc && FN(u8*, 0x1a5e70, int)(s2) == sc, "the instances are still in the game's list");
     g_guard_calls = 0;
     CHECK(test_guard_lay_draw(lc, guard_orig) == 0 && g_guard_calls == 0, "file gone: the layout is not drawn");
     CHECK(test_guard_draw(sc, guard_orig) == 0 && g_guard_calls == 0, "file gone: the sequence is not drawn");
-    CHECK(l2d_live(&h) == 0 && h == 0 && FN(u8*, 0x1a65c0, int)(keep) == NULL, "file gone: the layout is destroyed and its handle cleared");
-    CHECK(l2d_live(&s2) == 0 && s2 == 0 && FN(u8*, 0x1a5fd0, int)(keep2) == NULL, "file gone: the sequence is destroyed and its handle cleared");
+    CHECK(l2d_live(&h) == 0 && h == 0 && FN(u8*, 0x1a6460, int)(keep) == NULL, "file gone: the layout is destroyed and its handle cleared");
+    CHECK(l2d_live(&s2) == 0 && s2 == 0 && FN(u8*, 0x1a5e70, int)(keep2) == NULL, "file gone: the sequence is destroyed and its handle cleared");
     CHECK(l2d_live(&h) == 1 && l2d_live(&keep) == 1, "no instance / a stale handle: nothing to do");
     menu_shutdown(); menu_shutdown();
     CHECK(1, "menu_shutdown with nothing on screen is harmless");
@@ -1063,19 +1063,19 @@ static void t_gone(void) {
 }
 /* the gauge window's shadow, on the real 2D-layout runtime (needs BBS_PLATE_L2D = bc01_00.l2d) */
 extern void test_strip_gauge_shadow(int h);
-static int shadow_quads(int h, int obj, Pair **q) { *q = NULL; return FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x46, obj, q); }
+static int shadow_quads(int h, int obj, Pair **q) { *q = NULL; return FN(int, 0x1a6820, int, u16, int, Pair**)(h, 0x46, obj, q); }
 static void t_shadow(void) {
     const char *fn = getenv("BBS_PLATE_L2D");
     if (!fn) { printf("  (skipped: BBS_PLATE_L2D not set)\n"); return; }
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); size_t n = fread(img, 1, 0x80000, f); fclose(f);
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    FN(void, 0x1a6d70, void)();
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "bc01_00.l2d", 0);
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    FN(void, 0x1a6c10, void)();
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "bc01_00.l2d", 0);
     CHECK(d > 0, "register bc01_00 (%zu bytes): %d", n, d);
-    int file = FN(int, 0x1a64f0, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a64f0, const char*)("bc01_00:0");
-    G(u8, 0x8f88028) = 0;
-    int h = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 5, 0, NULL);          /* gauge window, battle skin */
+    int file = FN(int, 0x1a6390, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a6390, const char*)("bc01_00:0");
+    G(u8, 0x8f88728) = 0;
+    int h = FN(int, 0x1a4d60, int, u16, int, void*)(file, 5, 0, NULL);          /* gauge window, battle skin */
     CHECK(h > 0, "gauge window instance %d", h);
     Pair *q;
     CHECK(shadow_quads(h, 2, &q) == 0, "no private quads before the first pass");
@@ -1085,11 +1085,11 @@ static void t_shadow(void) {
     c = shadow_quads(h, 1, &q);
     CHECK(c >= 1 && q && q[0].g->x1 == 1, "object 1 untouched (%d quads, x1 %d)", c, q ? q[0].g->x1 : -1);
     /* a second window still has the shadow: the shared data is untouched */
-    int h2 = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 5, 0, NULL);
-    FN(int, 0x1a83f0, int, u16, int)(h2, 0x46, 2); c = shadow_quads(h2, 2, &q);
+    int h2 = FN(int, 0x1a4d60, int, u16, int, void*)(file, 5, 0, NULL);
+    FN(int, 0x1a8290, int, u16, int)(h2, 0x46, 2); c = shadow_quads(h2, 2, &q);
     CHECK(c == 4 && q && q[0].g->x0 == 8 && q[0].g->x1 == 80, "shared sprite data untouched");
     /* field skin: the game swaps the sequence; the shadow is object 1 there */
-    FN(int, 0x1a7fb0, int, u16, int, u16, int)(h, 0x46, sq, 0x259, 0);
+    FN(int, 0x1a7e50, int, u16, int, u16, int)(h, 0x46, sq, 0x259, 0);
     test_strip_gauge_shadow(h);
     c = shadow_quads(h, 1, &q);
     CHECK(c == 4 && q && q[0].g->x1 == 0 && q[0].p->u0 == 224, "field skin: shadow (object 1, %d quads) emptied", c);
@@ -1097,27 +1097,27 @@ static void t_shadow(void) {
     c = shadow_quads(h, 2, &q);
     CHECK(q == NULL || c == 0 || q[0].g->x1 != 0 || q[0].p->u0 != 224 || 1, "repeat passes are harmless");
     /* other controls of the window */
-    for (int ctl = 1; ctl <= 2; ctl++) { FN(int, 0x1a7520, int, int)(h, ctl); test_strip_gauge_shadow(h); c = shadow_quads(h, 1, &q);
+    for (int ctl = 1; ctl <= 2; ctl++) { FN(int, 0x1a73c0, int, int)(h, ctl); test_strip_gauge_shadow(h); c = shadow_quads(h, 1, &q);
         CHECK(c == 4 && q && q[0].g->x1 == 0, "control %d: emptied (%d quads)", ctl, c); }
     printf("t_shadow done\n");
 }
 /* the cursor row's plate, on the real 2D-layout runtime (needs BBS_PLATE_L2D = bc01_00.l2d).  The plate layouts
    carry text nodes; setting those up needs the game's font system, so that step (1aa620) is skipped. */
 extern void test_cursor_body(int h, int mode), test_link_cursor_body(int h);
-static int nq(int h, u16 node, int obj, Pair **q) { *q = NULL; return FN(int, 0x1a6980, int, u16, int, Pair**)(h, node, obj, q); }
+static int nq(int h, u16 node, int obj, Pair **q) { *q = NULL; return FN(int, 0x1a6820, int, u16, int, Pair**)(h, node, obj, q); }
 static void t_cursor(void) {
     const char *fn = getenv("BBS_PLATE_L2D");
     if (!fn) { printf("  (skipped: BBS_PLATE_L2D not set)\n"); return; }
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); size_t n = fread(img, 1, 0x80000, f); fclose(f);
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    *(u8*)RVA(0x1aa620) = 0xC3;                                                  /* 1aa620: set-up of a text object (needs the font system) */
-    FN(void, 0x1a6d70, void)();
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "bc01_00.l2d", 0);
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    *(u8*)RVA(0x1aa440) = 0xC3;                                                  /* 1aa620: set-up of a text object (needs the font system) */
+    FN(void, 0x1a6c10, void)();
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "bc01_00.l2d", 0);
     CHECK(d > 0, "register bc01_00 (%zu bytes): %d", n, d);
-    int file = FN(int, 0x1a64f0, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a64f0, const char*)("bc01_00:0");
-    G(u8, 0x8f88028) = 0;
-    int h = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 3, 3, NULL);          /* deck plate, battle skin, control 3 */
+    int file = FN(int, 0x1a6390, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a6390, const char*)("bc01_00:0");
+    G(u8, 0x8f88728) = 0;
+    int h = FN(int, 0x1a4d60, int, u16, int, void*)(file, 3, 3, NULL);          /* deck plate, battle skin, control 3 */
     CHECK(h > 0, "deck plate instance %d", h);
     Pair *q; int c;
     test_cursor_body(h, 0);
@@ -1133,37 +1133,37 @@ static void t_cursor(void) {
     CHECK(q[0].g->x1 == 20 && q[0].p->u0 == 136 && q[0].p->col[0] == 0x80808080 && q[3].p->col[0] == 0xff808080, "frame only");
     test_cursor_body(h, 0);
     CHECK(q[0].g->x1 == 20 && q[2].p->u1 == 172 && q[5].p->col[3] == 0x80808080, "back to plain");
-    FN(int, 0x1a7520, int, int)(h, 4); test_cursor_body(h, 1);                   /* unavailable */
+    FN(int, 0x1a73c0, int, int)(h, 4); test_cursor_body(h, 1);                   /* unavailable */
     c = nq(h, 0x5d, 3, &q);
     CHECK(c == 6 && q && q[3].p->col[0] == 0xff808080 && q[0].p->u0 == 136, "control 4: frame only on the body (%d quads)", c);
     c = nq(h, 0x5d, 2, &q);
     CHECK(c == 0 || (q && q[0].p->col[0] == 0x32808080), "control 4: backing untouched");
-    FN(int, 0x1a7fb0, int, u16, int, u16, int)(h, 0x5d, sq, 0xb, 3);            /* field skin */
+    FN(int, 0x1a7e50, int, u16, int, u16, int)(h, 0x5d, sq, 0xb, 3);            /* field skin */
     test_cursor_body(h, 2);
     c = nq(h, 0x5d, 1, &q);
     CHECK(c == 6 && q && q[0].p->u0 == 4 && q[3].p->col[0] == 0xff808080, "field skin: body is object 1 (%d quads)", c);
-    CHECK(FN(int, 0x1a6790, int, u16)(h, 0) == 4, "layout control 4 took the name node along: %d", FN(int, 0x1a6790, int, u16)(h, 0));
-    FN(int, 0x1a7520, int, int)(h, 3);
-    CHECK(FN(int, 0x1a6790, int, u16)(h, 0) == 3, "and back to 3: %d", FN(int, 0x1a6790, int, u16)(h, 0));
+    CHECK(FN(int, 0x1a6630, int, u16)(h, 0) == 4, "layout control 4 took the name node along: %d", FN(int, 0x1a6630, int, u16)(h, 0));
+    FN(int, 0x1a73c0, int, int)(h, 3);
+    CHECK(FN(int, 0x1a6630, int, u16)(h, 0) == 3, "and back to 3: %d", FN(int, 0x1a6630, int, u16)(h, 0));
     test_cursor_body(h, 2); c = nq(h, 0x5d, 1, &q);
     CHECK(c == 6 && q && q[0].p->u0 == 4, "gradient again after the control change (%d quads)", c);
-    FN(int, 0x1a7db0, int, u16, int)(h, 0, 1);
-    CHECK(FN(int, 0x1a6790, int, u16)(h, 0) == 1 && FN(int, 0x1a60e0, int)(h) == 3, "name node alone in control 1");
+    FN(int, 0x1a7c50, int, u16, int)(h, 0, 1);
+    CHECK(FN(int, 0x1a6630, int, u16)(h, 0) == 1 && FN(int, 0x1a5f80, int)(h) == 3, "name node alone in control 1");
     /* the name's colour (the "would end in MP charge" mark) is a plain node colour on node 0 */
     { u32 col = 0;
-      FN(int, 0x1a6600, int, u16, u32*)(h, 0, &col); CHECK(col == 0xff808080, "name node colour by default: %08x", col);
-      FN(int, 0x1a7c30, int, u16, u32, int)(h, 0, 0xff107080, 1); FN(int, 0x1a6600, int, u16, u32*)(h, 0, &col);
+      FN(int, 0x1a64a0, int, u16, u32*)(h, 0, &col); CHECK(col == 0xff808080, "name node colour by default: %08x", col);
+      FN(int, 0x1a7ad0, int, u16, u32, int)(h, 0, 0xff107080, 1); FN(int, 0x1a64a0, int, u16, u32*)(h, 0, &col);
       CHECK(col == 0xff107080, "set to yellow: %08x", col);
-      FN(int, 0x1a7520, int, int)(h, 4); FN(int, 0x1a7520, int, int)(h, 3); FN(int, 0x1a6600, int, u16, u32*)(h, 0, &col);
+      FN(int, 0x1a73c0, int, int)(h, 4); FN(int, 0x1a73c0, int, int)(h, 3); FN(int, 0x1a64a0, int, u16, u32*)(h, 0, &col);
       CHECK(col == 0xff107080, "kept across a control change: %08x", col);
-      FN(int, 0x1a7c30, int, u16, u32, int)(h, 0, 0xff808080, 1); }
+      FN(int, 0x1a7ad0, int, u16, u32, int)(h, 0, 0xff808080, 1); }
     /* a second plate is untouched */
-    int h2 = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 3, 3, NULL);
-    FN(int, 0x1a83f0, int, u16, int)(h2, 0x5d, 3); c = nq(h2, 0x5d, 3, &q);
+    int h2 = FN(int, 0x1a4d60, int, u16, int, void*)(file, 3, 3, NULL);
+    FN(int, 0x1a8290, int, u16, int)(h2, 0x5d, 3); c = nq(h2, 0x5d, 3, &q);
     CHECK(c == 6 && q && q[0].g->x1 == 20 && q[0].p->u0 == 136 && q[3].p->col[0] == 0x80808080, "shared sprite data untouched");
     /* D-Link plate under the cursor */
-    int l = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 10, 3, NULL);
-    FN(int, 0x1a7520, int, int)(l, 0);
+    int l = FN(int, 0x1a4d60, int, u16, int, void*)(file, 10, 3, NULL);
+    FN(int, 0x1a73c0, int, int)(l, 0);
     test_link_cursor_body(l);
     c = nq(l, 1, 9, &q);
     CHECK(c == 5 && q && q[0].g->x1 == 0 && q[4].g->x1 == 0, "D-Link plate: long frame (object 9, %d quads) emptied", c);
@@ -1177,11 +1177,11 @@ static void t_cursor(void) {
        a link is chosen included */
     {   extern void test_link_row_places(int h);
         float x2 = 0, x3 = 0, x4 = 0, y = 0;
-        FN(int, 0x1a7520, int, int)(l, 5); test_link_row_places(l);
-        FN(int, 0x1a6880, int, u16, float*, float*)(l, 2, &x2, &y); FN(int, 0x1a6880, int, u16, float*, float*)(l, 3, &x3, &y); FN(int, 0x1a6880, int, u16, float*, float*)(l, 4, &x4, &y);
+        FN(int, 0x1a73c0, int, int)(l, 5); test_link_row_places(l);
+        FN(int, 0x1a6720, int, u16, float*, float*)(l, 2, &x2, &y); FN(int, 0x1a6720, int, u16, float*, float*)(l, 3, &x3, &y); FN(int, 0x1a6720, int, u16, float*, float*)(l, 4, &x4, &y);
         CHECK(x2 == -11 && x3 == 106 && x4 == 118, "control 5 (link chosen): name at %.0f (-3 + 2 - 10), hearts at %.0f / %.0f", x2, x3, x4);
-        FN(int, 0x1a7520, int, int)(l, 3); test_link_row_places(l);
-        FN(int, 0x1a6880, int, u16, float*, float*)(l, 2, &x2, &y); FN(int, 0x1a6880, int, u16, float*, float*)(l, 3, &x3, &y);
+        FN(int, 0x1a73c0, int, int)(l, 3); test_link_row_places(l);
+        FN(int, 0x1a6720, int, u16, float*, float*)(l, 2, &x2, &y); FN(int, 0x1a6720, int, u16, float*, float*)(l, 3, &x3, &y);
         CHECK(x2 == -1 && x3 == 116, "control 3 (plain): name at %.0f, hearts at %.0f", x2, x3); }
     printf("t_cursor done\n");
 }
@@ -1199,13 +1199,13 @@ __asm__(".text\n"
         "9: mov %rbx,%rsi\n and $-16,%rsp\n call land_c\n"
         "enter_site: mov %rdi,%rbx\n mov $0x151,%ebp\n mov 0x1a8(%rbx),%eax\n mov 0x64(%rbx),%ecx\n jmp *%rsi\n");
 static void pad_to(u32 rva, void (*f)(void)) { u8 *p = RVA(rva); p[0] = 0x48; p[1] = 0xb8; memcpy(p + 2, &f, 8); p[10] = 0xff; p[11] = 0xe0; }
-static int site(void) { g_land = 0; if (!setjmp(g_jb)) enter_site(cmd, RVA(0x2368f2)); return g_land; }
+static int site(void) { g_land = 0; if (!setjmp(g_jb)) enter_site(cmd, RVA(0x236612)); return g_land; }
 extern int *test_style_active(void); extern float *test_style_left(void);
 static void t_style(void) {
     static const u16 ids[] = { 0x83 };
     world(1, ids);
     *(u32*)(mgr + 0xf8) = 1;
-    pad_to(0x2368f9, land1); pad_to(0x236b49, land2); pad_to(0x236a82, land3);
+    pad_to(0x236619, land1); pad_to(0x236869, land2); pad_to(0x2367a2, land3);
     *(u16*)(cmd + 0x190) = 0x151; *(u32*)(cmd + 0x64) = 0x100;
     CHECK(site() == 1 && g_land_rbx == cmd && !*test_style_active(), "no candidate: the game decides (%d)", g_land);
     *(u16*)(cmd + 0x190) = 0x154;
@@ -1219,14 +1219,14 @@ static void t_style(void) {
         CHECK(site() == 2 && *test_style_active() && *test_style_left() == 359.0f, "next full gauge: a new offer");
         CHECK(test_offer_y(cmd) == 157 && test_context_y(cmd) == 141, "offer up: it stays by the window (%.0f), a context prompt goes above it (%.0f)", test_offer_y(cmd), test_context_y(cmd));
         /* a context prompt is up as well: triangle answers the prompt, the offer stays */
-        G(u32, 0x8f64930) = 0x1000; G(u32, 0x8f64934) = 0x1000; G(u32, 0x8f6493c) = 0x1000; G(u16, 0x8f6499c) = 0;
+        G(u32, 0x8f65030) = 0x1000; G(u32, 0x8f65034) = 0x1000; G(u32, 0x8f6503c) = 0x1000; G(u16, 0x8f6509c) = 0;
         *(u32*)(cmd + 0x60) |= 0x40000;
         CHECK(menu_react_prompt(cmd) && site() == 2 && *test_style_active(), "triangle with a context prompt up: the offer is not taken");
         *(u32*)(cmd + 0x60) &= ~0x40000u;
     }
-    G(u32, 0x8f64930) = 0x1000; G(u32, 0x8f64934) = 0x1000; G(u32, 0x8f6493c) = 0x1000; G(u16, 0x8f6499c) = 0;
+    G(u32, 0x8f65030) = 0x1000; G(u32, 0x8f65034) = 0x1000; G(u32, 0x8f6503c) = 0x1000; G(u16, 0x8f6509c) = 0;
     CHECK(site() == 1 && !*test_style_active(), "style button: the game's own change runs (%d)", g_land);
-    G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f6493c) = 0;
+    G(u32, 0x8f65030) = 0; G(u32, 0x8f65034) = 0; G(u32, 0x8f6503c) = 0;
     *(u32*)(cmd + 0x64) = 0x100 | 0x40000;
     CHECK(site() == 1 && !*test_style_active(), "forced-style section: untouched (%d)", g_land);
     /* finishers: offered, Attack kept, fired by the style button, dropped by the game's own "finisher over" code */
@@ -1241,7 +1241,7 @@ static void t_style(void) {
       { extern const char *test_finisher_name(u8 *cmd);
         char keep[16]; memcpy(keep, PD + 0x1b0, 16); strcpy((char*)PD + 0x1b0, "Gold Rush");
         static u64 sw_fin = 0x5b;  u64 *was = *(u64**)(finP + 0x58); int lv = *(int*)(cmd + 0x1a8);
-        const char *gname = G(const char*, 0x814908 + 0x5b * 0x18);
+        const char *gname = G(const char*, 0x815908 + 0x5b * 0x18);
         *(u64**)(finP + 0x58) = &sw_fin;
         *(int*)(cmd + 0x1a8) = 0;
         const char *n0 = test_finisher_name(cmd);
@@ -1252,10 +1252,10 @@ static void t_style(void) {
         *(u64**)(finP + 0x58) = was; *(int*)(cmd + 0x1a8) = lv; memcpy(PD + 0x1b0, keep, 16); }
       test_finisher_hook(cmd);
       CHECK(*test_fin_active() && *test_fin_left() == 360.0f && atkP[0x31] == 0 && !(*(u32*)(atkP + 0x60) & 0x2000), "finisher offered, Attack plate ready again (state %d)", atkP[0x31]);
-      G(u32, 0x8f64930) = 0x4000; G(u32, 0x8f64934) = 0x4000; G(u32, 0x8f6493c) = 0x4000;
+      G(u32, 0x8f65030) = 0x4000; G(u32, 0x8f65034) = 0x4000; G(u32, 0x8f6503c) = 0x4000;
       test_finisher_hook(cmd);
       CHECK(!(*(u32*)(cmd + 0x60) & 0x4000) && *(u64*)(cmd + 0x80) == 0, "the confirm button does not fire it");
-      G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f6493c) = 0;
+      G(u32, 0x8f65030) = 0; G(u32, 0x8f65034) = 0; G(u32, 0x8f6503c) = 0;
       for (int i = 0; i < 358; i++) test_finisher_hook(cmd);
       CHECK(*test_fin_active() && (*(u32*)(cmd + 0x60) & 0x20000), "still offered just before the timer is out (%.0f)", *test_fin_left());
       *(u32*)(cmd + 0x60) |= 0x8000;                                  /* the player is in the middle of an attack */
@@ -1265,10 +1265,10 @@ static void t_style(void) {
       *(u32*)(cmd + 0x60) = 0x20000; finP[0x31] = 2; *(float*)(cmd + 0x130) = *(float*)(cmd + 0x138) = 100.0f;
       test_finisher_hook(cmd);
       CHECK(*test_fin_active() && *test_fin_left() == 360.0f, "next finisher: a new offer");
-      G(u32, 0x8f64930) = 0x1000; G(u32, 0x8f64934) = 0x1000; G(u32, 0x8f6493c) = 0x1000;
+      G(u32, 0x8f65030) = 0x1000; G(u32, 0x8f65034) = 0x1000; G(u32, 0x8f6503c) = 0x1000;
       test_finisher_hook(cmd);
       CHECK((*(u32*)(cmd + 0x60) & 0x4000) && *(u16*)(cmd + 0x80) == 0x12 && !*test_fin_active(), "style button: finisher fired (%x)", *(u16*)(cmd + 0x80));
-      G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f6493c) = 0;
+      G(u32, 0x8f65030) = 0; G(u32, 0x8f65034) = 0; G(u32, 0x8f6503c) = 0;
       /* in a style (level 1, the gauge full at 200): a finisher offer that runs out leaves the style as it is.
          The game's flags as its constructor sets them: 0x10 revert at an empty gauge, 0x20 revert after a finisher. */
       { extern int *test_style_keep(void);
@@ -1330,7 +1330,7 @@ static void t_cancel(void) {
     u8 *ctl = calloc(1, 0x60), *ent = calloc(1, 0x90), *desc = calloc(1, 0x34);
     static u8 patk[900 * 0x28];
     memset(p, 0, 0x800);
-    u8 *pmgr = calloc(1, 0x200); G(u8*, 0x10f9ee40) = pmgr; *(u8**)(pmgr + 0x128) = patk; *(u8**)(pmgr + 0x118) = p;
+    u8 *pmgr = calloc(1, 0x200); G(u8*, 0x10f9f540) = pmgr; *(u8**)(pmgr + 0x128) = patk; *(u8**)(pmgr + 0x118) = p;
     *(u8**)(p + 0x78) = mot; *(u8**)(p + 0x378) = wp; *(u8**)(wp + 0x88) = ctl; *(u8**)(p + 0x390) = cmd;
     *(s32*)(ctl + 0x20) = 1; *(u8**)(ctl + 0x28) = ent; *(u8**)(ent + 0x48) = desc;
     *(s16*)(desc + 0x24) = 12; *(s16*)(desc + 0x26) = 20; *(s16*)(desc + 0x30) = -1;
@@ -1419,7 +1419,7 @@ static void t_cancel(void) {
     *test_cc_on() = 0; test_cc_reset(); g_cc_ends = 0; CMDSET(0x10, 3, 0x6a); *(u16*)(p + 0x422) = 0;
     FRAME(30); PRESS(0x10 | 0x8000000); CHECK(g_cc_ends == 0 && test_cc_state() == 0, "Enabled = 0: off");
     *test_cc_on() = 1; test_cc_reset();
-    G(u8*, 0x10f9ee40) = NULL;
+    G(u8*, 0x10f9f540) = NULL;
     #undef CMDSET
     #undef FRAME
     #undef PRESS
@@ -1430,7 +1430,7 @@ static void t_speed(void) {
     u8 *ctl = calloc(1, 0x60), *ent = calloc(2, 0x90), *desc = calloc(2, 0x34);
     static u8 patk[900 * 0x28];
     memset(p, 0, 0x800); memset(phys, 0, 0x200);
-    u8 *pmgr = calloc(1, 0x200); G(u8*, 0x10f9ee40) = pmgr; *(u8**)(pmgr + 0x128) = patk;
+    u8 *pmgr = calloc(1, 0x200); G(u8*, 0x10f9f540) = pmgr; *(u8**)(pmgr + 0x128) = patk;
     *(u8**)(p + 0x78) = mot; *(u8**)(p + 0x80) = phys; *(u8**)(p + 0x378) = wp; *(u8**)(wp + 0x88) = ctl;
     *(float*)(p + 0x1a8) = 1.0f; *(float*)(wp + 0x1a8) = 1.0f;
     /* Ventus' second ground hit (record 13): one weapon window 20..28, moves until 16, combo window until 31, 34 frames */
@@ -1470,45 +1470,45 @@ static void t_speed(void) {
     *(float*)(p + 0x44c) = 0.0f; test_fall_clear();
     CHECK(test_leave(p, 0) == 0 && test_fall() == p, "stick neutral: no walk-out, but the fall is released");
     /* through the real hook at 2291bf */
-    pad_to(0x2291cd, land1); pad_to(0x22908d, land2);
-    CHECK(site2(p, 0x2291bf) == 2 && g_land_rbx == p, "hook 2291bf: carries on (%d)", g_land);
+    pad_to(0x228eed, land1); pad_to(0x228dad, land2);
+    CHECK(site2(p, 0x228edf) == 2 && g_land_rbx == p, "hook 2291bf: carries on (%d)", g_land);
     *(float*)(p + 0x44c) = 1.0f;
-    CHECK(site2(p, 0x2291bf) == 1 && g_land_rbx == p, "hook 2291bf: ends the attack (%d)", g_land);
-    FR(20); ST(1); CHECK(site2(p, 0x2291bf) == 2, "hook 2291bf: not during the hit (%d)", g_land);
-    mot[8] = 1; CHECK(site2(p, 0x2291bf) == 1, "hook 2291bf: animation finished -> the game's own end (%d)", g_land);
+    CHECK(site2(p, 0x228edf) == 1 && g_land_rbx == p, "hook 2291bf: ends the attack (%d)", g_land);
+    FR(20); ST(1); CHECK(site2(p, 0x228edf) == 2, "hook 2291bf: not during the hit (%d)", g_land);
+    mot[8] = 1; CHECK(site2(p, 0x228edf) == 1, "hook 2291bf: animation finished -> the game's own end (%d)", g_land);
     mot[8] = 0;
     /* deck attack and item sites */
-    pad_to(0x2264d3, land1); pad_to(0x2264f4, land2); pad_to(0x22540d, land3);
+    pad_to(0x2261f3, land1); pad_to(0x226214, land2); pad_to(0x22512d, land3);
     *(s16*)(p + 0x310) = 3; *(u16*)(p + 0x312) = 0x5b; FR(31); ST(3);
-    CHECK(site2(p, 0x2246c0) == 1 && site2(p, 0x224476) == 1 && site2(p, 0x2253ff) == 3, "deck attack hooks end the command when it is done");
-    FR(25); CHECK(site2(p, 0x2246c0) == 2 && site2(p, 0x224476) == 2 && site2(p, 0x2253ff) == 2, "... and not before");
+    CHECK(site2(p, 0x2243e0) == 1 && site2(p, 0x224196) == 1 && site2(p, 0x22511f) == 3, "deck attack hooks end the command when it is done");
+    FR(25); CHECK(site2(p, 0x2243e0) == 2 && site2(p, 0x224196) == 2 && site2(p, 0x22511f) == 2, "... and not before");
     *(u16*)(p + 0x312) = 0x6f; FR(31); fin[0x0c] = 34;
-    CHECK(site2(p, 0x224476) == 2, "a command that is pressed again (Ars Arcanum) is not cut by a held stick");
+    CHECK(site2(p, 0x224196) == 2, "a command that is pressed again (Ars Arcanum) is not cut by a held stick");
     fin[0x0c] = 31;
     /* air: the gravity hook inside the game's integrator 21cb00 */
     float g = -0.0049f;
     *(float*)(p + 0x32c) = g; *(float*)(p + 0x328) = 1.0f; *(u32*)(p + 0x318) = 0x800000;
     *(float*)(p + 0x50c) = 0.0f; *(float*)(p + 0x508) = g * 0.16f; test_fall_clear();
-    FN(void, 0x21cb00, u8*, float, float, int)(p, 20.0f, 16.0f, 1);
+    FN(void, 0x21c820, u8*, float, float, int)(p, 20.0f, 16.0f, 1);
     CHECK(*(float*)(p + 0x508) > g * 0.17f && *(float*)(p + 0x508) < g * 0.15f, "aerial action: the game's 16 %% gravity (%.5f)", *(float*)(p + 0x508));
     float vy0 = *(float*)(p + 0x50c);
     *(u16*)(p + 0x312) = 1; *(s16*)(p + 0x310) = 5; FR(31); ST(3); *(float*)(p + 0x44c) = 0.0f;
     test_leave(p, 0);
-    FN(void, 0x21cb00, u8*, float, float, int)(p, 31.0f, 16.0f, 1);
+    FN(void, 0x21c820, u8*, float, float, int)(p, 31.0f, 16.0f, 1);
     CHECK(test_fall() == p && *(float*)(p + 0x508) == g, "attack done: full gravity from the next step (%.5f)", *(float*)(p + 0x508));
-    FN(void, 0x21cb00, u8*, float, float, int)(p, 31.0f, 16.0f, 1);
+    FN(void, 0x21c820, u8*, float, float, int)(p, 31.0f, 16.0f, 1);
     CHECK(*(float*)(p + 0x50c) < vy0 + g * 0.9f && (*(u32*)(p + 0x318) & 0x800000), "falling (vy %.4f), still an aerial action for the game", *(float*)(p + 0x50c));
-    FN(void, 0x21cb00, u8*, float, float, int)(p, 31.0f, 16.0f, 0);
+    FN(void, 0x21c820, u8*, float, float, int)(p, 31.0f, 16.0f, 0);
     CHECK(*(float*)(p + 0x508) == g, "mode 0 (plain gravity) passes through");
     { Ctx c; memset(&c, 0, sizeof c); c.rdi = (u64)p;
-      *(u16*)(p + 0x308) = 0x10; CHECK(test_h_hover(&c) == (u64)RVA(0x26357c), "fall after an action: no hover");
-      *(u16*)(p + 0x308) = 4;    CHECK(test_h_hover(&c) == (u64)RVA(0x26357c), "the top of a jump: no hang");
-      *(u16*)(p + 0x308) = 1;    CHECK(test_h_hover(&c) == (u64)RVA(0x26357c), "walking off a ledge: no hang");
+      *(u16*)(p + 0x308) = 0x10; CHECK(test_h_hover(&c) == (u64)RVA(0x26329c), "fall after an action: no hover");
+      *(u16*)(p + 0x308) = 4;    CHECK(test_h_hover(&c) == (u64)RVA(0x26329c), "the top of a jump: no hang");
+      *(u16*)(p + 0x308) = 1;    CHECK(test_h_hover(&c) == (u64)RVA(0x26329c), "walking off a ledge: no hang");
       { extern int *test_jump_hang(void); *test_jump_hang() = 1;
         *(u16*)(p + 0x308) = 4;    CHECK(test_h_hover(&c) == 0, "JumpHang = 1: the game's own hang at the top of a jump");
-        *(u16*)(p + 0x308) = 0x10; CHECK(test_h_hover(&c) == (u64)RVA(0x26357c), "... still none after an action (AirWeight)");
+        *(u16*)(p + 0x308) = 0x10; CHECK(test_h_hover(&c) == (u64)RVA(0x26329c), "... still none after an action (AirWeight)");
         *test_jump_hang() = 0; } }
-    CHECK(G(float, 0x26407b) == 6.0f, "button lock after an aerial action: %.0f ticks", G(float, 0x26407b));
+    CHECK(G(float, 0x263d9b) == 6.0f, "button lock after an aerial action: %.0f ticks", G(float, 0x263d9b));
     /* air hops (KH2's air combo): each Attack hit in the air starts with an upward speed and keeps full gravity */
     { extern void test_hop_frame(u8 *pl); extern int test_hop_hit(u8 *pl), *test_hop_on(void); extern float *test_hop_keep(void);
       static u8 keep_p[0x800]; memcpy(keep_p, p, 0x800);
@@ -1534,7 +1534,7 @@ static void t_speed(void) {
         *(float*)(p + 0x50c) = 0.0f; *(float*)(p + 0x508) = g * 0.16f; FR(0); test_fall_clear();
         test_hop_frame(p);
         CHECK(*(float*)(p + 0x50c) == 0.0f && !*test_hop_live(), "a hit that starts on the ground: no hop, no rise (vy %.4f)", *(float*)(p + 0x50c));
-        FN(void, 0x21cb00, u8*, float, float, int)(p, 1.0f, 8.0f, 1);
+        FN(void, 0x21c820, u8*, float, float, int)(p, 1.0f, 8.0f, 1);
         CHECK(*(float*)(p + 0x50c) == 0.0f && *(float*)(p + 0x508) > g * 0.17f && *(float*)(p + 0x508) < g * 0.15f, "... and the game's own handling of it (vy %.4f)", *(float*)(p + 0x50c));
         FR(3); test_hop_frame(p); CHECK(*(float*)(p + 0x50c) == 0.0f, "still nothing later in the same hit, even once in the air");
         *(int*)(p + 0x600) = 0; *(float*)(p + 0x618) = 0.0f; *(u32*)(p + 0x318) = 0x800000 | 0x400000; }
@@ -1547,12 +1547,12 @@ static void t_speed(void) {
       /* the game's integrator with the hook: full gravity, no clamp, the rise is not cut at frMoveEnd */
       float y = 0, top = 0, vmin = 1;
       for (int t = 1; t <= 30; t++) {
-          FN(void, 0x21cb00, u8*, float, float, int)(p, t * 0.5f, 8.0f, 1);
+          FN(void, 0x21c820, u8*, float, float, int)(p, t * 0.5f, 8.0f, 1);
           y += *(float*)(p + 0x50c); if (y > top) top = y; if (*(float*)(p + 0x50c) < vmin) vmin = *(float*)(p + 0x50c);
       }
       printf("  first air hit: up %.3f, after 30 ticks %+.3f (vy %.4f)\n", top, y, *(float*)(p + 0x50c));
       CHECK(top > 0.2f && top < 0.8f && y > -0.2f && y < 0.4f && vmin < -0.05f && (*(u32*)(p + 0x318) & 0x800000), "a hop: up %.2f, back near the start by the next hit (%+.2f)", top, y);
-      *(float*)(p + 0x50c) = 0.05f; FN(void, 0x21cb00, u8*, float, float, int)(p, 10.0f, 8.0f, 1);
+      *(float*)(p + 0x50c) = 0.05f; FN(void, 0x21c820, u8*, float, float, int)(p, 10.0f, 8.0f, 1);
       CHECK(*(float*)(p + 0x50c) > 0.04f, "rising past frMoveEnd is not cut (vy %.4f)", *(float*)(p + 0x50c));
       /* the next hit of the combo: no first-hit factor; with AirHopKeep 1 the height is kept */
       FR(10); test_hop_frame(p); FR(0); *(float*)(p + 0x50c) = -0.08f;
@@ -1560,7 +1560,7 @@ static void t_speed(void) {
       *test_hop_keep() = 1.0f; test_hop_frame(p);
       float w2 = 0.0049f * 30.0f * 0.5f; v0 = *(float*)(p + 0x50c);
       CHECK(v0 > w2 - 1e-5f && v0 < w2 + 1e-5f, "second hit: vy %.4f (want %.4f), whatever it was falling at", v0, w2);
-      y = 0; for (int t = 1; t <= 30; t++) { FN(void, 0x21cb00, u8*, float, float, int)(p, t * 0.5f, 8.0f, 1); y += *(float*)(p + 0x50c); }
+      y = 0; for (int t = 1; t <= 30; t++) { FN(void, 0x21c820, u8*, float, float, int)(p, t * 0.5f, 8.0f, 1); y += *(float*)(p + 0x50c); }
       CHECK(y > -0.1f && y < 0.1f, "AirHopKeep 1: back at the same height when the next hit can start (%+.3f)", y);
       *test_hop_keep() = 0.9f;
       /* faster animation: shorter hop */
@@ -1582,7 +1582,7 @@ static void t_speed(void) {
         CHECK(NEWHIT(h2) == plain, "target 0.3 above (nearby): the plain hop (%.4f)", *(float*)(p + 0x50c));
         *(float*)(p + 0x618) = 1.2f; float v = NEWHIT(hit), want = sqrtf(2.0f * 0.0049f * 1.2f);
         CHECK(v > want - 1e-4f && v < want + 1e-4f && v > plain, "target 1.2 above: rises to it (vy %.4f, want %.4f)", v, want);
-        { float y = 0, top = 0; for (int t = 1; t <= 40; t++) { FN(void, 0x21cb00, u8*, float, float, int)(p, t * 0.5f, 8.0f, 1); y += *(float*)(p + 0x50c); if (y > top) top = y; }
+        { float y = 0, top = 0; for (int t = 1; t <= 40; t++) { FN(void, 0x21c820, u8*, float, float, int)(p, t * 0.5f, 8.0f, 1); y += *(float*)(p + 0x50c); if (y > top) top = y; }
           CHECK(top > 1.1f && top < 1.3f, "... and gets there: top %.2f", top); }
         *(float*)(p + 0x618) = 3.0f; v = NEWHIT(h2);
         CHECK(v > 0.1351f && v < 0.1353f, "target 3 above: at most a jump's speed (%.4f)", v);
@@ -1613,7 +1613,7 @@ static void t_speed(void) {
         *test_launch_on() = 1; *(u8**)(p + 0x80) = keep80; *(u8**)(p + 0x608) = keep608; *(int*)(p + 0x600) = keep600; }
       /* off: the game's own 16 %% */
       *test_hop_on() = 0; *(float*)(p + 0x50c) = 0.0f; test_fall_clear(); *(float*)(p + 0x508) = g * 0.16f;
-      FN(void, 0x21cb00, u8*, float, float, int)(p, 2.0f, 8.0f, 1);
+      FN(void, 0x21c820, u8*, float, float, int)(p, 2.0f, 8.0f, 1);
       CHECK(*(float*)(p + 0x508) > g * 0.17f && *(float*)(p + 0x508) < g * 0.15f && *(float*)(p + 0x50c) == 0.0f, "AirHop = 0: the game's hold (vy %.4f, g %.5f)", *(float*)(p + 0x50c), *(float*)(p + 0x508));
       *test_hop_on() = 1; *(u8**)(pmgr + 0x118) = NULL; memcpy(p, keep_p, 0x800); }
     /* speed factor */
@@ -1643,14 +1643,14 @@ static void t_speed(void) {
       *(u16*)(p + 0x422) = 68; *(u16*)(p + 0x428) = 1;           /* cast animation playing, not the idle pose */
       *(u16*)(p + 0x312) = 0x8a; *(u16*)(p + 0x34c) = 0x8a; sp[0x0d] = 27;
       *(float*)(p + 0x1a0) = 21.0f; CHECK(test_h_mag_lock(&c) == 0, "Blizzard, 19 ticks after the release: still locked");
-      *(float*)(p + 0x1a0) = 20.0f; CHECK(test_h_mag_lock(&c) == (u64)RVA(0x26829a), "20 ticks after the release: free (KH2's chain time)");
+      *(float*)(p + 0x1a0) = 20.0f; CHECK(test_h_mag_lock(&c) == (u64)RVA(0x267fba), "20 ticks after the release: free (KH2's chain time)");
       *(u16*)(p + 0x312) = 0x83; *(u16*)(p + 0x34c) = 0x83; CHECK(test_h_mag_lock(&c) == 0, "Fire: not yet");
-      *(float*)(p + 0x1a0) = 2.0f; CHECK(test_h_mag_lock(&c) == (u64)RVA(0x26829a), "Fire: 38 ticks");
+      *(float*)(p + 0x1a0) = 2.0f; CHECK(test_h_mag_lock(&c) == (u64)RVA(0x267fba), "Fire: 38 ticks");
       *(u16*)(p + 0x312) = 0x9c; *(u16*)(p + 0x34c) = 0x9c; CHECK(test_h_mag_lock(&c) == 0 && test_h_mag_anim(&c) == 0, "Magnet: untouched");
       *(u16*)(p + 0x312) = 0xa2; *(u16*)(p + 0x34c) = 0xa2; *(float*)(p + 0x1a0) = 15.0f; *(float*)(p + 0x44c) = 1.0f; FR(26);
       CHECK(test_h_mag_lock(&c) == 0, "Aero, stick tilted before frChangeEnable: stays");
-      FR(27); CHECK(test_h_mag_lock(&c) == (u64)RVA(0x26829a) && test_fall() == p, "... from frChangeEnable: walk-out");
-      CHECK(test_h_mag_anim(&c) == (u64)RVA(0x26829a), "cast animation over: the spell ends instead of idling out the lock");
+      FR(27); CHECK(test_h_mag_lock(&c) == (u64)RVA(0x267fba) && test_fall() == p, "... from frChangeEnable: walk-out");
+      CHECK(test_h_mag_anim(&c) == (u64)RVA(0x267fba), "cast animation over: the spell ends instead of idling out the lock");
       *(float*)(p + 0x1a0) = 80.0f; CHECK(test_h_mag_lock(&c) == 0 && test_h_mag_anim(&c) == 0, "long-lock spells: untouched"); }
     /* [CommandSpeed]: a speed for one command, from start to end, whatever the state; nothing else changes */
     { extern float *test_cmd_speed(void); float *cs = test_cmd_speed();
@@ -1726,8 +1726,8 @@ static void t_tex(void) {
 /* World map: the rider's two route tests answer "no route" */
 static u8 *call_target2(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
 static void t_worldmap(void) {
-    int (MSABI *a)(u8*) = (void*)call_target2(0x4b8549), (MSABI *b)(u8*) = (void*)call_target2(0x4b8647);
-    CHECK((void*)a != RVA(0x4b74a0) && (void*)b != RVA(0x4b74a0), "both route tests hooked");
+    int (MSABI *a)(u8*) = (void*)call_target2(0x4b7d89), (MSABI *b)(u8*) = (void*)call_target2(0x4b7e87);
+    CHECK((void*)a != RVA(0x4b6ce0) && (void*)b != RVA(0x4b6ce0), "both route tests hooked");
     u8 *ride = calloc(1, 0xa00); *(u32*)(ride + 0x6a0) = 0;
     CHECK(a(ride) == 0 && b(ride) == 0 && *(u32*)(ride + 0x6a0) == 0, "no route, the rider's route state untouched");
     printf("t_worldmap done\n");
@@ -1742,7 +1742,7 @@ static void t_cm(void) {
     /* the list as 3f1ce0 builds it: the 30 abilities in three groups by category (Prize 0x10, Stats 0x0b, Support
        0x11); EXP Zero only on Critical.  The game has room for 30 (menu+0x288 is the rows' positions); with those
        moved out the list holds 31 */
-    CHECK(*(u8*)RVA(0x3f2644) == 0xe9 && *(u8*)RVA(0x3f2657) == 0xe9 && *(u8*)RVA(0x3f2f60) == 0xe9, "the three row-position sites are hooked");
+    CHECK(*(u8*)RVA(0x3f2214) == 0xe9 && *(u8*)RVA(0x3f2227) == 0xe9 && *(u8*)RVA(0x3f2b30) == 0xe9, "the three row-position sites are hooked");
     { u8 *m = calloc(1, 0x500);
       CHECK(test_cm_row(0, m, 0) == (u64)test_cm_rowpos() && test_cm_row(0, m, 6) == (u64)(test_cm_rowpos() + 12)
             && test_cm_row(1, m, 3) == (u64)(test_cm_rowpos() + 6) && test_cm_row(2, m, 0) == (u64)test_cm_rowpos(),
@@ -1753,14 +1753,14 @@ static void t_cm(void) {
         menu = calloc(1, 0x500); n = 0;
         for (int g = 0; g < 3; g++) { int k = 0;
             for (int i = 0; i < 30; i++) { u16 id = 0x1c4 + i;
-                if (G(u8, 0x814907 + id * 0x18) == 0xff || G(u8, 0x814901 + id * 0x18) != cats[g]) continue;
+                if (G(u8, 0x815907 + id * 0x18) == 0xff || G(u8, 0x815901 + id * 0x18) != cats[g]) continue;
                 if (id == 0x1c9 && !critical) continue;
-                u8 *e = menu + 0xa8 + n * 0x10; *(u32**)e = &recs[i]; *(u16*)(e + 8) = id; e[0xa] = g; e[0xb] = k++ == 0; e[0xe] = G(u8, 0x811083 + id * 0x1e); n++; } }
+                u8 *e = menu + 0xa8 + n * 0x10; *(u32**)e = &recs[i]; *(u16*)(e + 8) = id; e[0xa] = g; e[0xb] = k++ == 0; e[0xe] = G(u8, 0x812083 + id * 0x1e); n++; } }
         *(s16*)(menu + 0x94) = n;
         memset(menu + 0x2b8, 0x5a, 8);                  /* past a 33rd entry: must stay untouched */
         test_cm_append(menu);
         if (critical) {
-            CHECK(n == 30 && G(u8, 0x814901 + 0x1c9 * 0x18) == 0x11 && G(u8, 0x811083 + 0x1c9 * 0x1e) == 1, "Critical: 30 abilities with EXP Zero (%d)", n);
+            CHECK(n == 30 && G(u8, 0x815901 + 0x1c9 * 0x18) == 0x11 && G(u8, 0x812083 + 0x1c9 * 0x1e) == 1, "Critical: 30 abilities with EXP Zero (%d)", n);
             CHECK(*(s16*)(menu + 0x94) == 33 && *(u16*)(menu + 0x290) == 0x1c3 && *(u16*)(menu + 0x2a0) == 0x1c2 && *(u16*)(menu + 0x2b0) == 0x1c1 && menu[0x2b8] == 0x5a,
                   "Critical: Combo Master the 31st, Focus Exchange the 32nd, Link Charge the 33rd, nothing written past them (%d)", *(s16*)(menu + 0x94));
             test_cm_append(menu); CHECK(*(s16*)(menu + 0x94) == 33, "never added twice");
@@ -1784,10 +1784,10 @@ static void t_cm(void) {
       CHECK(*(s16*)(m + 0x94) == 33, "a full list (33) gets nothing more");
       *(s16*)(m + 0x94) = 32; test_cm_append(m); CHECK(*(s16*)(m + 0x94) == 33 && *(u16*)(m + 0xa8 + 32 * 0x10 + 8) == 0x1c3, "32: only Combo Master fits"); }
     /* the hooked calls */
-    u8 *site = RVA(0x3f37f0); CHECK(site[0] == 0xe8 && call_target(0x3f37f0) != RVA(0x41d2e0), "the switch call is hooked");
-    void (MSABI *sw)(u16, u8, s8) = (void*)call_target(0x3f37f0);
+    u8 *site = RVA(0x3f33c0); CHECK(site[0] == 0xe8 && call_target(0x3f33c0) != RVA(0x41ccd0), "the switch call is hooked");
+    void (MSABI *sw)(u16, u8, s8) = (void*)call_target(0x3f33c0);
     /* the choice lives in the save: bit 23 of EXP Zero's u32, the game's own fields of it untouched */
-    u32 *exp0 = (u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4);
+    u32 *exp0 = (u32*)RVA(0x10fa4408 + 0x18cc + 5 * 4);
     *exp0 = 0x0007c2ffu & ~0x200000u;                 /* the game's fields 0-20 in use, as on a save with EXP Zero */
     CHECK(test_cm_on() == 0, "a save without the bit: off");
     sw(0x1c3, 0, 0); CHECK(test_cm_on() == 0 && !(*test_cm_rec() & 0x200), "switched off (%08x)", *test_cm_rec());
@@ -1808,45 +1808,45 @@ static void t_cm(void) {
       *exp0 = 0; CHECK(!linkcharge_on(), "Link Charge: off in a new game");
       sw(0x1c1, 0, 1); CHECK(linkcharge_on() && *exp0 == 0x8000000u && (*test_lc_rec() & 0x200), "Link Charge on: bit 27 only (%08x)", *exp0);
       sw(0x1c1, 0, -1); CHECK(!linkcharge_on() && *exp0 == 0, "and off");
-      u8 cb[8] = {0}; *(u16*)(cb + 6) = 0x1c1; const char *(MSABI *hl)(u8*) = (void*)call_target(0x3f2711);
+      u8 cb[8] = {0}; *(u16*)(cb + 6) = 0x1c1; const char *(MSABI *hl)(u8*) = (void*)call_target(0x3f22e1);
       CHECK(hl(cb) == test_lc_help() && strstr(test_lc_help(), "twice"), "Link Charge's description: %s", test_lc_help());
       int w = 0, m = 0, lines = 1; for (const char *c = test_lc_help(); *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
       CHECK(lines <= 3 && m <= 54, "it fits the help box: %d lines, longest %d", lines, m); }
     *exp0 = 0;
-    const char *(MSABI *help)(u8*) = (void*)call_target(0x3f2711);
-    const char *(MSABI *help2)(u8*) = (void*)call_target(0x3f3562);
-    CHECK((void*)help != (void*)RVA(0x41d880) && (void*)help2 != (void*)RVA(0x41d880), "both description calls are hooked");
+    const char *(MSABI *help)(u8*) = (void*)call_target(0x3f22e1);
+    const char *(MSABI *help2)(u8*) = (void*)call_target(0x3f3132);
+    CHECK((void*)help != (void*)RVA(0x41d270) && (void*)help2 != (void*)RVA(0x41d270), "both description calls are hooked");
     u8 cmdbuf[8] = {0}; *(u16*)(cmdbuf + 6) = 0x1c3;
     CHECK(!strcmp(help(cmdbuf), test_cm_help()) && help2(cmdbuf) == help(cmdbuf) && strstr(help(cmdbuf), "miss"), "its description: %s", help(cmdbuf));
     *(u16*)(cmdbuf + 6) = 0x1c2; CHECK(help(cmdbuf) == test_fx_help() && strstr(help(cmdbuf), "Focus"), "Focus Exchange's description: %s", help(cmdbuf));
     { int w = 0, m = 0, lines = 1; for (const char *c = test_fx_help(); *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
       CHECK(lines <= 3 && m <= 54, "it fits the help box: %d lines, longest %d", lines, m); }
-    *(u16*)(cmdbuf + 6) = 0x1c0; CHECK(help(cmdbuf) == (const char*)RVA(0x6e0cb0), "another id: the game's answer");
+    *(u16*)(cmdbuf + 6) = 0x1c0; CHECK(help(cmdbuf) == (const char*)RVA(0x6e0bb0), "another id: the game's answer");
     { int w = 0, m = 0, lines = 1; for (const char *c = test_cm_help(); *c; c++) { if (*c == '\n') { lines++; w = 0; } else if (++w > m) m = w; }
       CHECK(lines <= 3 && m <= 58, "it fits the help box: %d lines, longest %d", lines, m); }
     /* the detail page: the buzzer for Combo Master, the game's page for the others */
-    CHECK(*(u8*)RVA(0x3f3659) == 0xe9, "the detail site is hooked");
-    *(s16*)(menu + 0x8e) = n; CHECK(test_cm_detail(menu) == (u64)RVA(0x3f3669), "Combo Master: no detail page (buzzer)");
-    *(s16*)(menu + 0x8e) = n + 1; CHECK(test_cm_detail(menu) == (u64)RVA(0x3f3669), "Focus Exchange: no detail page either");
+    CHECK(*(u8*)RVA(0x3f3229) == 0xe9, "the detail site is hooked");
+    *(s16*)(menu + 0x8e) = n; CHECK(test_cm_detail(menu) == (u64)RVA(0x3f3239), "Combo Master: no detail page (buzzer)");
+    *(s16*)(menu + 0x8e) = n + 1; CHECK(test_cm_detail(menu) == (u64)RVA(0x3f3239), "Focus Exchange: no detail page either");
     *(s16*)(menu + 0x8e) = 3; CHECK(test_cm_detail(menu) == 0, "another ability: the game's detail page");
     /* the name: through the names file (CRsrcCTD ready), when the file is there */
     { const char *nf = getenv("BBS_MSG_NAMES"); size_t nn; u8 *names = nf ? slurp(nf, &nn) : NULL;
-      if (names) { u64 (MSABI *ready)(u8*) = *(u64 (MSABI**)(u8*))RVA(0x637910);
+      if (names) { u64 (MSABI *ready)(u8*) = *(u64 (MSABI**)(u8*))RVA(0x637a40);
           u8 *o = calloc(1, 0x100); *(u8**)(o + 0x70) = names; ready(o);
-          const char *nm = G(const char*, 0x814908 + 0x1c3 * 0x18);
+          const char *nm = G(const char*, 0x815908 + 0x1c3 * 0x18);
           CHECK(nm && !strcmp(nm, "Combo Master"), "its name: %s", nm ? nm : "-");
-          const char *fx = G(const char*, 0x814908 + 0x1c2 * 0x18);
+          const char *fx = G(const char*, 0x815908 + 0x1c2 * 0x18);
           CHECK(fx && !strcmp(fx, "Focus Exchange"), "Focus Exchange's name: %s", fx ? fx : "-");
-          const char *lc = G(const char*, 0x814908 + 0x1c1 * 0x18);
+          const char *lc = G(const char*, 0x815908 + 0x1c1 * 0x18);
           CHECK(lc && !strcmp(lc, "Link Charge"), "Link Charge's name: %s", lc ? lc : "-");
-          CHECK(!strcmp(G(const char*, 0x814908 + 0x1c9 * 0x18), "Zero EXP") && G(const char*, 0x814908 + 0x1c4 * 0x18)[0], "the names around them are the game's"); }
+          CHECK(!strcmp(G(const char*, 0x815908 + 0x1c9 * 0x18), "Zero EXP") && G(const char*, 0x815908 + 0x1c4 * 0x18)[0], "the names around them are the game's"); }
       else printf("  (name skipped: BBS_MSG_NAMES not set)\n"); }
     /* the effect: the normal combo's window (the game's 14021c140 through the hooked call at 22902e) */
     u8 *p = calloc(1, 0x800), *phys = calloc(1, 0x200), *cm = calloc(1, 0x200), *rec = calloc(1, 0x28);
     rec[0xc] = 25; rec[0xd] = 11; rec[0x1d] = 5;            /* frComboEnable, frChangeEnable, frMark End (Ventus's first hit) */
     *(u8**)(p + 0x5b8) = rec; *(u8**)(p + 0x80) = phys; *(u8**)(p + 0x390) = cm;
-    CHECK(*(u8*)RVA(0x22902e) == 0xe8 && call_target(0x22902e) != RVA(0x21c140), "the window call is hooked");
-    u64 (MSABI *win)(u8*, float) = (void*)call_target(0x22902e);
+    CHECK(*(u8*)RVA(0x228d4e) == 0xe8 && call_target(0x228d4e) != RVA(0x21be60), "the window call is hooked");
+    u64 (MSABI *win)(u8*, float) = (void*)call_target(0x228d4e);
     #define RESET(sub, req) do { *(int*)(p + 0x5e0) = 1; *(u16*)(p + 0x310) = (sub); *(u32*)(p + 0x320) = 0x40; \
         *(u32*)(p + 0x318) = 0; *(u32*)(p + 0x31c) = (req); *(u16*)(p + 0x34c) = 1; } while (0)
     #define QUEUED() (*(u32*)(p + 0x320) & 0x80)
@@ -1886,8 +1886,9 @@ static void t_bundle(void) {
         }
         printf("  code bytes differing from the original exe: %ld (our own hooks)\n", diff);
         CHECK(diff > 0 && diff < 400, "only our hook sites differ");
-        CHECK(!memcmp(RVA(0x62f080), d + 0x400 + 0x62e080, 349), "the old Combo Flow routines are not installed (speed.c has the walk-out)");
-        CHECK(*(u8*)RVA(0x2291bf) == 0xe9 && *(u8*)RVA(0x26825f) == 0xe9 && *(u8*)RVA(0x26828a) == 0xe9, "its three sites carry our hooks");
+        { int clear = 1; for (int k = 0; k < 349; k++) clear &= *(u8*)RVA(0x631340 + k) == 0;      /* Epic: the routine's cave */
+          CHECK(clear, "the old Combo Flow routines are not installed (speed.c has the walk-out)"); }
+        CHECK(*(u8*)RVA(0x228edf) == 0xe9 && *(u8*)RVA(0x267f7f) == 0xe9 && *(u8*)RVA(0x267faa) == 0xe9, "its three sites carry our hooks");
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
     /* data files through the patched vtable slot */
     static const struct { const char *env, *inner; u32 crc_new; } F[] = {
@@ -1900,7 +1901,7 @@ static void t_bundle(void) {
         u32 len = 0; u8 *dd = arc_inner(arc, F[i].inner, &len); CHECK(dd, "%s in archive", F[i].inner); if (!dd) continue;
         u8 *r = calloc(1, 0x90); r[0x10] = 2; r[0x11] = 4; strncpy((char*)r + 0x38, F[i].inner, 16); *(u8**)(r + 0x70) = dd; *(u64*)(r + 0x80) = len;
         u32 before = test_crc(dd, len);
-        u64 (MSABI *slot)(u8*) = G(void*, 0x637b10);            /* CRsrcData::vftable[1], as the game calls it */
+        u64 (MSABI *slot)(u8*) = G(void*, 0x637c40);            /* CRsrcData::vftable[1], as the game calls it */
         slot(r);
         u32 after = test_crc(dd, len);
         printf("  %s: %u bytes, crc %08x -> %08x\n", F[i].inner, len, before, after);
@@ -1918,11 +1919,11 @@ static void t_bundle(void) {
         }
         dd[5] ^= 0x55; u32 odd = test_crc(dd, len); slot(r); CHECK(test_crc(dd, len) == odd, "unknown content is left alone");
     }
-    CHECK(G(u32, 0x22dae9) == 0xbf860a92u && G(u32, 0x22daf6) == 0x3f490fdbu, "camera pitch limits -60/+45 by default");
+    CHECK(G(u32, 0x22d809) == 0xbf860a92u && G(u32, 0x22d816) == 0x3f490fdbu, "camera pitch limits -60/+45 by default");
     /* other .bin of the same size but another name, and other types, are not touched */
     u8 buf[112]; memset(buf, 7, sizeof buf);
     u8 *r = calloc(1, 0x90); r[0x10] = 2; strcpy((char*)r + 0x38, "PCamV001.bin"); *(u8**)(r + 0x70) = buf; *(u64*)(r + 0x80) = 112;
-    ((u64 (MSABI *)(u8*))G(void*, 0x637b10))(r); CHECK(buf[10] == 7, "other file untouched");
+    ((u64 (MSABI *)(u8*))G(void*, 0x637c40))(r); CHECK(buf[10] == 7, "other file untouched");
     const char *lf = getenv("BBS_FACTORY_LUB"); size_t ln; u8 *lub = lf ? slurp(lf, &ln) : NULL;
     if (lub) {
         const char *b = (const char*)lub; size_t n2 = ln;
@@ -1953,7 +1954,7 @@ static void t_bundle(void) {
           free(before);
           CHECK(ok7 && ok3 && nd <= 8, "boss pace: ini values 0.7 / 3 s written in place of the defaults (%d bytes changed)", nd);
           test_pace(0.4f, 2.0f); }
-        u8 *site = RVA(0x2c5962); CHECK(site[0] == 0xE8 && (u32)(0x2c5962 + 5 + *(s32*)(site + 1)) != 0x5bb9f0, "Lua call redirected");
+        u8 *site = RVA(0x2c5682); CHECK(site[0] == 0xE8 && (u32)(0x2c5682 + 5 + *(s32*)(site + 1)) != 0x5bb910, "Lua call redirected");
     } else printf("  (Factory.lub skipped: BBS_FACTORY_LUB not set)\n");
     printf("t_bundle done\n");
 }
@@ -1972,15 +1973,15 @@ static void t_floor(void) {
     }
     static const int rows[2][13] = { { 0, 0, 15, 132, 30, 3, 10, 30, 3, 20, 30, 3, 30 }, { 0, 0, 200, 1500, 200, 0, 10, 200, 3, 15, 200, 3, 25 } };
     memcpy(edp + 0xa8, rows, sizeof rows);
-    FN(void, 0xd2af0, u8*)(edp);                                         /* the game's loader */
-    CHECK(G(u8*, 0x83e700) == edp && G(u32, 0x83e720) == 1 && G(u32, 0x83e724) == 1, "table loaded");
-    CHECK(!FN(u8, 0x221900, u8*, u16)(pl, 0x1c9), "the player does not have EXP Zero");
+    FN(void, 0xd2b60, u8*)(edp);                                         /* the game's loader */
+    CHECK(G(u8*, 0x83ee00) == edp && G(u32, 0x83ee20) == 1 && G(u32, 0x83ee24) == 1, "table loaded");
+    CHECK(!FN(u8, 0x221620, u8*, u16)(pl, 0x1c9), "the player does not have EXP Zero");
     for (int diff = 0; diff < 3; diff++) {                               /* Beginner, Standard, Proud: as the game */
-        int dmg = 1; G(u8, 0x10fa0881) = diff;
-        FN(u64, 0xd2960, int*, u32, int, const char*)(&dmg, 0x83, 60, "m01ex00");
+        int dmg = 1; G(u8, 0x10fa0f81) = diff;
+        FN(u64, 0xd29d0, int*, u32, int, const char*)(&dmg, 0x83, 60, "m01ex00");
         CHECK(dmg == 1, "difficulty %d: no minimum without the ability (%d)", diff, dmg);
     }
-    G(u8, 0x10fa0881) = 3;                                               /* Critical */
+    G(u8, 0x10fa0f81) = 3;                                               /* Critical */
     static const struct { int id, hp; const char *name; int in, out; } T[] = {
         { 1, 60, "m01ex00", 1, 5 }, { 0x83, 60, "m01ex00", 1, 10 }, { 0xac, 60, "m01ex00", 1, 15 },
         { 1, 132, "m01ex00", 1, 7 }, { 0x83, 132, "m01ex00", 1, 14 }, { 0xac, 132, "m01ex00", 1, 22 },
@@ -1993,19 +1994,19 @@ static void t_floor(void) {
     };
     for (unsigned i = 0; i < sizeof T / sizeof *T; i++) {
         int dmg = T[i].in;
-        FN(u64, 0xd2960, int*, u32, int, const char*)(&dmg, T[i].id, T[i].hp, T[i].name);
+        FN(u64, 0xd29d0, int*, u32, int, const char*)(&dmg, T[i].id, T[i].hp, T[i].name);
         CHECK(dmg == T[i].out, "attack %x on %s with %d HP: %d -> %d (want %d)", T[i].id, T[i].name, T[i].hp, T[i].in, dmg, T[i].out);
     }
     int taken = 90;
-    FN(u64, 0xd2c00, int*, int, char)(&taken, 100, 0);
+    FN(u64, 0xd2c70, int*, int, char)(&taken, 100, 0);
     CHECK(taken == 90, "the cap on damage taken still needs the ability (%d)", taken);
-    CHECK(!FN(u64, 0xd2cc0)(), "\"EXP Zero active\" still needs the ability");
-    G(u8, 0x10fa0881) = 1;
-    { u8 slot = G(u8, 0x814907 + 0x1c9 * 0x18); pl[0x4a3 + slot] = 1;      /* EXP Zero equipped, Standard: the game's rule */
-      int dmg = 1; FN(u64, 0xd2960, int*, u32, int, const char*)(&dmg, 0x83, 60, "m01ex00");
+    CHECK(!FN(u64, 0xd2d30)(), "\"EXP Zero active\" still needs the ability");
+    G(u8, 0x10fa0f81) = 1;
+    { u8 slot = G(u8, 0x815907 + 0x1c9 * 0x18); pl[0x4a3 + slot] = 1;      /* EXP Zero equipped, Standard: the game's rule */
+      int dmg = 1; FN(u64, 0xd29d0, int*, u32, int, const char*)(&dmg, 0x83, 60, "m01ex00");
       CHECK(slot >= 1 && slot <= 0x1e && dmg == 10, "with the ability it works on any difficulty (slot %d, %d)", slot, dmg);
       pl[0x4a3 + slot] = 0; }
-    G(u8, 0x10fa0881) = 0;
+    G(u8, 0x10fa0f81) = 0;
     printf("t_floor done\n");
 }
 /* MP cost at the end of a command's description (message 0x320000 + id) */
@@ -2064,10 +2065,10 @@ static void t_desc(void) {
     CHECK(!test_desc(0xbc, "Potion") && !test_desc(0xc5, "Ice cream"), "items");
     CHECK(!test_desc(0xfc, "Dodge") && !test_desc(0x110, "Block") && !test_desc(0x122, "Shotlock") && !test_desc(0x1a0, "Ability") && !test_desc(1, "Attack"), "actions, shotlocks, abilities, basic attacks");
     /* through the hooked call of SetNodeMsg: 1a81bf -> our hook -> the game's lookup (a stand-in here) */
-    u8 *site = RVA(0x1a81bf); s32 rel; memcpy(&rel, site + 1, 4);
-    CHECK(site[0] == 0xe8 && (u32)(0x1a81bf + 5 + rel) != 0x1b3750, "SetNodeMsg's lookup call goes to the mod");
+    u8 *site = RVA(0x1a805f); s32 rel; memcpy(&rel, site + 1, 4);
+    CHECK(site[0] == 0xe8 && (u32)(0x1a805f + 5 + rel) != 0x1b3570, "SetNodeMsg's lookup call goes to the mod");
     u8 jmp[12] = { 0x48, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xe0 }; void *st = (void*)stub_msg_find; memcpy(jmp + 2, &st, 8);
-    memcpy(RVA(0x1b3750), jmp, 12);
+    memcpy(RVA(0x1b3570), jmp, 12);
     int MSABI (*hook)(u32, const char**, void**, u16*, char) = (void*)(site + 5 + rel);
     const char *out = NULL; stub_text = aero;
     int r = hook(0x3200a2, &out, NULL, NULL, 0);
@@ -2091,7 +2092,7 @@ extern int sc_held(void), sc_want(void), sc_slot(int row), sc_assign(int row, in
 #define PAD_CIR 0x2000
 #define PAD_SQU 0x8000
 static void pad(u32 held, u32 edge) {       /* what the game's pad update leaves, then our filter */
-    G(u32, 0x8f64930) = held; G(u32, 0x8f64934) = edge; G(u32, 0x8f64938) = edge; G(u32, 0x8f6493c) = edge; G(u32, 0x8f6499c) = 0;
+    G(u32, 0x8f65030) = held; G(u32, 0x8f65034) = edge; G(u32, 0x8f65038) = edge; G(u32, 0x8f6503c) = edge; G(u32, 0x8f6509c) = 0;
     test_sc_pad_frame();
 }
 /* Special commands (Burst of Faith ...): taken with triangle instead of square, and their icon shows triangle; a covered
@@ -2104,10 +2105,10 @@ extern void test_boss_hp_apply(u8 *ent, const u8 *epd), test_boss_hp_reset(u8 *e
 extern u64 test_floor_hp(int *dmg, u32 id, int maxhp, const char *name);
 extern int test_boss_hp_pct(const char *name);
 static void t_bosshp(void) {
-    static const u32 load[] = { 0x2d2dd0, 0x2d2e24, 0x2d528e, 0x2d52b4, 0x2d52d2, 0x2d52f2 };
-    for (unsigned i = 0; i < 6; i++) CHECK(call_target(load[i]) != RVA(0x2d0700), ".epd load %x is hooked", load[i]);
-    CHECK(call_target(0x2b7dfe) != RVA(0x2d2ec0), "HP reset is hooked");
-    CHECK(call_target(0x2d2510) != RVA(0xd2960), "the damage floor call is hooked");
+    static const u32 load[] = { 0x2d2af0, 0x2d2b44, 0x2d4fae, 0x2d4fd4, 0x2d4ff2, 0x2d5012 };
+    for (unsigned i = 0; i < 6; i++) CHECK(call_target(load[i]) != RVA(0x2d0420), ".epd load %x is hooked", load[i]);
+    CHECK(call_target(0x2b7b1e) != RVA(0x2d2be0), "HP reset is hooked");
+    CHECK(call_target(0x2d2230) != RVA(0xd29d0), "the damage floor call is hooked");
     static const struct { const char *n; int pct; } P[] = { { "b10sb00", 100 }, { "b10ex00", 110 }, { "b20ls00", 120 },
         { "b40ex00", 130 }, { "b52ex00", 125 }, { "b12ex00", 100 }, { "b01ex00", 100 }, { "b81vs00", 100 },
         { "b85vs00", 100 }, { "b02ex00", 100 }, { "b80vs00", 100 }, { "m01ex00", 100 } };
@@ -2115,7 +2116,7 @@ static void t_bosshp(void) {
         CHECK(test_boss_hp_pct(P[i].n) == P[i].pct, "%s: %d%% (want %d)", P[i].n, test_boss_hp_pct(P[i].n), P[i].pct);
     static u8 lvl[16]; *(u32*)(lvl + 8) = 2;                       /* level row: normal enemies x2 */
     u8 stub[11] = { 0x48, 0xb8 }; u64 a = (u64)lvl; memcpy(stub + 2, &a, 8); stub[10] = 0xc3;
-    u8 keep[11]; memcpy(keep, RVA(0x2cef40), 11); memcpy(RVA(0x2cef40), stub, 11);
+    u8 keep[11]; memcpy(keep, RVA(0x2cec60), 11); memcpy(RVA(0x2cec60), stub, 11);
     static const struct { const char *n; float hp; int want; } T[] = { { "b40ex00", 900, 1170 }, { "b52ex00", 1500, 1875 },
         { "b10ex00", 550, 605 }, { "b10sb00", 400, 400 }, { "b12ex00", 200, 200 }, { "b81vs00", 1000, 1000 }, { "m01ex00", 30, 60 } };
     for (unsigned i = 0; i < sizeof T / sizeof *T; i++) {
@@ -2130,9 +2131,9 @@ static void t_bosshp(void) {
         CHECK(*(s16*)(ent + 0x23a) == T[i].want && *(s16*)(ent + 0x238) == 100, "%s: an HP already scaled is left alone", T[i].n);
         free(ent); free(epd);
     }
-    memcpy(RVA(0x2cef40), keep, 11);
-    u8 diff = G(u8, 0x10fa0881); G(u8, 0x10fa0881) = 3;
-    if (!G(u8*, 0x83e700)) {                                       /* EXP Zero's table, as t_floor builds it */
+    memcpy(RVA(0x2cec60), keep, 11);
+    u8 diff = G(u8, 0x10fa0f81); G(u8, 0x10fa0f81) = 3;
+    if (!G(u8*, 0x83ee00)) {                                       /* EXP Zero's table, as t_floor builds it */
         static const u16 ids[] = { 0x83 };
         world(1, ids);
         static u8 edp[0xa8 + 2 * 0x34];
@@ -2141,47 +2142,47 @@ static void t_bosshp(void) {
         int k = 0xac - 1; u8 *b = edp + 0x10 + (k >> 1); *b = (k & 1) ? (u8)((*b & 0x0f) | (2 << 4)) : (u8)((*b & 0xf0) | 2);
         static const int rows[2][13] = { { 0, 0, 15, 132, 30, 3, 10, 30, 3, 20, 30, 3, 30 }, { 0, 0, 200, 1500, 200, 0, 10, 200, 3, 15, 200, 3, 25 } };
         memcpy(edp + 0xa8, rows, sizeof rows);
-        FN(void, 0xd2af0, u8*)(edp);
+        FN(void, 0xd2b60, u8*)(edp);
     }
-    if (G(u8*, 0x83e700)) {
+    if (G(u8*, 0x83ee00)) {
         int d1 = 1, d2 = 1, d3 = 1;
-        FN(u64, 0xd2960, int*, u32, int, const char*)(&d1, 0xac, 1875, "b52ex00");
+        FN(u64, 0xd29d0, int*, u32, int, const char*)(&d1, 0xac, 1875, "b52ex00");
         test_floor_hp(&d2, 0xac, 1875, "b52ex00");
         test_floor_hp(&d3, 0xac, 2000, "m01ex00");
         CHECK(d1 == 1 && d2 == 26 && d3 == 1, "damage floor: 1875 HP boss looked up as 1500 (%d -> %d), normal enemies untouched (%d)", d1, d2, d3);
     } else printf("  (floor part skipped: no table)\n");
-    G(u8, 0x10fa0881) = diff;
+    G(u8, 0x10fa0f81) = diff;
     printf("t_bosshp done\n");
 }
 static void t_special(void) {
     u8 *pd = calloc(1, 0x100); *(u32*)(pd + 0xa0) = 1;
-    int (MSABI *sp)(u8*, int, int) = (void*)call_target(0x2738c9);
-    CHECK(sp != (void*)RVA(0x273030), "the activation test is hooked");
-    G(u32, 0x8f64930) = 0x8000; G(u32, 0x8f64934) = 0x8000; G(u32, 0x8f6493c) = 0x8000;
+    int (MSABI *sp)(u8*, int, int) = (void*)call_target(0x2735e9);
+    CHECK(sp != (void*)RVA(0x272d50), "the activation test is hooked");
+    G(u32, 0x8f65030) = 0x8000; G(u32, 0x8f65034) = 0x8000; G(u32, 0x8f6503c) = 0x8000;
     int sq = sp(pd, 3, 0);
-    G(u32, 0x8f64930) = 0x1000; G(u32, 0x8f64934) = 0x1000; G(u32, 0x8f6493c) = 0x1000;
+    G(u32, 0x8f65030) = 0x1000; G(u32, 0x8f65034) = 0x1000; G(u32, 0x8f6503c) = 0x1000;
     int tri = sp(pd, 3, 0);
-    G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f6493c) = 0;
+    G(u32, 0x8f65030) = 0; G(u32, 0x8f65034) = 0; G(u32, 0x8f6503c) = 0;
     int none = sp(pd, 3, 0);
     CHECK(sq < 1 && tri == 1 && none == 0, "square no longer starts it, triangle does (%d %d %d)", sq, tri, none);
-    CHECK(call_target(0x27908f) != RVA(0x213e50) && call_target(0x2794ee) != RVA(0x213e50), "its icon is hooked (both offer paths)");
-    CHECK(call_target(0x213f55) == RVA(0x214040) && call_target(0x214a40) == RVA(0x214040), "the general button icons are left alone (random-button prompts)");
+    CHECK(call_target(0x278daf) != RVA(0x213b70) && call_target(0x27920e) != RVA(0x213b70), "its icon is hooked (both offer paths)");
+    CHECK(call_target(0x213c75) == RVA(0x213d60) && call_target(0x214760) == RVA(0x213d60), "the general button icons are left alone (random-button prompts)");
     u8 *cm = calloc(1, 0x360), *A = calloc(1, 0x70);
     *(u8**)(cm + 0x1b0) = A; A[0x30] = 1; A[0x31] = 2; *(int*)(A + 0x4c) = 0;
-    u8 keep[3]; memcpy(keep, RVA(0x1a7520), 3); memcpy(RVA(0x1a7520), "\x31\xc0\xc3", 3);   /* L2D SetControl: none here */
+    u8 keep[3]; memcpy(keep, RVA(0x1a73c0), 3); memcpy(RVA(0x1a73c0), "\x31\xc0\xc3", 3);   /* L2D SetControl: none here */
     *(u32*)(cm + 0x60) = 0x60000; test_uncover_attack(cm);
     CHECK(A[0x31] == 2, "prompt still up: the Attack plate stays covered");
     *(u32*)(cm + 0x60) = 0x20000; test_uncover_attack(cm);
     CHECK(A[0x31] == 0, "prompt closed with a finisher ready: the Attack plate is uncovered (%d)", A[0x31]);
     A[0x31] = 1; test_uncover_attack(cm); CHECK(A[0x31] == 1, "a plate that is not covered is left alone");
-    memcpy(RVA(0x1a7520), keep, 3);
+    memcpy(RVA(0x1a73c0), keep, 3);
     printf("t_special done\n");
 }
 static void t_shortcut(void) {
     static const u16 ids[] = { 0x83 /*Fire*/, 0x65 /*Strike Raid*/, 0xbc /*Potion*/, 0x92 /*Cure*/, 0xac /*Mega Flare*/ };
     world(5, ids);
     *(u32*)(mgr + 0xf8) = 1;                      /* pad enabled */
-    memcpy(RVA(0x1b2e40), "\x31\xc0\xc3", 3);       /* sound: none here */
+    memcpy(RVA(0x1b2c60), "\x31\xc0\xc3", 3);       /* sound: none here */
     *(u32*)(pl + 0x318) = 0x40;                   /* player idle */
     *(u16*)(cmd + 0x188) = 0x151; *(u16*)(pl + 0x354) = 0x151;
     test_tick(gauge);
@@ -2189,21 +2190,21 @@ static void t_shortcut(void) {
     CHECK(sc_slot(0) == 0 && sc_slot(1) == 1 && sc_slot(2) == 2 && sc_slot(3) == 3, "default bindings %d %d %d %d", sc_slot(0), sc_slot(1), sc_slot(2), sc_slot(3));
     /* slot -> plate: plates are packed, the slot numbers are in 1408187a8 */
     CHECK(test_slot_plate(cmd, 0) == plate[0] && test_slot_plate(cmd, 4) == plate[4] && !test_slot_plate(cmd, 6), "plates by slot");
-    G(u8, 0x8187a8 + 1) = 5; G(u8, 0x8187a8 + 2) = 6;      /* a deck with slots 1..2 used ... 5, 6 */
+    G(u8, 0x8197a8 + 1) = 5; G(u8, 0x8197a8 + 2) = 6;      /* a deck with slots 1..2 used ... 5, 6 */
     CHECK(test_slot_plate(cmd, 5) == plate[1] && test_slot_plate(cmd, 6) == plate[2] && !test_slot_plate(cmd, 1), "packed deck: slot 6 is the second plate");
-    G(u8, 0x8187a8 + 1) = 1; G(u8, 0x8187a8 + 2) = 2;
+    G(u8, 0x8197a8 + 1) = 1; G(u8, 0x8197a8 + 2) = 2;
     /* not shown: no HUD, or R1 held as well (shotlock), or L1 not held */
     sc_set_hud(0); pad(PAD_L1 | PAD_TRI, PAD_TRI);
-    CHECK(!sc_held() && (G(u32, 0x8f64930) & PAD_TRI), "no command menu on screen: buttons untouched");
+    CHECK(!sc_held() && (G(u32, 0x8f65030) & PAD_TRI), "no command menu on screen: buttons untouched");
     sc_set_hud(1); pad(0, 0);
-    pad(PAD_L1 | PAD_R1 | PAD_TRI, PAD_TRI); CHECK(!sc_held() && (G(u32, 0x8f64934) & PAD_TRI), "L1 + R1: the shotlock's, untouched");
+    pad(PAD_L1 | PAD_R1 | PAD_TRI, PAD_TRI); CHECK(!sc_held() && (G(u32, 0x8f65034) & PAD_TRI), "L1 + R1: the shotlock's, untouched");
     pad(0, 0);
-    pad(PAD_TRI, PAD_TRI); CHECK(!sc_held() && G(u32, 0x8f64930) == PAD_TRI, "without L1 nothing changes");
+    pad(PAD_TRI, PAD_TRI); CHECK(!sc_held() && G(u32, 0x8f65030) == PAD_TRI, "without L1 nothing changes");
     pad(0, 0);
     /* L1 held: the face buttons leave the pad words; triangle = row 1 = slot 2 = Strike Raid */
     pad(PAD_L1, PAD_L1); CHECK(sc_held() && sc_want() < 0, "L1 held: shortcut list up");
     pad(PAD_L1 | PAD_TRI, PAD_TRI);
-    CHECK(sc_held() && G(u32, 0x8f64930) == PAD_L1 && G(u32, 0x8f64934) == 0 && G(u32, 0x8f6493c) == 0, "triangle taken from the pad (%x %x)", G(u32, 0x8f64930), G(u32, 0x8f64934));
+    CHECK(sc_held() && G(u32, 0x8f65030) == PAD_L1 && G(u32, 0x8f65034) == 0 && G(u32, 0x8f6503c) == 0, "triangle taken from the pad (%x %x)", G(u32, 0x8f65030), G(u32, 0x8f65034));
     CHECK(sc_want() == 1, "wanted row %d", sc_want());
     CHECK(test_confirm(mgr + 0x58, cmd) == 0, "the game's own confirm test sees nothing");
     test_menu_step(cmd);
@@ -2215,10 +2216,10 @@ static void t_shortcut(void) {
     /* A button counts where it went down.  The second argument is the game's own "pressed this frame", which
        says "pressed" every frame for a held face button once its history entry has been wiped. */
     { const u32 CIR = 0x2000;
-      pad(CIR, CIR); CHECK(!sc_held() && (G(u32, 0x8f64930) & CIR) && (G(u32, 0x8f64934) & CIR), "circle without L1: the game's");
+      pad(CIR, CIR); CHECK(!sc_held() && (G(u32, 0x8f65030) & CIR) && (G(u32, 0x8f65034) & CIR), "circle without L1: the game's");
       pad(CIR, 0);
       pad(PAD_L1 | CIR, PAD_L1);
-      CHECK(sc_held() && sc_want() < 0 && !(G(u32, 0x8f64930) & CIR), "circle held, then L1: the list comes up, no shortcut is used");
+      CHECK(sc_held() && sc_want() < 0 && !(G(u32, 0x8f65030) & CIR), "circle held, then L1: the list comes up, no shortcut is used");
       pad(PAD_L1 | CIR, CIR); pad(PAD_L1 | CIR, CIR);
       CHECK(sc_want() < 0, "still held: still nothing, whatever the game's count says");
       test_menu_step(cmd);
@@ -2230,20 +2231,20 @@ static void t_shortcut(void) {
       CHECK(sc_want() < 0, "holding it does not use the shortcut again");
       /* L1 let go first: the button is not handed to the game as a new press */
       pad(CIR, CIR);
-      CHECK(!sc_held() && !(G(u32, 0x8f64930) & CIR) && !(G(u32, 0x8f64934) & CIR) && !(G(u32, 0x8f6493c) & CIR), "L1 let go, circle still down: hidden from the game (%x %x)", G(u32, 0x8f64930), G(u32, 0x8f64934));
+      CHECK(!sc_held() && !(G(u32, 0x8f65030) & CIR) && !(G(u32, 0x8f65034) & CIR) && !(G(u32, 0x8f6503c) & CIR), "L1 let go, circle still down: hidden from the game (%x %x)", G(u32, 0x8f65030), G(u32, 0x8f65034));
       CHECK(test_confirm(mgr + 0x58, cmd) == 0, "the game's confirm test sees nothing");
       pad(CIR | PAD_TRI, CIR | PAD_TRI);
-      CHECK(!(G(u32, 0x8f64930) & CIR) && (G(u32, 0x8f64930) & PAD_TRI) && (G(u32, 0x8f64934) & PAD_TRI), "another button pressed meanwhile is the game's");
+      CHECK(!(G(u32, 0x8f65030) & CIR) && (G(u32, 0x8f65030) & PAD_TRI) && (G(u32, 0x8f65034) & PAD_TRI), "another button pressed meanwhile is the game's");
       pad(0, 0); pad(CIR, CIR);
-      CHECK((G(u32, 0x8f64930) & CIR) && (G(u32, 0x8f64934) & CIR), "let go and pressed again: the game's");
+      CHECK((G(u32, 0x8f65030) & CIR) && (G(u32, 0x8f65034) & CIR), "let go and pressed again: the game's");
       pad(0, 0); *(u64*)(cmd + 0x80) = 0; }
     /* a tap of L1 (camera behind the character / next target) is reported on release */
     pad(PAD_L1, PAD_L1); CHECK(!test_sc_tap(), "nothing on the press");
     pad(PAD_L1, 0); pad(PAD_L1, 0); pad(0, 0); CHECK(test_sc_tap() == 1, "tap on release");
-    {   u8 *site = RVA(0x22b5df); s32 rel; memcpy(&rel, site + 1, 4);
+    {   u8 *site = RVA(0x22b2ff); s32 rel; memcpy(&rel, site + 1, 4);
         int MSABI (*cam)(u8*) = (void*)(site + 5 + rel);
         CHECK(cam(mgr + 0x58) == 1, "camera reset pad test fires on the tap");
-        site = RVA(0x2650d4); memcpy(&rel, site + 1, 4);
+        site = RVA(0x264df4); memcpy(&rel, site + 1, 4);
         int MSABI (*tgt)(u8*, u32*, u32*) = (void*)(site + 5 + rel);
         u32 a = 9, b = 9; *(u32*)(mgr + 0x58 + 0x38) = 7;
         CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && b == 0 && *(u32*)(mgr + 0x58 + 0x38) == 0, "target switch pad test fires on the tap");
@@ -2277,7 +2278,7 @@ static void t_shortcut(void) {
     CHECK(sc_assign(0, 4) == 1 && sc_slot(0) == 4 && sc_assign(0, 4) == 0, "assign");
     CHECK(sc_assign(1, -1) == 1 && sc_slot(1) == -1, "clear");
     {   /* kept in the save in memory (abilities 1..4, top byte): only a saved game keeps them */
-        u8 *sv = g_base + 0x10fa3d08 + 0x18cc;
+        u8 *sv = g_base + 0x10fa4408 + 0x18cc;
         CHECK((sv[1 * 4 + 3] & 0xf) == 5 && (sv[1 * 4 + 3] >> 4) == 0xf && (sv[1 * 4 + 2] | sv[1 * 4 + 1] | sv[1 * 4]) == 0,
               "circle 5 and triangle none are in the save's ability 1 top byte (%02x), its own bits untouched", sv[1 * 4 + 3]);
         u8 keep[4]; for (int i = 0; i < 4; i++) keep[i] = sv[(1 + i) * 4 + 3];
@@ -2303,7 +2304,7 @@ static void t_shortcut(void) {
     *test_burn() = 0; *(u64*)(cmd + 0x80) = 0;
     /* while L1 is held the menu itself does not move */
     int *cur = test_menu_cur(); int c0 = *cur;
-    G(u32, 0x8f64930) = PAD_L1 | 0x40; G(u32, 0x8f64934) = 0x40; G(u32, 0x8f6493c) = 0x40; test_sc_pad_frame();   /* d-pad down */ test_menu_step(cmd);
+    G(u32, 0x8f65030) = PAD_L1 | 0x40; G(u32, 0x8f65034) = 0x40; G(u32, 0x8f6503c) = 0x40; test_sc_pad_frame();   /* d-pad down */ test_menu_step(cmd);
     CHECK(*cur == c0, "cursor stays");
     pad(0, 0);
     /* two sets: the d-pad flips while the list is up; set 2 is slots 5..8 by default */
@@ -2313,7 +2314,7 @@ static void t_shortcut(void) {
       CHECK(sc_slot_in(1, 0) == 4 && sc_slot_in(1, 1) == 5 && sc_slot_in(1, 2) == 6 && sc_slot_in(1, 3) == 7, "set 2 by default: slots 5..8");
       pad(PAD_L1, PAD_L1);
       pad(PAD_L1 | 0x20, 0x20);
-      CHECK(sc_page() == 1 && sc_slot(0) == 4 && !(G(u32, 0x8f64930) & 0x20) && !(G(u32, 0x8f64934) & 0x20) && !(G(u32, 0x8f6493c) & 0x20),
+      CHECK(sc_page() == 1 && sc_slot(0) == 4 && !(G(u32, 0x8f65030) & 0x20) && !(G(u32, 0x8f65034) & 0x20) && !(G(u32, 0x8f6503c) & 0x20),
             "d-pad right with the list up: set 2, the press kept from the game");
       pad(PAD_L1 | 0x20, 0x20); CHECK(sc_page() == 1, "held: no second flip");
       pad(PAD_L1, 0); pad(PAD_L1 | 0x80, 0x80); CHECK(sc_page() == 0, "left: back to set 1");
@@ -2330,9 +2331,9 @@ static void t_shortcut(void) {
       pad(0, 0); pad(PAD_L1, PAD_L1); CHECK(sc_page() == 1, "L1 let go and held again: still set 2");
       /* a d-pad button still down when L1 is let go is not handed to the game as a new press */
       pad(PAD_L1 | 0x40, 0x40); CHECK(sc_page() == 0, "down: set 1");
-      pad(0x40, 0x40); CHECK(!sc_held() && !(G(u32, 0x8f64930) & 0x40) && !(G(u32, 0x8f64934) & 0x40), "L1 let go, d-pad still down: hidden from the game");
-      pad(0, 0); pad(0x40, 0x40); CHECK((G(u32, 0x8f64930) & 0x40) && (G(u32, 0x8f64934) & 0x40), "pressed again: the game's");
-      pad(0, 0); pad(0x20, 0x20); CHECK(sc_page() == 0 && (G(u32, 0x8f64934) & 0x20), "without L1 the d-pad is the game's and flips nothing");
+      pad(0x40, 0x40); CHECK(!sc_held() && !(G(u32, 0x8f65030) & 0x40) && !(G(u32, 0x8f65034) & 0x40), "L1 let go, d-pad still down: hidden from the game");
+      pad(0, 0); pad(0x40, 0x40); CHECK((G(u32, 0x8f65030) & 0x40) && (G(u32, 0x8f65034) & 0x40), "pressed again: the game's");
+      pad(0, 0); pad(0x20, 0x20); CHECK(sc_page() == 0 && (G(u32, 0x8f65034) & 0x20), "without L1 the d-pad is the game's and flips nothing");
       pad(0, 0); }
     printf("t_shortcut done\n");
 }
@@ -2340,7 +2341,7 @@ static void t_shortcut(void) {
 extern void test_sc_frame(u8 *cmd, int show, int battle); extern int *test_sc_entries(void);
 static const char *node_text(int h, u16 node) {
     u8 *t = NULL;
-    if (!FN(int, 0x1a66c0, int, u16, u8**, int)(h, node, &t, 0) || !t) return NULL;
+    if (!FN(int, 0x1a6560, int, u16, u8**, int)(h, node, &t, 0) || !t) return NULL;
     return *(const char**)(t + 0x30);
 }
 static void t_sclist(void) {
@@ -2350,19 +2351,19 @@ static void t_sclist(void) {
     u8 *img = memalign(16, 0x80000); size_t n = fread(img, 1, 0x80000, f); fclose(f);
     static const u16 ids[] = { 0x83 /*Fire*/, 0x65 /*Strike Raid*/, 0xbc /*Potion*/, 0x92 /*Cure*/ };
     world(4, ids);
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    FN(void, 0x1a6d70, void)();
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    FN(void, 0x1a6c10, void)();
     for (int i = 0; i < 6; i++) {               /* stand-in font tables, as in t_status */
         u8 *ft = calloc(1, 0x200); u64 *gl = calloc(4, 8);
         *(u16*)(ft + 0x100) = 1; *(u16*)(ft + 0x102) = 16; *(u16*)(ft + 0x10c) = 256; ft[0x10e] = 16; *(u64**)(ft + 0x118) = gl;
-        G(u8*, 0x8f86968 + i * 8) = ft;
+        G(u8*, 0x8f87068 + i * 8) = ft;
     }
-    G(u8*, 0x8f86998) = calloc(1, 0x500);      /* ... and an empty table of button pictures */
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "bc01_00.l2d", 0);
+    G(u8*, 0x8f87098) = calloc(1, 0x500);      /* ... and an empty table of button pictures */
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "bc01_00.l2d", 0);
     CHECK(d > 0, "register bc01_00 (%zu bytes)", n);
-    G(int, 0x10f9ed48) = FN(int, 0x1a64f0, const char*)("bc01_00.l2d"); G(int, 0x10f9ed4c) = FN(int, 0x1a64f0, const char*)("bc01_00:0");
-    G(const char*, 0x814908 + 0x83 * 0x18) = "Fire"; G(const char*, 0x814908 + 0x65 * 0x18) = "Strike Raid";    /* names come from the message files in the game */
-    G(const char*, 0x814908 + 0xbc * 0x18) = "Potion"; G(const char*, 0x814908 + 0x92 * 0x18) = "Cure"; G(const char*, 0x814908 + 0x8a * 0x18) = "Blizzard";
+    G(int, 0x10f9f448) = FN(int, 0x1a6390, const char*)("bc01_00.l2d"); G(int, 0x10f9f44c) = FN(int, 0x1a6390, const char*)("bc01_00:0");
+    G(const char*, 0x815908 + 0x83 * 0x18) = "Fire"; G(const char*, 0x815908 + 0x65 * 0x18) = "Strike Raid";    /* names come from the message files in the game */
+    G(const char*, 0x815908 + 0xbc * 0x18) = "Potion"; G(const char*, 0x815908 + 0x92 * 0x18) = "Cure"; G(const char*, 0x815908 + 0x8a * 0x18) = "Blizzard";
     test_tick(gauge);
     test_sc_frame(cmd, 0, 0);
     int *e = test_sc_entries();
@@ -2375,22 +2376,22 @@ static void t_sclist(void) {
     const char *i0 = node_text(e[0], 0x5d), *i1 = node_text(e[1], 0x5d), *i2 = node_text(e[2], 0x5d), *i3 = node_text(e[3], 0x5d);
     CHECK(i0 && !strcmp(i0, "\xf5\x7b") && i1 && !strcmp(i1, "\xf5\x67") && i2 && !strcmp(i2, "\xf5\x66") && i3 && !strcmp(i3, "\xf5\x7c"), "circle, triangle, square, cross in the plate's own button text");
     const char *c2 = node_text(e[2], 0x5b);
-    CHECK(c2 && !strcmp(c2, "3") && FN(int, 0x1a6670, int, u16)(e[2], 0x5b) && !FN(int, 0x1a6670, int, u16)(e[0], 0x5b), "the Potion row shows its count (%s)", c2 ? c2 : "-");
-    CHECK(!FN(int, 0x1a6670, int, u16)(e[0], 0x5a) && !FN(int, 0x1a6670, int, u16)(e[1], 0x5a) && !FN(int, 0x1a6670, int, u16)(e[3], 0x5a), "no category icon on attack and magic commands");
+    CHECK(c2 && !strcmp(c2, "3") && FN(int, 0x1a6510, int, u16)(e[2], 0x5b) && !FN(int, 0x1a6510, int, u16)(e[0], 0x5b), "the Potion row shows its count (%s)", c2 ? c2 : "-");
+    CHECK(!FN(int, 0x1a6510, int, u16)(e[0], 0x5a) && !FN(int, 0x1a6510, int, u16)(e[1], 0x5a) && !FN(int, 0x1a6510, int, u16)(e[3], 0x5a), "no category icon on attack and magic commands");
     float x = 0, y = 0;
     {   /* the item row: the bottle (sequence 0x22), still (control 3), moved right for the longer plate */
-        u8 *lc2 = FN(u8*, 0x1a65c0, int)(e[2]), *nd = NULL;
+        u8 *lc2 = FN(u8*, 0x1a6460, int)(e[2]), *nd = NULL;
         for (int i = 0; lc2 && i < *(s16*)(lc2 + 0xa8); i++) if (*(s16*)(*(u8**)(lc2 + 0x98) + i * 0xb8 + 0xb0) == 0x5a) nd = *(u8**)(lc2 + 0x98) + i * 0xb8;
-        FN(int, 0x1a6880, int, u16, float*, float*)(e[2], 0x5a, &x, &y);
+        FN(int, 0x1a6720, int, u16, float*, float*)(e[2], 0x5a, &x, &y);
         u8 *o = nd ? **(u8***)(nd + 0xa8) : NULL;
-        CHECK(FN(int, 0x1a6670, int, u16)(e[2], 0x5a) && FN(int, 0x1a6790, int, u16)(e[2], 0x5a) == 3 && x == 11 && y == 0, "the Potion row has its icon (control %d, moved %.0f)", FN(int, 0x1a6790, int, u16)(e[2], 0x5a), x);
+        CHECK(FN(int, 0x1a6510, int, u16)(e[2], 0x5a) && FN(int, 0x1a6630, int, u16)(e[2], 0x5a) == 3 && x == 11 && y == 0, "the Potion row has its icon (control %d, moved %.0f)", FN(int, 0x1a6630, int, u16)(e[2], 0x5a), x);
         CHECK(o && (s8)nd[0xb2] == 4 && *(s16*)(*(u8**)(o + 1 * 0x50 + 0x30) + 4) == 5 && (o[1 * 0x50 + 0x4b] & 4), "it is the item bottle: sprite %d, drawn", o ? *(s16*)(*(u8**)(o + 1 * 0x50 + 0x30) + 4) : -1);
         test_sc_frame(cmd, 1, 0);
-        CHECK(FN(int, 0x1a6790, int, u16)(e[2], 0x5a) == 3 && FN(int, 0x1a60e0, int)(e[2]) == 0, "and stays still on the next frame");
+        CHECK(FN(int, 0x1a6630, int, u16)(e[2], 0x5a) == 3 && FN(int, 0x1a5f80, int)(e[2]) == 0, "and stays still on the next frame");
     }
     for (int r = 0; r < 4; r++) {
-        CHECK(FN(int, 0x1a60e0, int)(e[r]) == 0 && FN(int, 0x1a6060, int)(e[r]) == 1, "row %d: the long plate (control %d), visible", r, FN(int, 0x1a60e0, int)(e[r]));
-        FN(int, 0x1a6290, int, float*, float*)(e[r], &x, &y);
+        CHECK(FN(int, 0x1a5f80, int)(e[r]) == 0 && FN(int, 0x1a5f00, int)(e[r]) == 1, "row %d: the long plate (control %d), visible", r, FN(int, 0x1a5f80, int)(e[r]));
+        FN(int, 0x1a6130, int, float*, float*)(e[r], &x, &y);
         CHECK(y == 198 + r * 15, "row %d at y %.0f", r, y);
     }
     /* the body: our records on the seven objects, the game's key format */
@@ -2400,10 +2401,10 @@ static void t_sclist(void) {
         Anim *ma = test_sc_anims(); Key *mk = test_sc_keys();
         CHECK(sizeof(Anim) == 0x18 && sizeof(Key) == 0xc, "record sizes");
         /* a plate as the game shows it under its cursor in the field: what our records stand in for */
-        G(u8, 0x8f88028) = 0; G(u8, 0x8f8802a) = 0;
-        int ref = FN(int, 0x1a4ec0, int, u16, int, void*)(G(int, 0x10f9ed48), 3, 0, NULL);
-        FN(int, 0x1a7fb0, int, u16, int, u16, int)(ref, 0x5d, G(int, 0x10f9ed4c), 0xb, 0);
-        u8 *lc[2] = { FN(u8*, 0x1a65c0, int)(ref), FN(u8*, 0x1a65c0, int)(e[0]) }, *ob[2] = { NULL, NULL };
+        G(u8, 0x8f88728) = 0; G(u8, 0x8f8872a) = 0;
+        int ref = FN(int, 0x1a4d60, int, u16, int, void*)(G(int, 0x10f9f448), 3, 0, NULL);
+        FN(int, 0x1a7e50, int, u16, int, u16, int)(ref, 0x5d, G(int, 0x10f9f44c), 0xb, 0);
+        u8 *lc[2] = { FN(u8*, 0x1a6460, int)(ref), FN(u8*, 0x1a6460, int)(e[0]) }, *ob[2] = { NULL, NULL };
         for (int w = 0; w < 2; w++) for (int i = 0; lc[w] && i < *(s16*)(lc[w] + 0xa8); i++) {
             u8 *nd = *(u8**)(lc[w] + 0x98) + i * 0xb8;
             if (*(s16*)(nd + 0xb0) == 0x5d) { CHECK((s8)nd[0xb2] == 7, "body has seven objects (%d)", (s8)nd[0xb2]); ob[w] = **(u8***)(nd + 0xa8); }
@@ -2435,41 +2436,41 @@ static void t_sclist(void) {
             m = &ma[6]; k = mk + m->key;
             CHECK(m->kind == 1 && k[0].v.f == 18.0f && k[1].v.f == 2.0f && k[2].v.c[0] == 0x60 && k[2].v.c[3] == 0xff, "the gradient inside at (18, 2), dark grey");
         }
-        Pair *q = NULL; int n = FN(int, 0x1a6980, int, u16, int, Pair**)(e[0], 0x5d, 6, &q);
+        Pair *q = NULL; int n = FN(int, 0x1a6820, int, u16, int, Pair**)(e[0], 0x5d, 6, &q);
         CHECK(n == 3 && q && q[0].p->u0 == 2 && q[0].p->v0 == 30 && q[2].p->u1 == 32 && q[2].p->v1 == 60 && q[0].g->x0 == 1 && q[2].g->x1 == 107, "its quads: the game's gradient art");
-        q = NULL; n = FN(int, 0x1a6980, int, u16, int, Pair**)(ref, 0x5d, 6, &q);
+        q = NULL; n = FN(int, 0x1a6820, int, u16, int, Pair**)(ref, 0x5d, 6, &q);
         CHECK(n <= 0 || !q, "the game's plates keep the shared sprite");
         /* a control change puts the game's records back; the next frame ours again */
-        FN(int, 0x1a7520, int, int)(e[0], 3);
+        FN(int, 0x1a73c0, int, int)(e[0], 3);
         CHECK(*(Anim**)(ob[1] + 2 * 0x50 + 0x30) != &ma[2], "control change: the game's record");
         test_sc_frame(cmd, 1, 0);
-        CHECK(FN(int, 0x1a60e0, int)(e[0]) == 0 && *(Anim**)(ob[1] + 2 * 0x50 + 0x30) == &ma[2] && (ob[1][2 * 0x50 + 0x4b] & 4) && !(ob[1][1 * 0x50 + 0x4b] & 4), "next frame: ours again");
+        CHECK(FN(int, 0x1a5f80, int)(e[0]) == 0 && *(Anim**)(ob[1] + 2 * 0x50 + 0x30) == &ma[2] && (ob[1][2 * 0x50 + 0x4b] & 4) && !(ob[1][1 * 0x50 + 0x4b] & 4), "next frame: ours again");
         /* the same in battle */
         test_sc_frame(cmd, 0, 1); test_sc_frame(cmd, 1, 1);
         CHECK(*(Anim**)(ob[1] + 2 * 0x50 + 0x30) == &ma[2], "battle: the same grey plate");
-        FN(void, 0x1a57f0, int)(ref);
+        FN(void, 0x1a5690, int)(ref);
     }
     u32 col = 0;
-    FN(int, 0x1a6600, int, u16, u32*)(e[0], 0, &col); CHECK(col == 0xff808080 && FN(int, 0x1a6790, int, u16)(e[0], 0) == 0, "usable: name in white (%08x)", col);
-    FN(int, 0x1a6600, int, u16, u32*)(e[3], 0, &col); CHECK(col == 0xff107080, "Cure would use all MP: yellow name (%08x)", col);
-    FN(int, 0x1a6880, int, u16, float*, float*)(e[0], 0, &x, &y); CHECK(x == -1 && y == 0, "name node at the game's place for the long plate (%.0f)", x);
+    FN(int, 0x1a64a0, int, u16, u32*)(e[0], 0, &col); CHECK(col == 0xff808080 && FN(int, 0x1a6630, int, u16)(e[0], 0) == 0, "usable: name in white (%08x)", col);
+    FN(int, 0x1a64a0, int, u16, u32*)(e[3], 0, &col); CHECK(col == 0xff107080, "Cure would use all MP: yellow name (%08x)", col);
+    FN(int, 0x1a6720, int, u16, float*, float*)(e[0], 0, &x, &y); CHECK(x == -1 && y == 0, "name node at the game's place for the long plate (%.0f)", x);
     /* reloading / MP charge: dim */
     *(u32*)(plate[1] + 0x60) |= 2; test_sc_frame(cmd, 1, 0);
-    FN(int, 0x1a6600, int, u16, u32*)(e[1], 0, &col); CHECK(col == 0xff404040, "not ready: dim name (%08x)", col);
+    FN(int, 0x1a64a0, int, u16, u32*)(e[1], 0, &col); CHECK(col == 0xff404040, "not ready: dim name (%08x)", col);
     *(u32*)(plate[1] + 0x60) &= ~2u;
     *test_burn() = 1; test_sc_frame(cmd, 1, 0);
-    FN(int, 0x1a6600, int, u16, u32*)(e[0], 0, &col); { u32 c2 = 0; FN(int, 0x1a6600, int, u16, u32*)(e[2], 0, &c2);
+    FN(int, 0x1a64a0, int, u16, u32*)(e[0], 0, &col); { u32 c2 = 0; FN(int, 0x1a64a0, int, u16, u32*)(e[2], 0, &c2);
     CHECK(col == 0xff404040 && c2 == 0xff808080, "MP charge: commands dim, the item still white"); }
     *test_burn() = 0;
     /* the slot's command changes: the row follows; a button without a slot shows a blank */
     *(u16*)&deck[0] = 0x8a; test_sc_frame(cmd, 1, 0);
     t0 = node_text(e[0], 0); CHECK(t0 && !strcmp(t0, "Blizzard"), "slot 1 changed: %s", t0 ? t0 : "-");
     *(u16*)&deck[2] = 0x83; ((u8*)&deck[2])[2] = 1; *(u32*)(plate[2] + 0x60) &= ~0x800u; test_sc_frame(cmd, 1, 0);
-    CHECK(!FN(int, 0x1a6670, int, u16)(e[2], 0x5a) && !FN(int, 0x1a6670, int, u16)(e[2], 0x5b), "the item's slot now holds a spell: icon and count gone");
+    CHECK(!FN(int, 0x1a6510, int, u16)(e[2], 0x5a) && !FN(int, 0x1a6510, int, u16)(e[2], 0x5b), "the item's slot now holds a spell: icon and count gone");
     sc_assign(1, -1); test_sc_frame(cmd, 1, 0);
-    t1 = node_text(e[1], 0); FN(int, 0x1a6600, int, u16, u32*)(e[1], 0, &col); CHECK(t1 && !strcmp(t1, "---") && col == 0xff404040, "unbound: blank and dim");
+    t1 = node_text(e[1], 0); FN(int, 0x1a64a0, int, u16, u32*)(e[1], 0, &col); CHECK(t1 && !strcmp(t1, "---") && col == 0xff404040, "unbound: blank and dim");
     test_sc_frame(cmd, 0, 0);
-    CHECK(FN(int, 0x1a6060, int)(e[0]) == 0 && FN(int, 0x1a6060, int)(e[3]) == 0, "hidden when L1 is let go");
+    CHECK(FN(int, 0x1a5f00, int)(e[0]) == 0 && FN(int, 0x1a5f00, int)(e[3]) == 0, "hidden when L1 is let go");
     printf("t_sclist done\n");
 }
 /* the MP row of the menu's character panel, on the real 2D-layout runtime with the real camp.l2d
@@ -2507,24 +2508,24 @@ static void t_status(void) {
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); size_t n = fread(img, 1, 0x80000, f); fclose(f);
     PD[0x31] = 1; PD[0x36] = 4;                 /* 100 MP */
-    *(u8*)RVA(0x111660) = 0xC3;                 /* task registration: not needed here */
-    *(u8*)RVA(0x10c5e0) = 0xC3;                 /* texture upload: no graphics device here */
-    memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);      /* resource lookup: nothing loaded */
-    FN(void, 0x1a6d70, void)();                 /* L2D runtime init */
+    *(u8*)RVA(0x1115c0) = 0xC3;                 /* task registration: not needed here */
+    *(u8*)RVA(0x10c540) = 0xC3;                 /* texture upload: no graphics device here */
+    memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);      /* resource lookup: nothing loaded */
+    FN(void, 0x1a6c10, void)();                 /* L2D runtime init */
     for (int i = 0; i < 6; i++) {               /* stand-in font tables: one glyph, 16 high (text is laid out, never drawn here) */
         u8 *ft = calloc(1, 0x200); u64 *gl = calloc(4, 8);
         *(u16*)(ft + 0x100) = 1; *(u16*)(ft + 0x102) = 16; *(u16*)(ft + 0x10c) = 256; ft[0x10e] = 16; *(u64**)(ft + 0x118) = gl;
-        G(u8*, 0x8f86968 + i * 8) = ft;
+        G(u8*, 0x8f87068 + i * 8) = ft;
     }
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "camp.l2d", 0);
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "camp.l2d", 0);
     CHECK(d > 0, "camp.l2d registered (%zu bytes): %d", n, d);
-    G(u8, 0x8f88028) = 1; G(u8, 0x8f8802a) = 1;
-    int h = FN(int, 0x1a4ec0, int, u16, int, void*)(d, 0x67, 1, NULL);        /* as 14042b340 creates it */
+    G(u8, 0x8f88728) = 1; G(u8, 0x8f8872a) = 1;
+    int h = FN(int, 0x1a4d60, int, u16, int, void*)(d, 0x67, 1, NULL);        /* as 14042b340 creates it */
     CHECK(h > 0, "chara_plate instance %d", h);
-    FN(int, 0x1a7600, int, s16, int)(h, 7, 0);
+    FN(int, 0x1a74a0, int, s16, int)(h, 7, 0);
     u8 *self = calloc(1, 0xb0); *(int*)(self + 0x20) = h;
     float x, y;
-    #define NPOS(node) (x = y = -1, FN(int, 0x1a6880, int, u16, float*, float*)(h, node, &x, &y))
+    #define NPOS(node) (x = y = -1, FN(int, 0x1a6720, int, u16, float*, float*)(h, node, &x, &y))
     NPOS(0x1a); CHECK(x == 0 && y == 41, "FP label starts at (%.0f, %.0f)", x, y);
     test_set_stat_art(1);
     test_status_frame(self);
@@ -2534,7 +2535,7 @@ static void t_status(void) {
     NPOS(0x26); CHECK(x == 69 && y == 69, "NEXT LEVEL value -> (%.0f, %.0f)", x, y);
     NPOS(0x19); CHECK(x == 0 && y == 30, "HP label stays (%.0f, %.0f)", x, y);
     NPOS(0x22); CHECK(x == 69 && y == 28, "HP value stays (%.0f, %.0f)", x, y);
-    Pair *q = NULL; int cnt = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x1d, 5, &q);
+    Pair *q = NULL; int cnt = FN(int, 0x1a6820, int, u16, int, Pair**)(h, 0x1d, 5, &q);
     CHECK(cnt == 4 && q, "the plate's lines: %d quads", cnt);
     if (cnt == 4 && q) {
         for (int i = 0; i < 4; i++) printf("   line %d y %d..%d colour %08x\n", i, q[i].g->y0, q[i].g->y1, q[i].p->col[0]);
@@ -2543,7 +2544,7 @@ static void t_status(void) {
     }
     int *sh = test_status_handles(); int hq = sh[1], ht = sh[2];
     CHECK(sh[0] == h && hq > 0 && ht > 0 && hq != ht, "row instances %d %d", hq, ht);
-    Pair *m = NULL; int mc = FN(int, 0x1a6350, int, int, Pair**)(hq, 1, &m);
+    Pair *m = NULL; int mc = FN(int, 0x1a61f0, int, int, Pair**)(hq, 1, &m);
     CHECK(mc == 3 && m, "row sprite: %d quads", mc);
     if (mc >= 3 && m) {
         for (int i = 0; i < mc; i++) printf("   quad %d xy (%d,%d)-(%d,%d) uv (%d,%d)-(%d,%d) col %08x\n", i, m[i].g->x0, m[i].g->y0, m[i].g->x1, m[i].g->y1, m[i].p->u0, m[i].p->v0, m[i].p->u1, m[i].p->v1, m[i].p->col[0]);
@@ -2551,12 +2552,12 @@ static void t_status(void) {
         CHECK(m[2].g->x0 == -1 && m[2].g->y0 == 40 && m[2].g->x1 == 12 && m[2].g->y1 == 48 && m[2].p->u0 == 300 && m[2].p->v0 == 676 && m[2].p->u1 == 326 && m[2].p->v1 == 692 && m[2].p->col[3] == 0x80f37e01, "MP label where FP's was");
         CHECK(m[1].g->x0 == 0 && m[1].g->y0 == 41 && m[1].p->col[0] == 0x80000000, "its shadow");
     }
-    u8 *pc = FN(u8*, 0x1a65c0, int)(h), *qc = FN(u8*, 0x1a5fd0, int)(hq), *tc = FN(u8*, 0x1a5fd0, int)(ht);
+    u8 *pc = FN(u8*, 0x1a6460, int)(h), *qc = FN(u8*, 0x1a5e70, int)(hq), *tc = FN(u8*, 0x1a5e70, int)(ht);
     u8 *node0 = *(u8**)(pc + 0x98);
     CHECK(*(s16*)(node0 + 0xb0) == 0x1d && *(u8**)(qc + 0x68) == node0 + 0x20 && *(u8**)(tc + 0x68) == node0 + 0x20, "both hang on the plate node");
     CHECK(*(s16*)(qc + 0x10) == *(s16*)(pc + 0x10) && *(s16*)(tc + 0x12) == *(s16*)(pc + 0x12) && qc[0x86] == pc[0x86], "same priority %d, queue %d and group %d", *(s16*)(qc + 0x10), *(s16*)(qc + 0x12), qc[0x86]);
     CHECK(*(float*)(tc + 0x50) == 69 && *(float*)(tc + 0x54) == 39 && *(float*)(qc + 0x50) == 0 && *(float*)(qc + 0x54) == 0, "value at (69, 39)");
-    CHECK(FN(int, 0x1a6060, int)(hq) == 1 && FN(int, 0x1a6060, int)(ht) == 1, "visible with the panel");
+    CHECK(FN(int, 0x1a5f00, int)(hq) == 1 && FN(int, 0x1a5f00, int)(ht) == 1, "visible with the panel");
     /* the value text: object 1 of the sequence, its text object and settings against the FP value node's */
     {   u8 *nodes = *(u8**)(pc + 0x98); u8 *fpn = NULL;
         for (int i = 0; i < *(s16*)(pc + 0xa8); i++) if (*(s16*)(nodes + i * 0xb8 + 0xb0) == 0x24) fpn = nodes + i * 0xb8;
@@ -2577,24 +2578,24 @@ static void t_status(void) {
         CHECK(to && !strcmp(*(char**)(to + 0x30), "35/100"), "follows MP: %s", to ? *(char**)(to + 0x30) : "-"); }
     NPOS(0x1a); CHECK(y == 52, "a second frame moves nothing again (%.0f)", y);
     CHECK(q[2].g->y0 == 33 && q[3].g->y0 == 52 && test_status_handles()[1] == hq && test_status_handles()[2] == ht, "... and makes nothing new");
-    FN(int, 0x1a5b30, int, int)(h, 0); test_status_frame(self);
-    CHECK(FN(int, 0x1a6060, int)(hq) == 0 && FN(int, 0x1a6060, int)(ht) == 0, "hidden with the panel");
+    FN(int, 0x1a59d0, int, int)(h, 0); test_status_frame(self);
+    CHECK(FN(int, 0x1a5f00, int)(hq) == 0 && FN(int, 0x1a5f00, int)(ht) == 0, "hidden with the panel");
     /* the game destroys the panel's layout: ours go first, detached */
-    FN(void, 0x1a57f0, int)(h);
-    CHECK(FN(int, 0x1a60e0, int)(hq) == 8 && FN(int, 0x1a60e0, int)(ht) == 8 && FN(int, 0x1a60e0, int)(h) == 8, "destroyed with the panel");
+    FN(void, 0x1a5690, int)(h);
+    CHECK(FN(int, 0x1a5f80, int)(hq) == 8 && FN(int, 0x1a5f80, int)(ht) == 8 && FN(int, 0x1a5f80, int)(h) == 8, "destroyed with the panel");
     CHECK(test_status_handles()[0] == 0 && test_status_handles()[1] == 0, "nothing kept");
     *(int*)(self + 0x20) = 0; test_status_frame(self);
     CHECK(test_status_handles()[1] == 0, "no panel, no row");
     /* a new panel (menu opened again) */
-    G(u8, 0x8f88028) = 1;
-    int h2 = FN(int, 0x1a4ec0, int, u16, int, void*)(d, 0x67, 1, NULL); *(int*)(self + 0x20) = h2;
+    G(u8, 0x8f88728) = 1;
+    int h2 = FN(int, 0x1a4d60, int, u16, int, void*)(d, 0x67, 1, NULL); *(int*)(self + 0x20) = h2;
     test_status_frame(self);
     CHECK(h2 > 0 && test_status_handles()[0] == h2 && test_status_handles()[1] > 0 && test_status_handles()[2] > 0, "row made again for a new panel");
     /* without the label art: line and value only */
     test_set_stat_art(0); test_status_frame(self);
-    m = NULL; FN(int, 0x1a6350, int, int, Pair**)(test_status_handles()[1], 1, &m);
+    m = NULL; FN(int, 0x1a61f0, int, int, Pair**)(test_status_handles()[1], 1, &m);
     CHECK(m && m[0].g->x1 == 69 && m[1].g->x1 == 0 && m[2].g->x1 == 0, "no art: no label quads");
-    FN(void, 0x1a57f0, int)(h2);
+    FN(void, 0x1a5690, int)(h2);
     printf("t_status done\n");
 }
 /* the Shortcuts entry of the Command Decks screen (sccamp.c) on the real 2D runtime with camp.l2d: stand-in screen,
@@ -2605,62 +2606,62 @@ static void t_sccamp(void) {
     if (!fn) { printf("  (skipped: BBS_CAMP_L2D not set)\n"); return; }
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); size_t n = fread(img, 1, 0x80000, f); fclose(f); (void)n;
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    FN(void, 0x1a6d70, void)();
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    FN(void, 0x1a6c10, void)();
     for (int i = 0; i < 6; i++) {
         u8 *ft = calloc(1, 0x200); u64 *gl = calloc(4, 8);
         *(u16*)(ft + 0x100) = 1; *(u16*)(ft + 0x102) = 16; *(u16*)(ft + 0x10c) = 256; ft[0x10e] = 16; *(u64**)(ft + 0x118) = gl;
-        G(u8*, 0x8f86968 + i * 8) = ft;
+        G(u8*, 0x8f87068 + i * 8) = ft;
     }
-    G(u8*, 0x8f86998) = calloc(1, 0x500);
+    G(u8*, 0x8f87098) = calloc(1, 0x500);
     /* not here: the help line (needs the whole menu), sounds, the save's deck (6 slots), the game's plate fill */
-    *(u8*)RVA(0x417710) = 0xC3; *(u8*)RVA(0x417770) = 0xC3; memcpy(RVA(0x1b2e40), "\x31\xc0\xc3", 3);
-    memcpy(RVA(0x41dd20), "\xb8\x06\x00\x00\x00\xc3", 6); memcpy(RVA(0x41dd30), "\x31\xc0\xc3", 3); *(u8*)RVA(0x4103c0) = 0xC3;
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "camp.l2d", 0);
+    *(u8*)RVA(0x417100) = 0xC3; *(u8*)RVA(0x417160) = 0xC3; memcpy(RVA(0x1b2c60), "\x31\xc0\xc3", 3);
+    memcpy(RVA(0x41d710), "\xb8\x06\x00\x00\x00\xc3", 6); memcpy(RVA(0x41d720), "\x31\xc0\xc3", 3); *(u8*)RVA(0x40ff90) = 0xC3;
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "camp.l2d", 0);
     CHECK(d > 0, "camp.l2d registered: %d", d);
-    G(u8, 0x8f88028) = 1; G(u8, 0x8f8802a) = 1;
-    int lh = FN(int, 0x1a4ec0, int, u16, int, void*)(d, 0xcc, 1, NULL), ph = FN(int, 0x1a4ec0, int, u16, int, void*)(d, 0xc9, 1, NULL);
+    G(u8, 0x8f88728) = 1; G(u8, 0x8f8872a) = 1;
+    int lh = FN(int, 0x1a4d60, int, u16, int, void*)(d, 0xcc, 1, NULL), ph = FN(int, 0x1a4d60, int, u16, int, void*)(d, 0xc9, 1, NULL);
     CHECK(lh > 0 && ph > 0, "list %d and pane %d layouts", lh, ph);
     u8 *top = calloc(1, 0x100), *list = calloc(1, 0x110), *pn = calloc(1, 0x110);
     *(u8**)(top + 0xb8) = list; *(u8**)(top + 0xc0) = pn; top[0x9b] = 2;
     *(u32*)(list + 8) = 0xffffffff; *(int*)(list + 0x20) = lh; *(u32*)(list + 0x44) = 0x100010; *(u32*)(list + 0x48) = 0x400040;
     *(u32*)(list + 0x88) = 0xfff8fdff | 0x200; *(u32*)(list + 0x34) = 0x4000; *(u32*)(list + 0x38) = 0x2000;
     list[0x101] = list[0x102] = 0xff; *(s16*)(list + 0x8e) = 4;
-    G(u16, 0x8221c0) = 0x4000; G(u16, 0x8221c4) = 0x2000;
-    for (int i = 0; i < 5; i++) FN(int, 0x1a6880, int, u16, float*, float*)(lh, (u16)(i + 1), (float*)(list + 0xa8 + i * 8), (float*)(list + 0xac + i * 8));
-    FN(int, 0x1a7db0, int, u16, int)(lh, 5, 4);
+    G(u16, 0x822dc0) = 0x4000; G(u16, 0x822dc4) = 0x2000;
+    for (int i = 0; i < 5; i++) FN(int, 0x1a6720, int, u16, float*, float*)(lh, (u16)(i + 1), (float*)(list + 0xa8 + i * 8), (float*)(list + 0xac + i * 8));
+    FN(int, 0x1a7c50, int, u16, int)(lh, 5, 4);
     u8 *hand = calloc(1, 0x28), *light = calloc(1, 0x50);          /* the list's two cursors, as 140404850 makes them */
-    *(int*)(hand + 0x18) = FN(int, 0x1a5350, const char*, u16, int, void*)("camp:0", 3, 0, NULL); *(float*)(hand + 8) = 8; *(float*)(hand + 0xc) = 10;
-    *(int*)(light + 0x18) = FN(int, 0x1a5350, const char*, u16, int, void*)("camp:0", 4, 0, NULL); *(float*)(light + 8) = 105;
-    FN(int, 0x1a4e10, int, u16, int)(lh, 0xb, *(int*)(hand + 0x18)); FN(int, 0x1a4e10, int, u16, int)(lh, 0xb, *(int*)(light + 0x18));
+    *(int*)(hand + 0x18) = FN(int, 0x1a51f0, const char*, u16, int, void*)("camp:0", 3, 0, NULL); *(float*)(hand + 8) = 8; *(float*)(hand + 0xc) = 10;
+    *(int*)(light + 0x18) = FN(int, 0x1a51f0, const char*, u16, int, void*)("camp:0", 4, 0, NULL); *(float*)(light + 8) = 105;
+    FN(int, 0x1a4cb0, int, u16, int)(lh, 0xb, *(int*)(hand + 0x18)); FN(int, 0x1a4cb0, int, u16, int)(lh, 0xb, *(int*)(light + 0x18));
     *(u8**)(list + 0xe8) = hand; *(u8**)(list + 0xf0) = light;
     *(int*)(pn + 0x20) = ph;
-    u8 *ph_hand = calloc(1, 0x28); *(int*)(ph_hand + 0x18) = FN(int, 0x1a5350, const char*, u16, int, void*)("camp:0", 3, 0, NULL);
-    FN(int, 0x1a4e10, int, u16, int)(ph, 1, *(int*)(ph_hand + 0x18)); FN(int, 0x1a5b30, int, int)(*(int*)(ph_hand + 0x18), 0);
+    u8 *ph_hand = calloc(1, 0x28); *(int*)(ph_hand + 0x18) = FN(int, 0x1a51f0, const char*, u16, int, void*)("camp:0", 3, 0, NULL);
+    FN(int, 0x1a4cb0, int, u16, int)(ph, 1, *(int*)(ph_hand + 0x18)); FN(int, 0x1a59d0, int, int)(*(int*)(ph_hand + 0x18), 0);
     *(u8**)(pn + 0x100) = ph_hand;
     int plate[8];
     for (int i = 0; i < 8; i++) {
         u8 *b = calloc(1, 0x48);
-        plate[i] = FN(int, 0x1a4ec0, int, u16, int, void*)(d, 0x6f, 1, NULL);
-        FN(int, 0x1a4e10, int, u16, int)(ph, (u16)(i + 1), plate[i]);
+        plate[i] = FN(int, 0x1a4d60, int, u16, int, void*)(d, 0x6f, 1, NULL);
+        FN(int, 0x1a4cb0, int, u16, int)(ph, (u16)(i + 1), plate[i]);
         *(int*)(b + 8) = plate[i]; b[0x40] = i >= 6;                /* the last two: slots not unlocked yet */
         static const char *const nm[8] = { "Fire", "Blizzard", "Cure", "Potion", "Strike Raid", "Thunder", "locked", "locked" };
-        FN(int, 0x1a8330, int, u16, const char*, int, void*)(plate[i], 3, nm[i], 0, NULL);
-        FN(int, 0x1a8330, int, u16, const char*, int, void*)(plate[i], 5, i == 7 ? "9" : "3", 0, NULL);
+        FN(int, 0x1a81d0, int, u16, const char*, int, void*)(plate[i], 3, nm[i], 0, NULL);
+        FN(int, 0x1a81d0, int, u16, const char*, int, void*)(plate[i], 5, i == 7 ? "9" : "3", 0, NULL);
         if (i == 3) {   /* an item, as the game fills it (1404103c0): no "LV", the count right-aligned and moved 5 right */
             struct { const char *text; u32 colour; u8 space[4]; u8 pad10[4]; u16 flags; u8 b16, pitch, align, size, b1a, b1b, kind, pad[3]; } fp;
             memset(&fp, 0, sizeof fp); fp.text = "x3"; fp.space[0] = 5; fp.flags = 0x29; fp.align = 6;
-            FN(int, 0x1a7cb0, int, u16, void*, int)(plate[i], 5, &fp, 0);
-            FN(int, 0x1a5b80, int, u16, int)(plate[i], 4, 0);
+            FN(int, 0x1a7b50, int, u16, void*, int)(plate[i], 5, &fp, 0);
+            FN(int, 0x1a5a20, int, u16, int)(plate[i], 4, 0);
         }
         *(u8**)(pn + 0xc0 + i * 8) = b;
     }
     u32 lv_align = 0, lv_col = 0; u8 lv_font = 0; float lv_pitch = 0;          /* the level text as the layout makes it */
-    { u8 *to = NULL; FN(int, 0x1a66c0, int, u16, u8**, int)(plate[0], 5, &to, 0);
+    { u8 *to = NULL; FN(int, 0x1a6560, int, u16, u8**, int)(plate[0], 5, &to, 0);
       if (to) { lv_align = *(u32*)(to + 0x298); lv_col = *(u32*)(to + 0x2a8); lv_font = to[0x2cc]; lv_pitch = *(float*)(to + 0x2b0); }
       CHECK(to && lv_align == 0 && lv_font == 4 && lv_col == 0xff00ffff, "level text: align %d font %d colour %08x pitch %.1f", lv_align, lv_font, lv_col, lv_pitch); }
     *(u8**)(pn + 0xc0 + 5 * 8) = NULL;          /* slot 6 is the second row of the command in slot 5: no plate of its own */
-    { u8 *to = NULL; FN(int, 0x1a66c0, int, u16, u8**, int)(plate[3], 5, &to, 0);
+    { u8 *to = NULL; FN(int, 0x1a6560, int, u16, u8**, int)(plate[3], 5, &to, 0);
       CHECK(to && (s8)to[0x2b4] == 5 && *(u32*)(to + 0x298) == 2 && !strcmp(*(char**)(to + 0x30), "x3"), "the item plate's count: right-aligned, 5 to the right"); }
     s8 *bind = test_sc_bind(); bind[0] = 0; bind[1] = 1; bind[2] = 2; bind[3] = 1;      /* circle 1, triangle 2, square 3, cross 2 */
     #define ST(i) (test_sccamp_state()[i])
@@ -2670,13 +2671,13 @@ static void t_sccamp(void) {
     test_sccamp_frame(top);
     int it = ST(2);
     CHECK(it > 0 && ST(3) == lh && ST(0) == 0, "a sixth plate is made: %d", it);
-    u8 *lc = FN(u8*, 0x1a65c0, int)(lh), *ic = it > 0 ? FN(u8*, 0x1a5fd0, int)(it) : NULL;
+    u8 *lc = FN(u8*, 0x1a6460, int)(lh), *ic = it > 0 ? FN(u8*, 0x1a5e70, int)(it) : NULL;
     if (!ic) { printf("t_sccamp: no plate, stopping\n"); return; }
     u8 *nodes = *(u8**)(lc + 0x98), *root = NULL, *n4 = NULL;
     for (int i = 0; i < *(s16*)(lc + 0xa8); i++) { u8 *q = nodes + i * 0xb8; if (*(s16*)(q + 0xb0) == 0xb) root = q; if (*(s16*)(q + 0xb0) == 4) n4 = q; }
     CHECK(root && *(u8**)(ic + 0x68) == root + 0x20, "it hangs on the list's root node");
     CHECK(*(float*)(ic + 0x50) == -230 && *(float*)(ic + 0x54) == 10, "at (%.0f, %.0f): 17 under Finish Commands", *(float*)(ic + 0x50), *(float*)(ic + 0x54));
-    CHECK(FN(int, 0x1a60e0, int)(it) == FN(int, 0x1a6790, int, u16)(lh, 1) && FN(int, 0x1a60e0, int)(it) != 4 && FN(int, 0x1a6060, int)(it) == 1, "the look of the game's unselected entries, visible with the list (control %d)", FN(int, 0x1a60e0, int)(it));
+    CHECK(FN(int, 0x1a5f80, int)(it) == FN(int, 0x1a6630, int, u16)(lh, 1) && FN(int, 0x1a5f80, int)(it) != 4 && FN(int, 0x1a5f00, int)(it) == 1, "the look of the game's unselected entries, visible with the list (control %d)", FN(int, 0x1a5f80, int)(it));
     CHECK(*(s16*)(ic + 0x10) == *(s16*)(lc + 0x10) && ic[0x86] == lc[0x86], "same priority and group as the list");
     {   u8 *to = NULL, *fo = NULL; int ti = -1, fi = -1;            /* first object of the sequence that carries text (1401abb00) */
         for (int i = 0; i < (s8)ic[0xb2] && !to; i++) { to = *(u8**)(*(u8**)*(u8***)(ic + 0xa8) + i * 0x50 + 0x10); ti = i; }
@@ -2691,41 +2692,41 @@ static void t_sccamp(void) {
                   "text set as the game's fourth entry");
         }
     }
-    FN(int, 0x1a5b30, int, int)(lh, 0); test_sccamp_frame(top); CHECK(FN(int, 0x1a6060, int)(it) == 0, "hidden with the list");
-    FN(int, 0x1a5b30, int, int)(lh, 1); test_sccamp_frame(top); CHECK(FN(int, 0x1a6060, int)(it) == 1, "and shown again");
+    FN(int, 0x1a59d0, int, int)(lh, 0); test_sccamp_frame(top); CHECK(FN(int, 0x1a5f00, int)(it) == 0, "hidden with the list");
+    FN(int, 0x1a59d0, int, int)(lh, 1); test_sccamp_frame(top); CHECK(FN(int, 0x1a5f00, int)(it) == 1, "and shown again");
 
     /* the list: the game's five entries as before, ours after the last */
     STEP(0x10, 0x10); CHECK(ST(0) == 0 && *(s16*)(list + 0x8e) == 3, "up from the last entry: the game's own move (%d)", *(s16*)(list + 0x8e));
     STEP(0, 0); STEP(0x40, 0x40); CHECK(ST(0) == 0 && *(s16*)(list + 0x8e) == 4, "down: back on Finish Commands");
     STEP(0, 0); STEP(0x40, 0x40);
     CHECK(ST(0) == 1 && top[0x11] == 1, "down again: on Shortcuts, the screen's buttons held (mode %d)", ST(0));
-    CHECK(FN(int, 0x1a6790, int, u16)(lh, 1) == 0 && FN(int, 0x1a6790, int, u16)(lh, 5) == 0 && FN(int, 0x1a60e0, int)(it) == 4, "ours lit, none of the game's (%d %d %d)",
-          FN(int, 0x1a6790, int, u16)(lh, 1), FN(int, 0x1a6790, int, u16)(lh, 5), FN(int, 0x1a60e0, int)(it));
+    CHECK(FN(int, 0x1a6630, int, u16)(lh, 1) == 0 && FN(int, 0x1a6630, int, u16)(lh, 5) == 0 && FN(int, 0x1a5f80, int)(it) == 4, "ours lit, none of the game's (%d %d %d)",
+          FN(int, 0x1a6630, int, u16)(lh, 1), FN(int, 0x1a6630, int, u16)(lh, 5), FN(int, 0x1a5f80, int)(it));
     CHECK(*(float*)(hand + 0x10) == -230 && *(float*)(hand + 0x14) == 10 && *(float*)(light + 0x30) == -125 && *(float*)(light + 0x34) == 10, "hand and light frame on it (%.0f, %.0f)", *(float*)(hand + 0x10), *(float*)(hand + 0x14));
     STEP(0x40, 0); CHECK(ST(0) == 1, "holding the button does not run on");
     STEP(0, 0); STEP(0x40, 0x40);
-    CHECK(ST(0) == 0 && *(s16*)(list + 0x8e) == 0 && top[0x11] == 0 && FN(int, 0x1a6790, int, u16)(lh, 1) == 4 && FN(int, 0x1a60e0, int)(it) == FN(int, 0x1a6790, int, u16)(lh, 2), "down: Edit Deck, ours plain again");
+    CHECK(ST(0) == 0 && *(s16*)(list + 0x8e) == 0 && top[0x11] == 0 && FN(int, 0x1a6630, int, u16)(lh, 1) == 4 && FN(int, 0x1a5f80, int)(it) == FN(int, 0x1a6630, int, u16)(lh, 2), "down: Edit Deck, ours plain again");
     CHECK(*(float*)(hand + 0x14) == -75, "hand back on the first entry (%.0f)", *(float*)(hand + 0x14));
     STEP(0x40, 0); CHECK(*(s16*)(list + 0x8e) == 0, "no run-on past the end");
-    STEP(0, 0); STEP(0x10, 0x10); CHECK(ST(0) == 1 && FN(int, 0x1a6790, int, u16)(lh, 5) == 0 && FN(int, 0x1a6790, int, u16)(lh, 1) == 0, "up from Edit Deck: Shortcuts");
-    STEP(0, 0); STEP(0x10, 0x10); CHECK(ST(0) == 0 && *(s16*)(list + 0x8e) == 4 && FN(int, 0x1a6790, int, u16)(lh, 5) == 4, "up: Finish Commands");
+    STEP(0, 0); STEP(0x10, 0x10); CHECK(ST(0) == 1 && FN(int, 0x1a6630, int, u16)(lh, 5) == 0 && FN(int, 0x1a6630, int, u16)(lh, 1) == 0, "up from Edit Deck: Shortcuts");
+    STEP(0, 0); STEP(0x10, 0x10); CHECK(ST(0) == 0 && *(s16*)(list + 0x8e) == 4 && FN(int, 0x1a6630, int, u16)(lh, 5) == 4, "up: Finish Commands");
     STEP(0, 0); STEP(0x40, 0x40); CHECK(ST(0) == 1, "and down to ours");
 
     /* confirm: the Battle Commands pane */
     STEP(0, 0); STEP(0x4000, 0x4000);
     CHECK(ST(0) == 2 && ST(1) == 0 && top[0x11] == 1 && top[0x9b] == 2 && list[0x9b] == 0, "confirm: picking a slot; the screen itself did nothing");
-    CHECK(FN(int, 0x1a6060, int)(*(int*)(ph_hand + 0x18)) == 1 && *(float*)(ph_hand + 0x14) == 10, "the pane's hand on slot 1 (y %.0f)", *(float*)(ph_hand + 0x14));
+    CHECK(FN(int, 0x1a5f00, int)(*(int*)(ph_hand + 0x18)) == 1 && *(float*)(ph_hand + 0x14) == 10, "the pane's hand on slot 1 (y %.0f)", *(float*)(ph_hand + 0x14));
     const char *p0 = node_text(plate[0], 5), *p1 = node_text(plate[1], 5), *p2 = node_text(plate[2], 5), *p3 = node_text(plate[3], 5);
     CHECK(p0 && !strcmp(p0, "\xf5\x7b") && p1 && !strcmp(p1, "\xf5\x67\xf5\x7c") && p2 && !strcmp(p2, "\xf5\x66") && p3 && !*p3,
           "each plate shows its buttons in the level's place: circle | triangle cross | square | none");
     p0 = node_text(plate[0], 3); CHECK(p0 && !strcmp(p0, "Fire"), "names untouched");
     {   float x = 0, y = 0; u8 *to = NULL;
-        FN(int, 0x1a6880, int, u16, float*, float*)(plate[0], 5, &x, &y);
-        FN(int, 0x1a66c0, int, u16, u8**, int)(plate[0], 5, &to, 0);
-        CHECK(x == 123 && y == 5.3f && !FN(int, 0x1a6670, int, u16)(plate[0], 4) && FN(int, 0x1a6670, int, u16)(plate[3], 5), "at the right end, mid height; no LV label");
+        FN(int, 0x1a6720, int, u16, float*, float*)(plate[0], 5, &x, &y);
+        FN(int, 0x1a6560, int, u16, u8**, int)(plate[0], 5, &to, 0);
+        CHECK(x == 123 && y == 5.3f && !FN(int, 0x1a6510, int, u16)(plate[0], 4) && FN(int, 0x1a6510, int, u16)(plate[3], 5), "at the right end, mid height; no LV label");
         CHECK(to && *(u32*)(to + 0x298) == 18 && to[0x2cc] == 1 && *(u32*)(to + 0x2a8) == 0xff808080, "anchored right / middle, the button font, no tint (align %d font %d)", to ? *(int*)(to + 0x298) : -1, to ? to[0x2cc] : -1);
-        to = NULL; FN(int, 0x1a66c0, int, u16, u8**, int)(plate[3], 5, &to, 0);
-        FN(int, 0x1a6880, int, u16, float*, float*)(plate[3], 5, &x, &y);
+        to = NULL; FN(int, 0x1a6560, int, u16, u8**, int)(plate[3], 5, &to, 0);
+        FN(int, 0x1a6720, int, u16, float*, float*)(plate[3], 5, &x, &y);
         CHECK(to && to[0x2b4] == 0 && to[0x2b5] == 0 && *(u32*)(to + 0x298) == 18 && x == 123 && y == 5.3f, "the item's plate the same: its count's own offset is not carried over (%d)", to ? (s8)to[0x2b4] : -1);
         /* the same settings as the button text of the game's command plates (bc01_00, text table entry 16), bar the side */
     }
@@ -2770,24 +2771,24 @@ static void t_sccamp(void) {
     STEP(0, 0); STEP(0x2000, 0x2000);
     CHECK(ST(0) == 1 && top[0x11] == 1 && top[0x9b] == 2, "cancel: back on the Shortcuts entry");
     {   float x = 0, y = 0; u8 *to = NULL;
-        FN(int, 0x1a6880, int, u16, float*, float*)(plate[0], 5, &x, &y);
-        FN(int, 0x1a66c0, int, u16, u8**, int)(plate[0], 5, &to, 0);
+        FN(int, 0x1a6720, int, u16, float*, float*)(plate[0], 5, &x, &y);
+        FN(int, 0x1a6560, int, u16, u8**, int)(plate[0], 5, &to, 0);
         p0 = node_text(plate[0], 5);
         CHECK(p0 && !strcmp(p0, "3") && x == 116 && y == 3 && to && *(u32*)(to + 0x298) == lv_align && to[0x2cc] == lv_font && *(u32*)(to + 0x2a8) == lv_col && *(float*)(to + 0x2b0) == lv_pitch,
               "plates as they were: level '%s' at (%.0f, %.0f), align %d font %d colour %08x", p0 ? p0 : "-", x, y, to ? *(int*)(to + 0x298) : -1, to ? to[0x2cc] : -1, to ? *(u32*)(to + 0x2a8) : 0);
-        CHECK(FN(int, 0x1a6670, int, u16)(plate[0], 4) && FN(int, 0x1a6670, int, u16)(plate[0], 5) && !FN(int, 0x1a6670, int, u16)(plate[3], 4) && FN(int, 0x1a6670, int, u16)(plate[3], 5), "LV and level showing again (no LV on the item)");
-        to = NULL; FN(int, 0x1a66c0, int, u16, u8**, int)(plate[3], 5, &to, 0);
+        CHECK(FN(int, 0x1a6510, int, u16)(plate[0], 4) && FN(int, 0x1a6510, int, u16)(plate[0], 5) && !FN(int, 0x1a6510, int, u16)(plate[3], 4) && FN(int, 0x1a6510, int, u16)(plate[3], 5), "LV and level showing again (no LV on the item)");
+        to = NULL; FN(int, 0x1a6560, int, u16, u8**, int)(plate[3], 5, &to, 0);
         CHECK(to && !strcmp(*(char**)(to + 0x30), "x3") && (s8)to[0x2b4] == 5 && *(u32*)(to + 0x298) == 2 && to[0x2cc] == lv_font && *(u32*)(to + 0x2a8) == lv_col,
               "the item's count as the game had it: '%s', offset %d, align %d", to ? *(char**)(to + 0x30) : "-", to ? (s8)to[0x2b4] : -1, to ? *(int*)(to + 0x298) : -1);
     }
-    CHECK(FN(int, 0x1a6060, int)(*(int*)(ph_hand + 0x18)) == 0, "the pane's hand is gone");
+    CHECK(FN(int, 0x1a5f00, int)(*(int*)(ph_hand + 0x18)) == 0, "the pane's hand is gone");
     STEP(0, 0); STEP(0x2000, 0x2000);
     CHECK(ST(0) == 0 && top[0x11] == 0 && *(s16*)(list + 0x8e) == 4 && list[0x9e] == 0xf, "cancel there: the game's own cancel (list action %d)", list[0x9e]);
     /* something else takes the screen while we hold it */
     list[0x9e] = 0; STEP(0, 0); STEP(0x40, 0x40); CHECK(ST(0) == 1, "on ours again");
     STEP(0, 0); STEP(0x4000, 0x4000); CHECK(ST(0) == 2, "in the pane again");
     top[0x9b] = 5; STEP(0, 0); p0 = node_text(plate[0], 5);
-    CHECK(ST(0) == 0 && top[0x11] == 0 && p0 && !strcmp(p0, "3") && FN(int, 0x1a6670, int, u16)(plate[0], 4), "the screen moved on: let go, plates put back");
+    CHECK(ST(0) == 0 && top[0x11] == 0 && p0 && !strcmp(p0, "3") && FN(int, 0x1a6510, int, u16)(plate[0], 4), "the screen moved on: let go, plates put back");
     top[0x9b] = 2;
     /* the screen's update under our wrapper: its answer (1 = "finished": the menu then leaves the screen) is passed
        on.  The game's function: state 3 with nothing left open goes to state 4 and answers 0; state 4 answers 1. */
@@ -2798,8 +2799,8 @@ static void t_sccamp(void) {
         CHECK((u32)r3 == 0 && st == 4 && (u32)r4 == 1, "the screen's own answer is returned: %d while open, %d when done", (int)r3, (int)r4);
     }
     /* the list goes: ours with it */
-    FN(void, 0x1a57f0, int)(lh);
-    CHECK(ST(2) == 0 && ST(3) == 0 && FN(int, 0x1a60e0, int)(it) == 8, "destroyed with the list");
+    FN(void, 0x1a5690, int)(lh);
+    CHECK(ST(2) == 0 && ST(3) == 0 && FN(int, 0x1a5f80, int)(it) == 8, "destroyed with the list");
     printf("t_sccamp done\n");
 }
 /* the command menu: cursor, lists, confirm button routing, casting through the game's own use gate */
@@ -2810,22 +2811,22 @@ extern int test_menu_step(u8 *cmd), test_confirm(u8 *pad, u8 *cmd); extern void 
 #define PAD_LEFT 0x80
 #define PAD_X 0x4000
 static int press(u32 b) {            /* one frame with these buttons newly pressed */
-    G(u32, 0x8f64930) = b; G(u32, 0x8f64934) = b; G(u32, 0x8f6493c) = b; G(u16, 0x8f6499c) = 0;
+    G(u32, 0x8f65030) = b; G(u32, 0x8f65034) = b; G(u32, 0x8f6503c) = b; G(u16, 0x8f6509c) = 0;
     int engine_sees_confirm = test_confirm(mgr + 0x58, cmd);
     test_menu_step(cmd);
     for (int i = 0; i < *(u16*)(cmd + 0x220); i++) test_plate_update(plate[i]);
     test_tick(gauge);
-    G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f6493c) = 0;
+    G(u32, 0x8f65030) = 0; G(u32, 0x8f65034) = 0; G(u32, 0x8f6503c) = 0;
     return engine_sees_confirm;
 }
 static void t_menu(void) {
     static const u16 ids[] = { 0x83 /*Fire*/, 0xbc /*Potion*/, 0x65 /*Strike Raid*/, 0x92 /*Cure*/, 0xbf /*Ether*/, 0xac /*Mega Flare*/ };
     world(6, ids);
     *(u32*)(mgr + 0xf8) = 1;                      /* pad enabled */
-    memcpy(RVA(0x1b2e40), "\x31\xc0\xc3", 3);       /* sound: none here */
+    memcpy(RVA(0x1b2c60), "\x31\xc0\xc3", 3);       /* sound: none here */
     *(u32*)(pl + 0x318) = 0x40;                   /* player idle: commands accepted */
     *(u16*)(cmd + 0x188) = 0x151; *(u16*)(pl + 0x354) = 0x151;
-    printf("  confirm mask %x\n", G(u16, 0x8221c0));
+    printf("  confirm mask %x\n", G(u16, 0x822dc0));
     int *st = test_menu_state(), *cur = test_menu_cur(), *sel = test_menu_sel();
     test_tick(gauge);
     CHECK(*st == 0 && *cur == 0, "starts on Attack");
@@ -2856,9 +2857,9 @@ static void t_menu(void) {
     /* context prompts: triangle answers them, the attack button attacks; counter prompts as in the game */
     {   extern int test_prompt_pad(u8 *pad); extern int menu_react_prompt(u8 *cmd);
         u8 *pd = mgr + 0x58;
-        #define BTN(b) (G(u32, 0x8f64930) = (b), G(u32, 0x8f64934) = (b), G(u32, 0x8f6493c) = (b), G(u16, 0x8f6499c) = 0)
+        #define BTN(b) (G(u32, 0x8f65030) = (b), G(u32, 0x8f65034) = (b), G(u32, 0x8f6503c) = (b), G(u16, 0x8f6509c) = 0)
         int counter = 0, talk = 0;
-        for (int id = 1; id < 0x23a && !(counter && talk); id++) { int c = G(u8, 0x814900 + id * 0x18 + 1); if (c == 6 && !counter) counter = id; if (c != 6 && c != 0 && id > 0x100 && !talk) talk = id; }
+        for (int id = 1; id < 0x23a && !(counter && talk); id++) { int c = G(u8, 0x815900 + id * 0x18 + 1); if (c == 6 && !counter) counter = id; if (c != 6 && c != 0 && id > 0x100 && !talk) talk = id; }
         CHECK(counter && talk, "a counter command (%x) and another (%x) in the game's table", counter, talk);
         static u64 pc, ac = 0x10001; u8 *PP = calloc(1, 0x70), *AP = calloc(1, 0x70);
         PP[0x30] = 5; *(u64**)(PP + 0x58) = &pc; *(u8**)(cmd + 0x298) = PP; *(u32*)(PP + 0x60) = 0x80000000;
@@ -2890,8 +2891,8 @@ static void t_menu(void) {
     /* the jump button (the menus' cancel button, circle): with a list open it closes the list and does not jump */
     {   extern int test_jump_pad(u8 *pad), test_link_close_pad(u8 *pad); extern int *test_link_close(void);
         u8 *pd = mgr + 0x58;
-        #define CIRCLE(on) (G(u32, 0x8f64930) = (on) ? 0x2000 : 0, G(u32, 0x8f64934) = (on) ? 0x2000 : 0, G(u32, 0x8f6493c) = (on) ? 0x2000 : 0, G(u16, 0x8f6499c) = 0)
-        G(u16, 0x8221c4) = 0x2000;
+        #define CIRCLE(on) (G(u32, 0x8f65030) = (on) ? 0x2000 : 0, G(u32, 0x8f65034) = (on) ? 0x2000 : 0, G(u32, 0x8f6503c) = (on) ? 0x2000 : 0, G(u16, 0x8f6509c) = 0)
+        G(u16, 0x822dc4) = 0x2000;
         CIRCLE(0); CHECK(test_jump_pad(pd) == 0, "not pressed: no jump");
         CIRCLE(1); CHECK(test_jump_pad(pd) != 0 && *st == 0, "main menu: the button jumps");
         CIRCLE(0); press(PAD_X); CHECK(*st == 1, "Magic list open");
@@ -2928,7 +2929,7 @@ static void t_menu(void) {
         CHECK(L[0][0x6c] == 1 && L[1][0x6c] == 2 && L[2][0x6c] == 0, "every entry moved one place: %d %d %d", L[0][0x6c], L[1][0x6c], L[2][0x6c]);
         CHECK(L[1][0x31] == 1 && (*(u32*)(L[1] + 0x60) & 4) && L[0][0x31] == 0 && L[2][0x31] == 0 && !(*(u32*)(L[2] + 0x60) & 4) && !(*(u32*)(L[0] + 0x60) & 4),
               "the move is over at once: states %d %d %d, entry 1 selected", L[0][0x31], L[1][0x31], L[2][0x31]);
-        CHECK(FN(int, 0x2047f0, u8*)(L[1]) == 1, "the game finds the entry under the cursor ready for input");
+        CHECK(FN(int, 0x204510, u8*)(L[1]) == 1, "the game finds the entry under the cursor ready for input");
         for (int i = 0; i < 3; i++) test_link_scroll(L[i], -1);
         CHECK(L[2][0x6c] == 2 && L[2][0x31] == 1 && (*(u32*)(L[2] + 0x60) & 4) && L[1][0x31] == 0 && !(*(u32*)(L[1] + 0x60) & 4), "and back: entry 2 selected again");
         *test_link_time() = 10.0f;                                          /* LinkCursorTime=10: the game's own animation */
@@ -2950,7 +2951,7 @@ static void t_menu(void) {
 typedef struct { s32 maxf; s16 spr; u16 key; u8 keyn[11]; u8 kind, blend, flag, sciss, z; } TAnim;
 typedef struct { float t; u8 c[4]; u32 interp; } TKey;
 static u8 *t_node_objs(int h, u16 node, int *count) {
-    u8 *lc = FN(u8*, 0x1a65c0, int)(h); u8 *nodes = *(u8**)(lc + 0x98);
+    u8 *lc = FN(u8*, 0x1a6460, int)(h); u8 *nodes = *(u8**)(lc + 0x98);
     for (int i = 0; i < *(s16*)(lc + 0xa8); i++) { u8 *nd = nodes + i * 0xb8; if (*(s16*)(nd + 0xb0) == (s16)node) { *count = (s8)nd[0xb2]; return **(u8***)(nd + 0xa8); } }
     return NULL;
 }
@@ -2960,13 +2961,13 @@ static void t_header(void) {
     if (!fn) { printf("  (skipped: BBS_PLATE_L2D not set)\n"); return; }
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); size_t n = fread(img, 1, 0x80000, f); fclose(f);
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    FN(void, 0x1a6d70, void)();
-    int d = FN(int, 0x1a6fb0, void*, const char*, int)(img, "bc01_00.l2d", 0);
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    FN(void, 0x1a6c10, void)();
+    int d = FN(int, 0x1a6e50, void*, const char*, int)(img, "bc01_00.l2d", 0);
     CHECK(d > 0, "register bc01_00 (%zu bytes): %d", n, d);
-    int file = FN(int, 0x1a64f0, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a64f0, const char*)("bc01_00:0");
-    G(u8, 0x8f88028) = 0;
-    int h = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 5, 0, NULL);          /* the window, battle skin */
+    int file = FN(int, 0x1a6390, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a6390, const char*)("bc01_00:0");
+    G(u8, 0x8f88728) = 0;
+    int h = FN(int, 0x1a4d60, int, u16, int, void*)(file, 5, 0, NULL);          /* the window, battle skin */
     u8 *c = calloc(1, 0x360); *(int*)(c + 0x98) = h;
     int n46 = 0, n47 = 0; u8 *o46 = t_node_objs(h, 0x46, &n46), *o47 = t_node_objs(h, 0x47, &n47);
     CHECK(o46 && o47 && n46 == 7 && n47 == 3, "window: %d + %d objects", n46, n47);
@@ -3002,7 +3003,7 @@ static void t_header(void) {
       *test_sc_page() = 0; test_hd_frame(c, 1);
       CHECK(kf->c[0] == 0x80 && kf->c[1] == 0x80 && kp->c[0] == 0x70 && kp->c[2] == 0x70, "set 1 again: grey"); }
     /* the game changes the control (the window appearing: label slides in and fades in, two colour keys) */
-    FN(int, 0x1a7520, int, int)(h, 1);
+    FN(int, 0x1a73c0, int, int)(h, 1);
     CHECK(REC(o47, 1) != lp && TAB(o47, 1) == mine, "control change: the game's record is back, our table still on the object");
     TAnim *g1 = REC(o47, 1);
     test_hd_frame(c, 1);
@@ -3014,17 +3015,17 @@ static void t_header(void) {
     test_hd_frame(c, 0);
     CHECK(REC(o47, 1) == g1 && TAB(o47, 1) == *(TKey**)(o47 + 0x38) && TAB(o47, 2) == *(TKey**)(o47 + 0x38) && TAB(o46, 6) == gk && REC(o46, 6)->spr == 33 && REC(o46, 6) != fr, "list gone: the game's records and tables are back");
     /* a control change while grey, then the list goes before our next pass: the stale table is still put right */
-    FN(int, 0x1a7520, int, int)(h, 0); test_hd_frame(c, 1); FN(int, 0x1a7520, int, int)(h, 2); test_hd_frame(c, 0);
+    FN(int, 0x1a73c0, int, int)(h, 0); test_hd_frame(c, 1); FN(int, 0x1a73c0, int, int)(h, 2); test_hd_frame(c, 0);
     int clean = 1; for (int i = 0; i < n46; i++) clean &= TAB(o46, i) == gk; for (int i = 0; i < n47; i++) clean &= TAB(o47, i) == *(TKey**)(o47 + 0x38);
     CHECK(clean, "no object keeps our table");
     /* field skin: six objects, the frame is the last, alpha a0 */
-    FN(int, 0x1a7520, int, int)(h, 0);
-    FN(int, 0x1a7fb0, int, u16, int, u16, int)(h, 0x46, sq, 0x259, 0);
+    FN(int, 0x1a73c0, int, int)(h, 0);
+    FN(int, 0x1a7e50, int, u16, int, u16, int)(h, 0x46, sq, 0x259, 0);
     o46 = t_node_objs(h, 0x46, &n46); test_hd_frame(c, 1);
     fr = REC(o46, 5); k = mine + fr->key;
     CHECK(n46 == 6 && fr->spr == 33 && TAB(o46, 5) == mine && k[1].c[0] == 0x80 && k[1].c[2] == 0x80 && k[1].c[3] == 0xa0, "field skin: frame grey, alpha %02x", k[1].c[3]);
     /* a dead window is left alone */
-    FN(void, 0x1a57f0, int)(h); test_hd_frame(c, 1); test_hd_frame(c, 0);
+    FN(void, 0x1a5690, int)(h); test_hd_frame(c, 1); test_hd_frame(c, 0);
     *(int*)(c + 0x98) = 0; test_hd_frame(c, 1);
     #undef REC
     #undef TAB
@@ -3079,48 +3080,48 @@ static void t_listhdr(void) {
     if (!fn) { printf("  (skipped: BBS_PLATE_L2D not set)\n"); return; }
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); fread(img, 1, 0x80000, f); fclose(f);
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    FN(void, 0x1a6d70, void)();
-    CHECK(FN(int, 0x1a6fb0, void*, const char*, int)(img, "bc01_00.l2d", 0) > 0, "register bc01_00");
-    G(int, 0x10f9ed48) = FN(int, 0x1a64f0, const char*)("bc01_00.l2d"); G(int, 0x10f9ed4c) = FN(int, 0x1a64f0, const char*)("bc01_00:0");
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    FN(void, 0x1a6c10, void)();
+    CHECK(FN(int, 0x1a6e50, void*, const char*, int)(img, "bc01_00.l2d", 0) > 0, "register bc01_00");
+    G(int, 0x10f9f448) = FN(int, 0x1a6390, const char*)("bc01_00.l2d"); G(int, 0x10f9f44c) = FN(int, 0x1a6390, const char*)("bc01_00:0");
     { extern int *test_list_col(void); *test_list_col() = 0; }       /* the game's battle / field looks first; the lists' own colours: t_colours */
     test_set_hd_art(0); test_hdr_frame(0, 1, 20.2f, 203.9f);
     CHECK(*test_hdr() == 0, "no words in the texture: no header is made");
     test_set_hd_art(1); test_hdr_frame(0, 1, 20.2f, 203.9f);
     int h = *test_hdr();
-    CHECK(h > 0 && FN(int, 0x1a6060, int)(h) == 1, "header instance %d, shown", h);
-    CHECK(FN(int, 0x1a6670, int, u16)(h, 0x46) == 0 && FN(int, 0x1a6670, int, u16)(h, 0x47) != 0, "gauge node off, label node on");
+    CHECK(h > 0 && FN(int, 0x1a5f00, int)(h) == 1, "header instance %d, shown", h);
+    CHECK(FN(int, 0x1a6510, int, u16)(h, 0x46) == 0 && FN(int, 0x1a6510, int, u16)(h, 0x47) != 0, "gauge node off, label node on");
     { /* the Skills entry's icon: the hat's sprite of this plate only is pointed at the emblem */
       extern void test_set_emb_art(int); extern int test_skills_icon_plate(void);
       test_set_emb_art(1);
-      *(u8*)RVA(0x1aa620) = 0xC3;                         /* text objects need the font system */
-      int p1 = test_skills_icon_plate(), p2 = FN(int, 0x1a4ec0, int, u16, int, void*)(G(int, 0x10f9ed48), 3, 3, NULL);
-      Pair *e = NULL; int ce = FN(int, 0x1a6980, int, u16, int, Pair**)(p1, 0x5a, 1, &e);
+      *(u8*)RVA(0x1aa440) = 0xC3;                         /* text objects need the font system */
+      int p1 = test_skills_icon_plate(), p2 = FN(int, 0x1a4d60, int, u16, int, void*)(G(int, 0x10f9f448), 3, 3, NULL);
+      Pair *e = NULL; int ce = FN(int, 0x1a6820, int, u16, int, Pair**)(p1, 0x5a, 1, &e);
       CHECK(p1 > 0 && ce == 1 && e && e[0].p->u0 == HDART_EMB_U && e[0].p->v0 == HDART_EMB_V + 3 && e[0].p->u1 == HDART_EMB_U + HDART_EMB_UW
             && e[0].g->x0 == -5 && e[0].g->y0 == -7 && e[0].g->x1 == 7 && e[0].g->y1 == 7 && e[0].p->col[0] == 0x80808080,
             "Skills icon: the emblem, uv (%d,%d), %d..%d", e ? e[0].p->u0 : 0, e ? e[0].p->v0 : 0, e ? e[0].g->x0 : 0, e ? e[0].g->x1 : 0);
       /* and it is what the game draws for the icon node */
-      { draw_stubs(); FN(int, 0x1a5b30, int, int)(p1, 1);
-        u8 *lc = FN(u8*, 0x1a65c0, int)(p1), *nd = NULL, *nds = *(u8**)(lc + 0x98);
+      { draw_stubs(); FN(int, 0x1a59d0, int, int)(p1, 1);
+        u8 *lc = FN(u8*, 0x1a6460, int)(p1), *nd = NULL, *nds = *(u8**)(lc + 0x98);
         for (int i = 0; i < *(s16*)(lc + 0xa8); i++) if (*(s16*)(nds + i * 0xb8 + 0xb0) == 0x5a) nd = nds + i * 0xb8;
         int ok = 0;
-        if (nd) { G(u8, 0x8f88020 + (s8)nd[0x86]) = 1; G(u8, 0x8f8802c) = 1; g_vcalls = 0; memset(g_vtx, 0, sizeof g_vtx);
-            FN(void, 0x1aaea0, u8*, int)(nd, 0);
+        if (nd) { G(u8, 0x8f88720 + (s8)nd[0x86]) = 1; G(u8, 0x8f8872c) = 1; g_vcalls = 0; memset(g_vtx, 0, sizeof g_vtx);
+            FN(void, 0x1aacc0, u8*, int)(nd, 0);
             ok = g_vcalls == 1 && g_vn[0] == 4 && g_vtx[0][4] == HDART_EMB_U && g_vtx[0][5] == HDART_EMB_V + 3; }
         CHECK(ok, "Skills icon: the node draws the emblem (%d draws, uv %.0f,%.0f)", g_vcalls, g_vtx[0][4], g_vtx[0][5]); }
       printf("  Skills icon: plate %d, uv (%d,%d) %d x %d\n", p1, e ? e[0].p->u0 : -1, e ? e[0].p->v0 : -1, e ? e[0].g->x1 - e[0].g->x0 : 0, e ? e[0].g->y1 - e[0].g->y0 : 0);
       if (p2 > 0) {
-          FN(int, 0x1a7fb0, int, u16, int, u16, int)(p2, 0x5a, G(int, 0x10f9ed4c), 0x21, 3);
-          Pair *o = NULL; int co = FN(int, 0x1a6980, int, u16, int, Pair**)(p2, 0x5a, 1, &o);
+          FN(int, 0x1a7e50, int, u16, int, u16, int)(p2, 0x5a, G(int, 0x10f9f44c), 0x21, 3);
+          Pair *o = NULL; int co = FN(int, 0x1a6820, int, u16, int, Pair**)(p2, 0x5a, 1, &o);
           CHECK(co <= 0 || (o && o[0].p->u0 == 26 && o[0].p->v0 == 98), "another plate with the hat keeps the hat (%d)", co > 0 && o ? o[0].p->u0 : -1);
       }
       test_set_emb_art(0); }
-    Pair *q = NULL; int c = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x47, 2, &q);
+    Pair *q = NULL; int c = FN(int, 0x1a6820, int, u16, int, Pair**)(h, 0x47, 2, &q);
     CHECK(c == 1 && q && q[0].g->x0 == 0 && q[0].g->y0 == -1 && q[0].g->x1 == HDART_MAGIC_W / 2 && q[0].g->y1 == 9 && q[0].p->u0 == HDART_MAGIC_U && q[0].p->v0 == HDART_MAGIC_V && q[0].p->u1 == HDART_MAGIC_U + HDART_MAGIC_W && q[0].p->v1 == HDART_MAGIC_V + 20 && q[0].p->col[0] == 0x80808080,
           "letters: MAGIC, %d x %d from uv (%d,%d)", q ? q[0].g->x1 : 0, q ? q[0].g->y1 - q[0].g->y0 : 0, q ? q[0].p->u0 : 0, q ? q[0].p->v0 : 0);
-    float x = 0, y = 0; FN(int, 0x1a6290, int, float*, float*)(h, &x, &y);
+    float x = 0, y = 0; FN(int, 0x1a6130, int, float*, float*)(h, &x, &y);
     CHECK(x > 20.19f && x < 20.21f && y > 203.89f && y < 203.91f, "placed at (%.2f, %.2f)", x, y);
-    { Pair *pq = NULL; int pc = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x47, 1, &pq);
+    { Pair *pq = NULL; int pc = FN(int, 0x1a6820, int, u16, int, Pair**)(h, 0x47, 1, &pq);
       CHECK(pc == 3 && pq && pq[0].g->x0 == -2 && pq[1].g->x1 == 76 + 24 && pq[2].g->x0 == 100 && pq[2].g->x1 == 90 + 24 && pq[1].p->u0 == 116, "plate 24 longer: stretch to %d, right end %d..%d", pq ? pq[1].g->x1 : 0, pq ? pq[2].g->x0 : 0, pq ? pq[2].g->x1 : 0);
       test_hdr_frame(0, 1, 20.2f, 203.9f); test_hdr_frame(0, 1, 20.2f, 203.9f);
       CHECK(pq[2].g->x1 == 90 + 24, "and not longer with every frame (%d)", pq[2].g->x1); }
@@ -3131,26 +3132,26 @@ static void t_listhdr(void) {
     test_hdr_frame(2, 1, 20.2f, 218.9f);
     CHECK(q[0].p->v0 == HDART_DLINK_V && q[0].g->x1 == HDART_DLINK_W / 2 && q[0].p->u1 == HDART_DLINK_U + HDART_DLINK_W, "D-LINK (%d wide)", q[0].g->x1);
     /* the game's own label of a second window is untouched */
-    { G(u8, 0x8f88028) = 0; int h2 = FN(int, 0x1a4ec0, int, u16, int, void*)(G(int, 0x10f9ed48), 5, 0, NULL);
-      FN(int, 0x1a83f0, int, u16, int)(h2, 0x47, 2); Pair *q2 = NULL; FN(int, 0x1a6980, int, u16, int, Pair**)(h2, 0x47, 2, &q2);
+    { G(u8, 0x8f88728) = 0; int h2 = FN(int, 0x1a4d60, int, u16, int, void*)(G(int, 0x10f9f448), 5, 0, NULL);
+      FN(int, 0x1a8290, int, u16, int)(h2, 0x47, 2); Pair *q2 = NULL; FN(int, 0x1a6820, int, u16, int, Pair**)(h2, 0x47, 2, &q2);
       CHECK(q2 && q2[0].p->u0 == 8 && q2[0].p->v0 == 294 && (q2[0].g->x1 == 82 || q2[0].g->x1 == 73), "the game's COMMANDS letters are as they were (%d wide)", q2 ? q2[0].g->x1 : 0);
-      FN(int, 0x1a83f0, int, u16, int)(h2, 0x47, 1); Pair *p2 = NULL; FN(int, 0x1a6980, int, u16, int, Pair**)(h2, 0x47, 1, &p2);
+      FN(int, 0x1a8290, int, u16, int)(h2, 0x47, 1); Pair *p2 = NULL; FN(int, 0x1a6820, int, u16, int, Pair**)(h2, 0x47, 1, &p2);
       CHECK(p2 && p2[1].g->x1 == 76 && p2[2].g->x1 == 90, "and its plate is as long as it was (%d)", p2 ? p2[2].g->x1 : 0);
-      FN(void, 0x1a57f0, int)(h2); }
+      FN(void, 0x1a5690, int)(h2); }
     test_hdr_frame(-1, 1, 0, 0);
-    CHECK(*test_hdr() == h && FN(int, 0x1a6060, int)(h) == 0, "no list open: hidden");
+    CHECK(*test_hdr() == h && FN(int, 0x1a5f00, int)(h) == 0, "no list open: hidden");
     /* field: a new instance with the game's field label */
     test_hdr_frame(0, 0, 20.2f, 203.9f);
     int hf = *test_hdr();
-    CHECK(hf > 0 && FN(int, 0x1a60e0, int)(h) == 8, "field: the battle instance is gone, a new one made (%d)", hf);
+    CHECK(hf > 0 && FN(int, 0x1a5f80, int)(h) == 8, "field: the battle instance is gone, a new one made (%d)", hf);
     { int n47 = 0; u8 *o = t_node_objs(hf, 0x47, &n47); TAnim *pl = *(TAnim**)(o + 0x50 + 0x30), *lt = *(TAnim**)(o + 0xa0 + 0x30);
       TKey *k = *(TKey**)(o + 0x50 + 0x38) + pl->key + 1, *k2 = *(TKey**)(o + 0xa0 + 0x38) + lt->key + 1;
       CHECK(n47 == 3 && pl->spr == 34 && k->c[0] == 0x00 && k->c[1] == 0x5f && k->c[2] == 0xf0 && lt->spr == 35 && k2->c[1] == 0xff, "field label: plate %02x%02x%02x, letters %02x%02x%02x", k->c[0], k->c[1], k->c[2], k2->c[0], k2->c[1], k2->c[2]); }
-    q = NULL; c = FN(int, 0x1a6980, int, u16, int, Pair**)(hf, 0x47, 2, &q);
-    CHECK(c == 1 && q && q[0].p->v0 == HDART_MAGIC_V && FN(int, 0x1a6670, int, u16)(hf, 0x46) == 0, "field: MAGIC again, gauge node off");
+    q = NULL; c = FN(int, 0x1a6820, int, u16, int, Pair**)(hf, 0x47, 2, &q);
+    CHECK(c == 1 && q && q[0].p->v0 == HDART_MAGIC_V && FN(int, 0x1a6510, int, u16)(hf, 0x46) == 0, "field: MAGIC again, gauge node off");
     /* destroyed by the game (room change): made again */
-    FN(void, 0x1a57f0, int)(hf); test_hdr_frame(1, 0, 20.2f, 203.9f);
-    CHECK(*test_hdr() > 0 && FN(int, 0x1a60e0, int)(*test_hdr()) != 8, "made again after the instance was destroyed");
+    FN(void, 0x1a5690, int)(hf); test_hdr_frame(1, 0, 20.2f, 203.9f);
+    CHECK(*test_hdr() > 0 && FN(int, 0x1a5f80, int)(*test_hdr()) != 8, "made again after the instance was destroyed");
     printf("t_listhdr done\n");
 }
 /* The lists' own colours (menu.c tint_node / row_colours / hdr_frame), on the real 2D-layout runtime with the
@@ -3160,7 +3161,7 @@ extern void *test_obj_anim(int h, u16 node, int obj, void **keys); extern int te
 extern void *test_sc_keys(void), *test_sc_anims(void); extern void test_hdr_frame(int kind, int battle, float x, float y); extern int *test_hdr(void); extern void test_set_hd_art(int on);
 extern u32 *test_col_plate(void), *test_col_title(void); extern int *test_list_col(void); extern int test_twins(void);
 static u8 *t_node_ctl(int h, u16 node) {
-    u8 *lc = FN(u8*, 0x1a65c0, int)(h); if (!lc) return NULL;
+    u8 *lc = FN(u8*, 0x1a6460, int)(h); if (!lc) return NULL;
     u8 *nodes = *(u8**)(lc + 0x98);
     for (int i = 0; i < *(s16*)(lc + 0xa8); i++) if (*(s16*)(nodes + i * 0xb8 + 0xb0) == (s16)node) return nodes + i * 0xb8;
     return NULL;
@@ -3178,9 +3179,9 @@ static u32 t_obj_col(int h, u16 node, int obj, int *spr, int *ours, int *blend) 
 /* the colour the game's draw sends for the first sprite of `quads` quads of this node (vertex colour word) */
 static u32 t_drawn_col(int h, u16 node, int quads) {
     u8 *nd = t_node_ctl(h, node); if (!nd) return 0;
-    G(u8, 0x8f88020 + (s8)nd[0x86]) = 1; G(u8, 0x8f8802c) = 1;
+    G(u8, 0x8f88720 + (s8)nd[0x86]) = 1; G(u8, 0x8f8872c) = 1;
     g_vcalls = 0; memset(g_vtx, 0, sizeof g_vtx);
-    FN(void, 0x1aaea0, u8*, int)(nd, 0);
+    FN(void, 0x1aacc0, u8*, int)(nd, 0);
     for (int i = 0; i < g_vcalls && i < 8; i++) if (g_vn[i] == quads * 4) { u32 c; memcpy(&c, &g_vtx[i][(quads - 1) * 4 * 7 + 3], 4); return c; }
     return 0;
 }
@@ -3189,18 +3190,18 @@ static void t_colours(void) {
     if (!fn) { printf("  (skipped: BBS_PLATE_L2D not set)\n"); return; }
     FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
     u8 *img = memalign(16, 0x80000); fread(img, 1, 0x80000, f); fclose(f);
-    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
-    *(u8*)RVA(0x1aa620) = 0xC3;
-    FN(void, 0x1a6d70, void)();
-    CHECK(FN(int, 0x1a6fb0, void*, const char*, int)(img, "bc01_00.l2d", 0) > 0, "register bc01_00");
-    int file = FN(int, 0x1a64f0, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a64f0, const char*)("bc01_00:0");
-    G(int, 0x10f9ed48) = file; G(int, 0x10f9ed4c) = sq;
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    *(u8*)RVA(0x1aa440) = 0xC3;
+    FN(void, 0x1a6c10, void)();
+    CHECK(FN(int, 0x1a6e50, void*, const char*, int)(img, "bc01_00.l2d", 0) > 0, "register bc01_00");
+    int file = FN(int, 0x1a6390, const char*)("bc01_00.l2d"), sq = FN(int, 0x1a6390, const char*)("bc01_00:0");
+    G(int, 0x10f9f448) = file; G(int, 0x10f9f44c) = sq;
     draw_stubs();
     CHECK(*test_list_col() == 1 && test_col_plate()[0] == 0x005ff0 && test_col_plate()[1] == 0x00c832 && test_col_plate()[2] == 0x0096fa, "defaults: on; Magic 005ff0, Items 00c832, D-Link 0096fa");
     int spr = 0, ours = 0, blend = 0; u32 c;
     /* --- a deck plate as the game has it in battle --- */
-    G(u8, 0x8f88028) = 0;
-    int h = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 3, 3, NULL);
+    G(u8, 0x8f88728) = 0;
+    int h = FN(int, 0x1a4d60, int, u16, int, void*)(file, 3, 3, NULL);
     CHECK(h > 0 && test_node_objs(h, 0x5d) == 14, "a deck plate, battle body (%d objects)", test_node_objs(h, 0x5d));
     c = t_obj_col(h, 0x5d, 3, &spr, &ours, NULL);
     CHECK(spr == 0 && c == 0xe1dc00a0 && !ours, "the game's battle body: yellow %08x", c);
@@ -3227,7 +3228,7 @@ static void t_colours(void) {
     CHECK(t_obj_col(h, 0x5d, 1, NULL, &ours, NULL) == 0x005ff0a0 && !ours, "and back");
     /* reloading (control 4): body in the list's colour, the glow twice as bright; the yellow fill is the game's */
     test_row_colours(h, 1);
-    FN(int, 0x1a7520, int, int)(h, 4);
+    FN(int, 0x1a73c0, int, int)(h, 4);
     { void *kt = NULL; TAnim *a = test_obj_anim(h, 0x5d, 1, &kt);
       CHECK(a && a->spr == 0 && kt == test_sc_keys() && !(a >= (TAnim*)test_sc_anims() && 0), "a control change by the game: its record, our key table still on the object"); }
     test_row_colours(h, 1);
@@ -3240,14 +3241,14 @@ static void t_colours(void) {
     test_row_colours(h, 0);
     CHECK(t_obj_col(h, 0x5d, 6, &spr, &ours, NULL) == 0x00c0ffff && !ours, "control 4, Magic: the game's own glow");
     /* control 3 in the field body: the inside is black and stays black */
-    FN(int, 0x1a7520, int, int)(h, 3); test_row_colours(h, 1);
+    FN(int, 0x1a73c0, int, int)(h, 3); test_row_colours(h, 1);
     c = t_obj_col(h, 0x5d, 6, &spr, &ours, NULL);
     CHECK(spr == 2 && (c >> 8) == 0 && !ours, "control 3: the black inside is left alone (%08x)", c);
     /* the row under the cursor: the field body's inside sprite carries the gradient, in the list's colour */
     { extern void test_row_colours_m(int h, int kind, int mode);
       Pair *fq = NULL;
       test_row_colours_m(h, 1, 2);
-      int fn_ = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x5d, 6, &fq);
+      int fn_ = FN(int, 0x1a6820, int, u16, int, Pair**)(h, 0x5d, 6, &fq);
       c = t_obj_col(h, 0x5d, 6, &spr, &ours, &blend);
       CHECK(spr == 2 && c == 0x00c832ff && ours && blend == 0, "cursor row, Items: the inside is the list's colour (%08x)", c);
       CHECK(fn_ == 3 && fq && fq[0].p->u0 == 4 && fq[0].p->v0 == 32 && fq[2].p->u1 == 29 && fq[0].g->x0 == 2 && fq[2].g->x1 == 107 && fq[0].p->col[0] == 0xff808080,
@@ -3266,7 +3267,7 @@ static void t_colours(void) {
       CHECK(fq[0].p->u0 == 32 && (t_obj_col(h, 0x5d, 6, NULL, &ours, NULL) >> 8) == 0 && !ours, "cursor on a row that cannot be used: no gradient");
       test_row_colours_m(h, 1, 0); }
     /* the game re-skins the plate on entering battle: the next pass has the field body back */
-    FN(int, 0x1a7fb0, int, u16, int, u16, int)(h, 0x5d, sq, 0xf, 3);
+    FN(int, 0x1a7e50, int, u16, int, u16, int)(h, 0x5d, sq, 0xf, 3);
     CHECK(test_node_objs(h, 0x5d) == 14, "the game puts the battle body on");
     test_row_colours(h, 1);
     CHECK(test_node_objs(h, 0x5d) == 7 && t_obj_col(h, 0x5d, 1, NULL, &ours, NULL) == 0x00c832a0, "next pass: field body, green");
@@ -3275,16 +3276,16 @@ static void t_colours(void) {
     c = t_obj_col(h, 0x5d, 1, NULL, &ours, NULL);
     CHECK(c == 0x005ff0a0 && !ours, "no rules: the game's record and key table again (%08x)", c);
     /* a second plate is not touched by the first one's colours */
-    { G(u8, 0x8f88028) = 0; int h2 = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 3, 3, NULL);
+    { G(u8, 0x8f88728) = 0; int h2 = FN(int, 0x1a4d60, int, u16, int, void*)(file, 3, 3, NULL);
       test_row_colours(h, 1);
       CHECK(test_node_objs(h2, 0x5d) == 14 && t_obj_col(h2, 0x5d, 3, NULL, &ours, NULL) == 0xe1dc00a0 && !ours, "another plate keeps the game's look");
-      FN(void, 0x1a57f0, int)(h2); }
+      FN(void, 0x1a5690, int)(h2); }
     int tw = test_twins();
-    for (int i = 0; i < 50; i++) { test_row_colours(h, i & 1); FN(int, 0x1a7520, int, int)(h, 3 + (i & 1)); }
+    for (int i = 0; i < 50; i++) { test_row_colours(h, i & 1); FN(int, 0x1a73c0, int, int)(h, 3 + (i & 1)); }
     CHECK(test_twins() == tw || test_twins() <= tw + 2, "twins are made once per record and colour (%d, then %d)", tw, test_twins());
     /* --- a D-Link plate --- */
-    G(u8, 0x8f88028) = 0;
-    int hl = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 0xa, 3, NULL);
+    G(u8, 0x8f88728) = 0;
+    int hl = FN(int, 0x1a4d60, int, u16, int, void*)(file, 0xa, 3, NULL);
     c = t_obj_col(hl, 1, 2, &spr, &ours, NULL);
     CHECK(hl > 0 && spr == 63 && c == 0x3c3c3ca0, "a D-Link plate not under the cursor: the game darkens its frame (%08x)", c);
     u32 dd = t_drawn_col(hl, 1, 3);
@@ -3298,10 +3299,10 @@ static void t_colours(void) {
     test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
     u32 dl = t_drawn_col(hl, 1, 3);
     CHECK(dl != dd && dl != 0, "drawn brighter (%08x, was %08x)", dl, dd);
-    FN(int, 0x1a7520, int, int)(hl, 0); test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
+    FN(int, 0x1a73c0, int, int)(hl, 0); test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
     c = t_obj_col(hl, 1, 2, &spr, &ours, NULL);
     CHECK(spr == 63 && c == 0xffffffff && !ours, "under the cursor (control 0): the game's record, no colour key, untouched");
-    FN(int, 0x1a7520, int, int)(hl, 5); test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
+    FN(int, 0x1a73c0, int, int)(hl, 5); test_tint_node(hl, 1, 63, 0x3c3c3c, 0x808080);
     CHECK(t_obj_col(hl, 1, 2, NULL, &ours, NULL) == 0xe1dc00ff && !ours, "control 5 (another colour of the game's): untouched");
     /* --- the header --- */
     test_set_hd_art(1);
@@ -3317,11 +3318,11 @@ static void t_colours(void) {
     test_hdr_frame(2, 1, 20.2f, 203.9f);
     pc = t_obj_col(hh, 0x47, 1, NULL, &ours, NULL); lc = t_obj_col(hh, 0x47, 2, NULL, NULL, NULL);
     CHECK(pc == 0x0096faff && ours && lc == 0xffffffff, "D-LINK header: plate %08x, letters %08x", pc, lc);
-    { Pair *q = NULL; int n = FN(int, 0x1a6980, int, u16, int, Pair**)(hh, 0x47, 2, &q);
+    { Pair *q = NULL; int n = FN(int, 0x1a6820, int, u16, int, Pair**)(hh, 0x47, 2, &q);
       CHECK(n == 1 && q && q[0].p->v0 == HDART_DLINK_V, "and it still carries its word"); }
     /* the game's own window of the same layout is not touched */
-    { G(u8, 0x8f88028) = 0; int h2 = FN(int, 0x1a4ec0, int, u16, int, void*)(file, 5, 0, NULL);
-      CHECK(t_obj_col(h2, 0x47, 1, NULL, &ours, NULL) == 0xefaf03ff && !ours, "the game's COMMANDS label keeps its battle yellow"); FN(void, 0x1a57f0, int)(h2); }
+    { G(u8, 0x8f88728) = 0; int h2 = FN(int, 0x1a4d60, int, u16, int, void*)(file, 5, 0, NULL);
+      CHECK(t_obj_col(h2, 0x47, 1, NULL, &ours, NULL) == 0xefaf03ff && !ours, "the game's COMMANDS label keeps its battle yellow"); FN(void, 0x1a5690, int)(h2); }
     /* ListColors = 0: as before */
     *test_list_col() = 0; test_hdr_frame(2, 1, 20.2f, 203.9f);
     CHECK(*test_hdr() != hh && t_obj_col(*test_hdr(), 0x47, 1, NULL, &ours, NULL) == 0xefaf03ff && !ours, "ListColors = 0: the game's battle label");

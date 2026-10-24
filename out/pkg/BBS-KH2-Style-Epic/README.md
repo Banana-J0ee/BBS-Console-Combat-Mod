@@ -22,7 +22,7 @@ One mod, installed with the OpenKH Mod Manager.
 
 ## Requirements
 
-- Steam version of KINGDOM HEARTS HD 1.5+2.5 ReMIX.
+- Epic Games Store version of KINGDOM HEARTS HD 1.5+2.5 ReMIX (the Steam version has its own build of this mod).
 - OpenKH Mod Manager set up for the PC version **with the mod loader (Panacea)**. The mod is a DLL that the mod
   loader starts together with the game; it cannot be patched into the game's package files, so the Mod Manager's
   "patch the game files" way of installing mods will not load it.
@@ -30,7 +30,7 @@ One mod, installed with the OpenKH Mod Manager.
 ## Install
 
 1. In the Mod Manager choose **Birth by Sleep** as the game.
-2. *Mods > Install a New Mod > Select and install Mod Archive*, pick `BBS-KH2-Style.zip`.
+2. *Mods > Install a New Mod > Select and install Mod Archive*, pick `BBS-KH2-Style-Epic.zip`.
 3. Tick the mod, then *Mod Loader > Build and Run* (or *Build Only* and start the game yourself).
 
 To remove it, untick it and build again.

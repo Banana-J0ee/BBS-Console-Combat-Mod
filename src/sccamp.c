@@ -26,11 +26,11 @@
 extern char g_ini[MAX_PATH + 32];
 extern int g_debug;
 
-#define CAMP        G(u8*, 0x10fb51f0)
-#define VT_TOP_UPDATE   (0x674c70 + 0x08)
-#define FN_TOP_UPDATE   0x402fa0
-#define VT_LIST_INPUT   (0x674d40 + 0x40)
-#define FN_LIST_INPUT   0x404490
+#define CAMP        G(u8*, 0x10fb58f0)
+#define VT_TOP_UPDATE   (0x674cc0 + 0x08)
+#define FN_TOP_UPDATE   0x402b70
+#define VT_LIST_INPUT   (0x674d90 + 0x40)
+#define FN_LIST_INPUT   0x404060
 #define SEQ_PLATE   0x177           /* "menu_act_plate": the fourth entry's plate, with its text */
 #define N_ROOT      0xb
 #define ITEM_X      (-230.0f)
@@ -39,20 +39,20 @@ extern int g_debug;
 #define N_LV        4               /* nodes of a slot plate (layout 0x6f) */
 #define N_LEVEL     5
 
-#define L2D_Alive(h)            ((h) > 0 && FN(int, 0x1a60e0, int)(h) != 8)
-#define L2D_Show(h, on)         FN(int, 0x1a5b30, int, int)(h, on)
-#define L2D_IsVisible(h)        FN(int, 0x1a6060, int)(h)
-#define L2D_GetControl(h)       FN(int, 0x1a60e0, int)(h)
-#define L2D_SetControl(h, c)    FN(int, 0x1a7520, int, int)(h, c)
-#define L2D_SetPos(h, x, y)     FN(int, 0x1a7660, int, float, float)(h, x, y)
-#define L2D_ShowNode(h, n, on)  FN(int, 0x1a5b80, int, u16, int)(h, n, on)
-#define L2D_IsNodeVisible(h, n) FN(int, 0x1a6670, int, u16)(h, n)
-#define L2D_GetNodeControl(h, n) FN(int, 0x1a6790, int, u16)(h, n)
-#define L2D_SetNodeControl(h, n, c) FN(int, 0x1a7db0, int, u16, int)(h, n, c)
-#define L2D_SetNodeText(h, n, s) FN(int, 0x1a8330, int, u16, const char*, int, void*)(h, n, s, 0, NULL)
-#define SE(id)                  FN(u64, 0x1b2e40, int, float, u64, u32, u32)(id, G(float, 0x6420b8), 0, 4, 0)
-#define HELP_TEXT(s)            FN(void, 0x417770, u8*, const char*, void*)(CAMP, s, NULL)
-#define HELP_MSG(id)            FN(void, 0x417710, u8*, int, void*)(CAMP, id, NULL)
+#define L2D_Alive(h)            ((h) > 0 && FN(int, 0x1a5f80, int)(h) != 8)
+#define L2D_Show(h, on)         FN(int, 0x1a59d0, int, int)(h, on)
+#define L2D_IsVisible(h)        FN(int, 0x1a5f00, int)(h)
+#define L2D_GetControl(h)       FN(int, 0x1a5f80, int)(h)
+#define L2D_SetControl(h, c)    FN(int, 0x1a73c0, int, int)(h, c)
+#define L2D_SetPos(h, x, y)     FN(int, 0x1a7500, int, float, float)(h, x, y)
+#define L2D_ShowNode(h, n, on)  FN(int, 0x1a5a20, int, u16, int)(h, n, on)
+#define L2D_IsNodeVisible(h, n) FN(int, 0x1a6510, int, u16)(h, n)
+#define L2D_GetNodeControl(h, n) FN(int, 0x1a6630, int, u16)(h, n)
+#define L2D_SetNodeControl(h, n, c) FN(int, 0x1a7c50, int, u16, int)(h, n, c)
+#define L2D_SetNodeText(h, n, s) FN(int, 0x1a81d0, int, u16, const char*, int, void*)(h, n, s, 0, NULL)
+#define SE(id)                  FN(u64, 0x1b2c60, int, float, u64, u32, u32)(id, G(float, 0x6421e8), 0, 4, 0)
+#define HELP_TEXT(s)            FN(void, 0x417160, u8*, const char*, void*)(CAMP, s, NULL)
+#define HELP_MSG(id)            FN(void, 0x417100, u8*, int, void*)(CAMP, id, NULL)
 
 static int  c_on = 1;
 static char c_title[32] = "Shortcuts";
@@ -67,14 +67,14 @@ static int (MSABI *o_list_input)(u8 *self);
 
 static void plates_forget(void);
 static void item_drop(void) {
-    if (L2D_Alive(g_item)) { FN(int, 0x1a5a50, int, int)(g_list_h, g_item); l2d_destroy(g_item); }
+    if (L2D_Alive(g_item)) { FN(int, 0x1a58f0, int, int)(g_list_h, g_item); l2d_destroy(g_item); }
     g_item = 0; g_list_h = 0; g_mode = M_OFF;
     plates_forget();
 }
 void sccamp_on_destroy(int h) { if (h == g_list_h && h > 0) item_drop(); }
 
 static u8 *pane(void) { return g_top ? *(u8**)(g_top + 0xc0) : NULL; }
-static int slots(void) { int n = FN(s16, 0x41dd20, void)(); return n < 1 ? 1 : n > 8 ? 8 : n; }   /* deck slots the character has */
+static int slots(void) { int n = FN(s16, 0x41d710, void)(); return n < 1 ? 1 : n > 8 ? 8 : n; }   /* deck slots the character has */
 /* The plates of the Battle Commands pane while we are in it: where a plate has "LV" and the command's level, it
    shows the buttons of the slot's shortcuts.  The level's text node (5; text table entry 65: small yellow digits
    from the top left of (116, 3)) is given the settings of the button text of the game's command plates (font index
@@ -98,7 +98,7 @@ static void level_text(int h, const char *text, u32 colour, int align, int size,
     fp.text = text; fp.colour = colour; fp.pitch = 8; fp.align = (u8)align; fp.size = (u8)size; fp.kind = 1;
     if (off) memcpy(fp.space, off, 4);
     fp.flags = 0x01 | 0x02 | 0x04 | 0x08 | 0x20 | 0x40;
-    FN(int, 0x1a7cb0, int, u16, FontParam*, int)(h, N_LEVEL, &fp, 0);
+    FN(int, 0x1a7b50, int, u16, FontParam*, int)(h, N_LEVEL, &fp, 0);
 }
 static int align_index(u32 raw) {
     static const u8 tab[9] = { 0, 16, 32, 1, 17, 33, 2, 18, 34 };
@@ -131,14 +131,14 @@ static void plates(int ours) {
         if (ours) {
             if (!sv->saved) {
                 u8 *to = NULL;
-                if (!FN(int, 0x1a66c0, int, u16, u8**, int)(h, N_LEVEL, &to, 0) || !to) continue;
+                if (!FN(int, 0x1a6560, int, u16, u8**, int)(h, N_LEVEL, &to, 0) || !to) continue;
                 const char *t = *(const char**)(to + 0x30);
                 snprintf(sv->text, sizeof sv->text, "%s", t ? t : "");
                 sv->colour = *(u32*)(to + 0x2a8); sv->align = *(u32*)(to + 0x298);
                 sv->font = to[0x2cc]; sv->bold = to[0x2cd];
                 sv->off[0] = (s8)to[0x2b4]; sv->off[1] = (s8)to[0x2b5]; sv->off[2] = (s8)to[0x2c8]; sv->off[3] = (s8)to[0x2c9];
                 sv->x = 116.0f; sv->y = 3.0f;
-                FN(int, 0x1a6880, int, u16, float*, float*)(h, N_LEVEL, &sv->x, &sv->y);
+                FN(int, 0x1a6720, int, u16, float*, float*)(h, N_LEVEL, &sv->x, &sv->y);
                 sv->lv = L2D_IsNodeVisible(h, N_LV) != 0; sv->level = L2D_IsNodeVisible(h, N_LEVEL) != 0;
                 sv->saved = 1;
             }
@@ -146,10 +146,10 @@ static void plates(int ours) {
             for (int r = 0; r < SC_ROWS; r++) if (sc_slot_in(g_set, r) == i) { const char *ic = sc_row_icon(r); t[n++] = ic[0]; t[n++] = ic[1]; }
             t[n] = 0;
             L2D_ShowNode(h, N_LV, 0); L2D_ShowNode(h, N_LEVEL, 1);
-            FN(int, 0x1a7ec0, int, u16, float, float)(h, N_LEVEL, ICON_X, ICON_Y);
+            FN(int, 0x1a7d60, int, u16, float, float)(h, N_LEVEL, ICON_X, ICON_Y);
             level_text(h, t, 0xff808080, 7, 3, NULL);                   /* right / middle, the button font, no offsets */
         } else if (sv->saved) {
-            FN(int, 0x1a7ec0, int, u16, float, float)(h, N_LEVEL, sv->x, sv->y);
+            FN(int, 0x1a7d60, int, u16, float, float)(h, N_LEVEL, sv->x, sv->y);
             level_text(h, sv->text, sv->colour, align_index(sv->align), font_index(sv->font, sv->bold), sv->off);
             L2D_ShowNode(h, N_LV, sv->lv); L2D_ShowNode(h, N_LEVEL, sv->level);
             sv->saved = 0;
@@ -168,8 +168,8 @@ static void slot_cursor(void) {
     u8 *p = pane(), *c = p ? *(u8**)(p + 0x100) : NULL;
     if (!c) return;
     float pos[2] = { 0.0f, (float)g_slot * SLOT_PITCH + 10.0f };        /* as the Edit Deck screen places its hand */
-    FN(void, 0x428360, u8*, int)(c, 1);
-    FN(void, 0x4283c0, u8*, float*)(c, pos);
+    FN(void, 0x427d70, u8*, int)(c, 1);
+    FN(void, 0x427dd0, u8*, float*)(c, pos);
 }
 /* the help line at the bottom.  Button pictures: f564 confirm, f568 L1 (the game shows the keyboard's or the pad's own) */
 static void help(void) {
@@ -197,8 +197,8 @@ static void help(void) {
 static void list_cursor(u8 *self, int idx) {
     static float mine[2] = { ITEM_X, ITEM_Y };
     float *pos = idx < 0 ? mine : (float*)(self + 0xa8 + idx * 8);
-    if (*(u8**)(self + 0xe8)) FN(void, 0x4283c0, u8*, float*)(*(u8**)(self + 0xe8), pos);
-    if (*(u8**)(self + 0xf0)) FN(void, 0x428800, u8*, float*, char)(*(u8**)(self + 0xf0), pos, 0);
+    if (*(u8**)(self + 0xe8)) FN(void, 0x427dd0, u8*, float*)(*(u8**)(self + 0xe8), pos);
+    if (*(u8**)(self + 0xf0)) FN(void, 0x428210, u8*, float*, char)(*(u8**)(self + 0xf0), pos, 0);
 }
 static void enter_entry(u8 *self) {            /* the game has just wrapped its cursor to the entry in +0x8e */
     L2D_SetNodeControl(*(int*)(self + 0x20), (u16)(*(s16*)(self + 0x8e) + 1), 0);
@@ -220,18 +220,18 @@ static void enter_slots(u8 *self) {
     g_mode = M_SLOTS;
     if (g_slot >= slots() || !slot_btn(g_slot)) g_slot = slot_next(-1, 1);
     if (g_slot < 0) { g_slot = 0; g_mode = M_ENTRY; return; }           /* no slot to point at */
-    if (*(u8**)(self + 0xe8)) FN(void, 0x428590, u8*, int)(*(u8**)(self + 0xe8), 1);   /* list hand: resting, as when the game picks a pane */
-    FN(u64, 0x42b250, u8*, u16, int)(p, G(u16, 0x81e160), 4);                           /* pane frame: selected */
+    if (*(u8**)(self + 0xe8)) FN(void, 0x427fa0, u8*, int)(*(u8**)(self + 0xe8), 1);   /* list hand: resting, as when the game picks a pane */
+    FN(u64, 0x42aa90, u8*, u16, int)(p, G(u16, 0x81f160), 4);                           /* pane frame: selected */
     plates(1); slot_cursor(); help();
 }
 static void leave_slots(u8 *self) {
     u8 *p = pane();
     plates(0);
     if (p) {
-        FN(u64, 0x42b250, u8*, u16, int)(p, G(u16, 0x81e160), 0);
-        if (*(u8**)(p + 0x100)) FN(void, 0x428360, u8*, int)(*(u8**)(p + 0x100), 0);
+        FN(u64, 0x42aa90, u8*, u16, int)(p, G(u16, 0x81f160), 0);
+        if (*(u8**)(p + 0x100)) FN(void, 0x427d70, u8*, int)(*(u8**)(p + 0x100), 0);
     }
-    if (*(u8**)(self + 0xe8)) FN(void, 0x428590, u8*, int)(*(u8**)(self + 0xe8), 0);
+    if (*(u8**)(self + 0xe8)) FN(void, 0x427fa0, u8*, int)(*(u8**)(self + 0xe8), 0);
     g_mode = M_ENTRY;
     help();
 }
@@ -256,10 +256,10 @@ static int MSABI list_input_hook(u8 *self) {
     /* ours: the screen sees no buttons; read the pad as the game's menus do (newly pressed; up / down with repeat) */
     top[0x11] = 1;
     *(s16*)(self + 0x8c) = 0; self[0x9e] = 0;
-    u32 press = (self[0x11] || G(u8, 0x10fb5364)) ? 0 : FN(u32, 0xecd90, u32)(0xffffffffu);
+    u32 press = (self[0x11] || G(u8, 0x10fb5a64)) ? 0 : FN(u32, 0xecd00, u32)(0xffffffffu);
     u32 up = *(u32*)(self + 0x44), down = *(u32*)(self + 0x48);
-    u32 move = FN(u32, 0x429960, u8*, u32)(self, up | down);
-    u32 ok = G(u16, 0x8221c0), cancel = G(u16, 0x8221c4);
+    u32 move = FN(u32, 0x429370, u8*, u32)(self, up | down);
+    u32 ok = G(u16, 0x822dc0), cancel = G(u16, 0x822dc4);
     if (g_mode == M_ENTRY) {
         /* onto the game's last or first entry; like the game there, no auto-repeat past an end of the list */
         if (move & up) { leave_entry(self, 4); self[0x10] = 1; *(u32*)(self + 0xc) = up; SE(1); }
@@ -290,14 +290,14 @@ static void item_frame(u8 *top) {
     if (!L2D_Alive(lh)) { if (g_list_h) item_drop(); return; }
     if (lh != g_list_h) { item_drop(); g_list_h = lh; }
     if (!L2D_Alive(g_item)) {
-        u8 *pc = FN(u8*, 0x1a65c0, int)(lh);
+        u8 *pc = FN(u8*, 0x1a6460, int)(lh);
         g_item = pc ? l2d_attach_seq(lh, pc, N_ROOT, SEQ_PLATE) : 0;
         if (!g_item) return;
         /* as the list's own entries (text table 21..24: pitch 11, which the PC version makes 12 for this font - 1401aa620) */
         FontParam fp; memset(&fp, 0, sizeof fp);
         fp.text = c_title; fp.colour = 0xff808080; fp.pitch = 0x0c; fp.align = 0; fp.size = 0; fp.kind = 1;
         fp.flags = 0x01 | 0x02 | 0x04 | 0x08 | 0x40 | 0x80;
-        FN(int, 0x1a7450, int, FontParam*, int)(g_item, &fp, 0);
+        FN(int, 0x1a72f0, int, FontParam*, int)(g_item, &fp, 0);
         L2D_SetPos(g_item, ITEM_X, ITEM_Y);
     }
     /* lit while the cursor is on it; otherwise the look of one of the game's entries the cursor is not on */

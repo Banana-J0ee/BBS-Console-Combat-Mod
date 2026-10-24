@@ -22,28 +22,28 @@
 extern char g_dir[MAX_PATH], g_ini[MAX_PATH + 32];
 extern int g_debug;
 
-#define CMD     G(u8*, 0x10f9ed40)
-#define GFLAGS  G(u32, 0x10f9ee48)
-#define CMD_CAT(id)  G(u8, 0x814900 + (u32)(id) * 0x18 + 1)
+#define CMD     G(u8*, 0x10f9f440)
+#define GFLAGS  G(u32, 0x10f9f548)
+#define CMD_CAT(id)  G(u8, 0x815900 + (u32)(id) * 0x18 + 1)
 
 /* L2D runtime */
-#define L2D_CreateLayout(file, id, ctl)   FN(int, 0x1a4ec0, int, u16, int, void*)(file, id, ctl, NULL)
-#define L2D_Destroy(h)                    FN(void, 0x1a57f0, int)(h)
-#define L2D_Show(h, on)                   FN(int, 0x1a5b30, int, int)(h, on)
-#define L2D_IsVisible(h)                  FN(int, 0x1a6060, int)(h)
-#define L2D_GetControl(h)                 FN(int, 0x1a60e0, int)(h)          /* 8 = dead handle */
-#define L2D_SetControl(h, c)              FN(int, 0x1a7520, int, int)(h, c)
-#define L2D_SetPos(h, x, y)               FN(int, 0x1a7660, int, float, float)(h, x, y)
-#define L2D_SetPriority(h, p)             FN(int, 0x1a7600, int, s16, int)(h, p, 0)
-#define L2D_SetColor(h, c)                FN(int, 0x1a73f0, int, u32, int)(h, c, 0)   /* 0..255 per channel, as the game calls it */
-#define L2D_ShowNode(h, n, on)            FN(int, 0x1a5b80, int, u16, int)(h, n, on)
-#define L2D_SetNodeFrame(h, n, f)         FN(int, 0x1a7d30, int, u16, float, int)(h, n, f, 0)
-#define L2D_SetNodeControl(h, n, c)       FN(int, 0x1a7db0, int, u16, int)(h, n, c)
-#define L2D_GetNodeControl(h, n)          FN(int, 0x1a6790, int, u16)(h, n)
-#define L2D_SetNodeColor(h, n, c)         FN(int, 0x1a7c30, int, u16, u32, int)(h, n, c, 1)   /* raw: 0x80 = 1.0, alpha ff = 1.0 */
-#define L2D_SetNodeText(h, n, s)          FN(int, 0x1a8330, int, u16, const char*, int, void*)(h, n, s, 0, NULL)
-#define L2D_ReplaceNodeSeq(h, n, sq, id, c) FN(int, 0x1a7fb0, int, u16, int, u16, int)(h, n, sq, id, c)
-#define SE(id)                            FN(u64, 0x1b2e40, int, float, u64, u32, u32)(id, 1.0f, 0, 0, 0)
+#define L2D_CreateLayout(file, id, ctl)   FN(int, 0x1a4d60, int, u16, int, void*)(file, id, ctl, NULL)
+#define L2D_Destroy(h)                    FN(void, 0x1a5690, int)(h)
+#define L2D_Show(h, on)                   FN(int, 0x1a59d0, int, int)(h, on)
+#define L2D_IsVisible(h)                  FN(int, 0x1a5f00, int)(h)
+#define L2D_GetControl(h)                 FN(int, 0x1a5f80, int)(h)          /* 8 = dead handle */
+#define L2D_SetControl(h, c)              FN(int, 0x1a73c0, int, int)(h, c)
+#define L2D_SetPos(h, x, y)               FN(int, 0x1a7500, int, float, float)(h, x, y)
+#define L2D_SetPriority(h, p)             FN(int, 0x1a74a0, int, s16, int)(h, p, 0)
+#define L2D_SetColor(h, c)                FN(int, 0x1a7290, int, u32, int)(h, c, 0)   /* 0..255 per channel, as the game calls it */
+#define L2D_ShowNode(h, n, on)            FN(int, 0x1a5a20, int, u16, int)(h, n, on)
+#define L2D_SetNodeFrame(h, n, f)         FN(int, 0x1a7bd0, int, u16, float, int)(h, n, f, 0)
+#define L2D_SetNodeControl(h, n, c)       FN(int, 0x1a7c50, int, u16, int)(h, n, c)
+#define L2D_GetNodeControl(h, n)          FN(int, 0x1a6630, int, u16)(h, n)
+#define L2D_SetNodeColor(h, n, c)         FN(int, 0x1a7ad0, int, u16, u32, int)(h, n, c, 1)   /* raw: 0x80 = 1.0, alpha ff = 1.0 */
+#define L2D_SetNodeText(h, n, s)          FN(int, 0x1a81d0, int, u16, const char*, int, void*)(h, n, s, 0, NULL)
+#define L2D_ReplaceNodeSeq(h, n, sq, id, c) FN(int, 0x1a7e50, int, u16, int, u16, int)(h, n, sq, id, c)
+#define SE(id)                            FN(u64, 0x1b2c60, int, float, u64, u32, u32)(id, 1.0f, 0, 0, 0)
 
 /* ---------------- settings ---------------- */
 static int   c_menu = 1;
@@ -66,7 +66,7 @@ static u32   c_col_title[3] = { 0x00ffff, 0xc8ff64, 0xffffff };    /* ... and th
 static int   c_link_solid = 1;         /* D-Link rows not under the cursor opaque, as the other lists' rows (the game draws them at alpha a0) */
 static int   c_link_bright = 1;        /* D-Link rows not under the cursor in full colour, as the other lists' rows (the game draws them dark) */
 static float c_head_dy = -4.5f;        /* the "COMMANDS" gauge window: moved by this from the game's place (table row 1) */
-static float head_y(void) { return (float)G(s16, 0x818308 + 4) + c_head_dy; }
+static float head_y(void) { return (float)G(s16, 0x819308 + 4) + c_head_dy; }
 static float c_prompt_x = 2, c_prompt_y = 160;     /* context prompt (Save, Talk, Open ...): above the window, as KH2's reaction command */
 static float c_prompt_raise = 8;       /* ... and this much higher while a Command Style or a D-Link is active: their windows are taller */
 static float prompt_y(u8 *cmd) {
@@ -239,9 +239,9 @@ static int MSABI confirm_hook(u8 *pad) {
    whenever the command object is built (22fe30, 235870).  Rows 2..7 are the Attack plate and what stacks on it
    (y 247 / 249): keep them moved to the top row of the menu.  Runs before the plates create their graphics. */
 static void fix_table(void) {
-    s16 want = (s16)c_row_y[0], cur = G(s16, 0x818318 + 4);
+    s16 want = (s16)c_row_y[0], cur = G(s16, 0x819318 + 4);
     if (cur == want) return;
-    for (int r = 2; r <= 7; r++) G(s16, 0x818300 + r * 8 + 4) += (s16)(want - cur);
+    for (int r = 2; r <= 7; r++) G(s16, 0x819300 + r * 8 + 4) += (s16)(want - cur);
 }
 /* Parts of the old deck that have no place in the menu: the dark strip behind the old Attack row (+0xac), the scroll
    arrows (+0xb0), the three shadow plates of the old deck rows (+0xb4) and the "D-Link available" prompt (+0xc8).
@@ -269,7 +269,7 @@ static void trace_prompt(u8 *cmd, const char *when) {
     if (hot) tail = 600; else if (tail > 0) tail--; else return;
     u8 *P = *(u8**)(cmd + 0x298), *A = *(u8**)(cmd + 0x1b0);
     u16 *pk = P ? *(u16**)(P + 0x58) : NULL;
-    u32 btn = G(u32, 0x8f64930) & G(u32, 0x8f64934) & 0xf000;
+    u32 btn = G(u32, 0x8f65030) & G(u32, 0x8f65034) & 0xf000;
     char b[256];
     snprintf(b, sizeof b, "st %x/%d/%d sp %x t %.0f 318 %x 31c %x | cmd60 %x 64 %x 80 %x 78 %x | prompt %x st %d | atk st %d lv %d | menu %d/%d sw %d",
              st, *(s16*)(pl + 0x310), *(s16*)(pl + 0x314), sp, *(float*)(pl + 0x704), s318 & 0x4c0, *(u32*)(pl + 0x31c) & 0xa00b3d,
@@ -303,14 +303,14 @@ static int MSABI link_open_pad(u8 *pad) { (void)pad; int r = g_link_req; g_link_
 static int MSABI link_confirm_pad(u8 *pad) { return o_confirm(pad); }
 /* 236c92: the pad test for the extra presses of multi-press commands (Ars Arcanum, Sonic Blade ...: triangle in the
    game).  The command was cast with the confirm button here, so that button continues it too. */
-static int MSABI followup_pad(u8 *pad) { return FN(int, 0x272c20, u8*)(pad) || o_confirm(pad); }
+static int MSABI followup_pad(u8 *pad) { return FN(int, 0x272940, u8*)(pad) || o_confirm(pad); }
 
 /* 236b97: the pad test that answers a context prompt (the confirm button in the game).  Talk, Open, Save and the
    like are answered with triangle (140272c20), as KH2's reaction commands; counter prompts as in the game. */
 static int MSABI prompt_pad(u8 *pad) {
     u8 *cmd = CMD;
-    if (cmd && react_prompt(cmd)) return FN(int, 0x272c20, u8*)(pad);
-    return FN(int, 0x272860, u8*)(pad);
+    if (cmd && react_prompt(cmd)) return FN(int, 0x272940, u8*)(pad);
+    return FN(int, 0x272580, u8*)(pad);
 }
 /* Special commands (team attacks and the like: Burst of Faith, Dual Limit, Astro Shot ...).  A partner's script
    offers one (1402790f0: pl+0x6f4 the command, pl+0x318 bit 0x400, a timer at pl+0x704) with an icon over the
@@ -320,7 +320,7 @@ static int MSABI prompt_pad(u8 *pad) {
    are the confirm button and keep their own prompt. */
 static int MSABI special_pad(u8 *pad, int n, int strict) {
     if (c_react && n == 3) n = 0;
-    return FN(int, 0x273030, u8*, int, int)(pad, n, strict);
+    return FN(int, 0x272d50, u8*, int, int)(pad, n, strict);
 }
 /* The offer's icon is set by its two offer paths (27908f, 2794ee: 140213e50(icon, 2, handle, 3)) - only those are
    turned to triangle.  140213e50 / 140214040 are the game's general button-icon routines: the random-button prompts
@@ -328,7 +328,7 @@ static int MSABI special_pad(u8 *pad, int n, int strict) {
    1 << n - 1 = kind 0, 1, 3) draw with them too, and a square one repainted as triangle failed on the press. */
 static void MSABI special_icon(u64 obj, int show, int h, int kind) {
     if (c_react && kind == 3) kind = 0;
-    FN(void, 0x213e50, u64, int, int, int)(obj, show, h, kind);
+    FN(void, 0x213b70, u64, int, int, int)(obj, show, h, kind);
 }
 /* A prompt covers the Attack plate (1402376b0: state 2) and its close (140237090) uncovers it - unless a finisher
    is available (cmd+0x60 bit 0x20000), when the game expects the finisher plate to take the Attack button.  Here the
@@ -339,7 +339,7 @@ static void uncover_attack(u8 *cmd) {
     if (!c_menu || (*(u32*)(cmd + 0x60) & 0x40000) || *(int*)(cmd + 0x1a8) != 0) return;
     u8 *A = *(u8**)(cmd + 0x1b0);
     if (!A || A[0x30] != 1 || A[0x31] != 2) return;
-    FN(void, 0x205890, u8*)(A);
+    FN(void, 0x2055b0, u8*)(A);
     if (g_debug) LOG("menu: Attack plate uncovered after a prompt");
 }
 /* While a prompt is up the game does not run the Attack part of its update (the prompt has taken Attack's place and
@@ -364,7 +364,7 @@ static void prompt_attack(u8 *cmd, u8 *pl) {
    Item list closes here, the D-Link list through the game's own "close" test below - and there is no jump.  With
    the main menu showing the button jumps as always. */
 static int MSABI jump_pad(u8 *pad) {
-    int r = FN(int, 0x272f10, u8*)(pad);
+    int r = FN(int, 0x272c30, u8*)(pad);
     u8 *cmd = CMD;
     if (!r || !c_jump_back || !cmd) return r;
     if (link_open(cmd)) { g_link_close = 1; return 0; }
@@ -373,7 +373,7 @@ static int MSABI jump_pad(u8 *pad) {
 }
 /* 2337e9: the pad test "close the D-Link list" (d-pad left in the game) */
 static int MSABI link_close_pad(u8 *pad) {
-    int r = FN(int, 0x272d30, u8*)(pad);
+    int r = FN(int, 0x272a50, u8*)(pad);
     if (g_link_close) { g_link_close = 0; r = 1; }
     return r;
 }
@@ -387,13 +387,13 @@ static int MSABI link_close_pad(u8 *pad) {
    cursor (position cmd+0x354, or the last one) becomes the selected one (flag 4, state 4, 140205a60), the others
    go to rest (state 0).  So there is no frame without a selected entry. */
 static u64 MSABI link_scroll(u8 *P, int dir) {
-    u64 r = FN(u64, 0x205cf0, u8*, int)(P, dir);
+    u64 r = FN(u64, 0x205a10, u8*, int)(P, dir);
     u8 *cmd = CMD;
     if (c_link_time > 0 || !cmd || P[0x30] != 6 || P[0x31] != 2) { if (c_link_time > 0) *(float*)(P + 0x68) = c_link_time; return r; }
     *(float*)(P + 0x68) = 0;
-    if (FN(int, 0x2044c0, u8*)(P)) {
+    if (FN(int, 0x2041e0, u8*)(P)) {
         int cur = (s8)cmd[0x354] < 0 ? cmd[0x350] - 1 : (s8)cmd[0x354];
-        if ((s8)P[0x6c] == cur) { *(u32*)(P + 0x60) |= 4; P[0x31] = 4; FN(void, 0x205a60, u8*)(P); }
+        if ((s8)P[0x6c] == cur) { *(u32*)(P + 0x60) |= 4; P[0x31] = 4; FN(void, 0x205780, u8*)(P); }
         else P[0x31] = 0;
     }
     return r;
@@ -406,7 +406,7 @@ static int can_use_now(u8 *cmd, u8 *pl) {       /* the game's own conditions for
         if (k && CMD_CAT(k[0]) == 6) return 0;                                                  /* counter prompt up */
     }
     if ((*(u32*)(pl + 0x318) & 0xc0) != 0x40) return 0;
-    if (FN(int, 0x240a80, u8*)(pl)) return 0;
+    if (FN(int, 0x2407a0, u8*)(pl)) return 0;
     if (*(s16*)(cmd + 0x80) != 0) return 0;
     return 1;
 }
@@ -420,8 +420,8 @@ static u8 *slot_plate(u8 *cmd, int slot) {
         if (!plate_valid(P)) continue;
         int s = i;
         if (!linked) {
-            long w = (long)(*(u8**)(P + 0x58) - (g_base + 0x8187b0)) / 8;
-            if (w >= 0 && w < 8 && G(u8, 0x8187a8 + w) < 8) s = G(u8, 0x8187a8 + w);
+            long w = (long)(*(u8**)(P + 0x58) - (g_base + 0x8197b0)) / 8;
+            if (w >= 0 && w < 8 && G(u8, 0x8197a8 + w) < 8) s = G(u8, 0x8197a8 + w);
         }
         if (s == slot) return P;
     }
@@ -451,8 +451,8 @@ static int MSABI menu_input(u8 *cmd) {
         }
         return 0;
     }
-    int dir = FN(int, 0x272580, u8*)(pad);          /* +1 up, -1 down, with repeat */
-    int left = FN(int, 0x272d30, u8*)(pad);
+    int dir = FN(int, 0x2722a0, u8*)(pad);          /* +1 up, -1 down, with repeat */
+    int left = FN(int, 0x272a50, u8*)(pad);
     int ok = g_swallow ? o_confirm(pad) : 0;        /* on Attack the game handles the button itself */
 
     if (g_state != S_MAIN) {
@@ -478,11 +478,11 @@ static int MSABI menu_input(u8 *cmd) {
     if (g_cur == E_ATTACK && react_prompt(cmd) && o_confirm(pad)) { prompt_attack(cmd, pl); return 0; }
     /* d-pad right (140272cd0, a new press) opens the entry's list as well: left closes a list, right opens one.
        It is the menu's own button, so it works with a counter prompt up too, when confirm belongs to the prompt. */
-    if (c_right_open && g_cur != E_ATTACK && FN(int, 0x272cd0, u8*)(pad)) ok = 1;
+    if (c_right_open && g_cur != E_ATTACK && FN(int, 0x2729f0, u8*)(pad)) ok = 1;
     if (ok && g_cur != E_ATTACK && entry_usable(cmd, g_cur)) {
         if (g_cur == E_LINK) {
             g_link_req = 1;
-            int r = FN(int, 0x2388a0, u8*)(cmd);            /* the game's own "open the D-Link list" */
+            int r = FN(int, 0x2385c0, u8*)(cmd);            /* the game's own "open the D-Link list" */
             g_link_req = 0;
             if (r) return 1;
         } else { g_state = g_cur == E_MAGIC ? S_MAGIC : S_ITEM; SE(1); }
@@ -554,7 +554,7 @@ static Anim *twin_for(Anim *src, Key *gk, const Tint *r) {
     return &g_tw_anim[slot];
 }
 static u8 *node_ctl(int h, u16 node) {                  /* the CD2SeqCtrl of a node of a layout instance */
-    u8 *lc = FN(u8*, 0x1a65c0, int)(h);
+    u8 *lc = FN(u8*, 0x1a6460, int)(h);
     if (!lc) return NULL;
     u8 *nodes = *(u8**)(lc + 0x98);
     for (int i = 0; i < *(s16*)(lc + 0xa8); i++) if (*(s16*)(nodes + i * 0xb8 + 0xb0) == (s16)node) return nodes + i * 0xb8;
@@ -581,7 +581,7 @@ static void tint_node(int h, u16 node, const Tint *rules, int nr) {
         Key *wk = want == g ? gk : g_sc_keys;
         if (cur == want && *(Key**)(ob + 0x38) == wk) continue;
         *(Key**)(ob + 0x38) = wk;
-        FN(void, 0x1aa7f0, u8*, Anim*)(ob, want);
+        FN(void, 0x1aa610, u8*, Anim*)(ob, want);
     }
 }
 /* the game's relation between a plate's colour and the glow it reloads with (005ff0 and 00c0ff): twice as bright */
@@ -594,8 +594,8 @@ static u32 glow_of(u32 c) {
 typedef struct { s16 x0, y0, x1, y1; u16 part, attr; } Grp;
 typedef struct { s16 u0, v0, u1, v1; u32 col[4]; } Part;
 typedef struct { Grp *g; Part *p; } Pair;
-#define L2D_CloneNodeSprite(h, n, obj)    FN(int, 0x1a83f0, int, u16, int)(h, n, obj)
-static int node_quads(int h, u16 node, int obj, Pair **q) { *q = NULL; return FN(int, 0x1a6980, int, u16, int, Pair**)(h, node, obj, q); }
+#define L2D_CloneNodeSprite(h, n, obj)    FN(int, 0x1a8290, int, u16, int)(h, n, obj)
+static int node_quads(int h, u16 node, int obj, Pair **q) { *q = NULL; return FN(int, 0x1a6820, int, u16, int, Pair**)(h, node, obj, q); }
 static void quad(Pair *q, int x0, int y0, int x1, int y1, int u0, int v0, int u1, int v1, u32 col) {
     q->g->x0 = (s16)x0; q->g->y0 = (s16)y0; q->g->x1 = (s16)x1; q->g->y1 = (s16)y1;
     q->p->u0 = (s16)u0; q->p->v0 = (s16)v0; q->p->u1 = (s16)u1; q->p->v1 = (s16)v1;
@@ -613,7 +613,7 @@ static void quad(Pair *q, int x0, int y0, int x1, int y1, int u0, int v0, int u1
    the gradient: its quads take the gradient's texels and its black the list's colour. */
 static void row_body(int h) {
     u8 *nd = node_ctl(h, 0x5d);
-    if (nd && (s8)nd[0xb2] == 14) L2D_ReplaceNodeSeq(h, 0x5d, G(int, 0x10f9ed4c), 0xb, L2D_GetControl(h));     /* 14 objects: the battle body */
+    if (nd && (s8)nd[0xb2] == 14) L2D_ReplaceNodeSeq(h, 0x5d, G(int, 0x10f9f44c), 0xb, L2D_GetControl(h));     /* 14 objects: the battle body */
 }
 static void row_fill(int h, int on) {
     Pair *q;
@@ -724,11 +724,11 @@ static void ready_look(int h, int selected, u16 name_node) {
    places, always: the name also DLinkNameX further right, in line with the Magic / Items rows. */
 static void link_row_places(int h) {
     int c = L2D_GetNodeControl(h, 2);
-    FN(int, 0x1a7ec0, int, u16, float, float)(h, 2, -3.0f + c_link_name_x - (c == 0 || c == 5 ? 10.0f : 0.0f), 0.0f);
+    FN(int, 0x1a7d60, int, u16, float, float)(h, 2, -3.0f + c_link_name_x - (c == 0 || c == 5 ? 10.0f : 0.0f), 0.0f);
     static const float hx[2] = { 116.0f, 128.0f };
     for (u16 nd = 3; nd <= 4; nd++) {
         int k = L2D_GetNodeControl(h, nd);
-        FN(int, 0x1a7ec0, int, u16, float, float)(h, nd, hx[nd - 3] - (k == 0 || k == 1 || k == 5 ? 10.0f : 0.0f), 2.0f);
+        FN(int, 0x1a7d60, int, u16, float, float)(h, nd, hx[nd - 3] - (k == 0 || k == 1 || k == 5 ? 10.0f : 0.0f), 2.0f);
     }
 }
 static void (MSABI *o_plate_update)(u8 *P);
@@ -832,8 +832,8 @@ static void hdr_frame(int kind, int battle, float x, float y) {        /* kind: 
     if (c_list_col) battle = 0;                                     /* one look, whatever goes on: the field sequence, in the list's colours */
     if (alive && g_hdr_battle != battle) { hdr_destroy(); alive = 0; }
     if (!alive) {
-        int file = G(int, 0x10f9ed48), sq = G(int, 0x10f9ed4c);
-        G(u8, 0x8f88028) = 0; G(u8, 0x8f8802a) = 0;                 /* created hidden, HUD group */
+        int file = G(int, 0x10f9f448), sq = G(int, 0x10f9f44c);
+        G(u8, 0x8f88728) = 0; G(u8, 0x8f8872a) = 0;                 /* created hidden, HUD group */
         g_hdr = L2D_CreateLayout(file, 5, 0);
         if (g_hdr <= 0) { g_hdr = 0; return; }
         g_hdr_battle = battle; g_hdr_kind = -1;
@@ -898,7 +898,7 @@ void menu_shutdown(void) {
 static void link_icon(int h) {
     if (!c_link_icon) return;
     if (L2D_GetNodeControl(h, 0x5a) != 0) L2D_SetNodeControl(h, 0x5a, 0);
-    FN(int, 0x1a7ec0, int, u16, float, float)(h, 0x5a, c_link_icon_x, c_link_icon_y);
+    FN(int, 0x1a7d60, int, u16, float, float)(h, 0x5a, c_link_icon_x, c_link_icon_y);
 }
 /* The Skills entry's icon (2026-10-22): the gold emblem of the game's menu sheet in place of the magic hat.  The
    entry keeps the hat's sequence (0x21).  In the plate's control 3 the hat on screen is its object 1: sprite 4, one
@@ -923,8 +923,8 @@ static void skills_icon(int h) {
 static int entry_alive(int i) { l2d_live(&g_entry[i]); return g_entry[i] > 0 && L2D_GetControl(g_entry[i]) != 8; }
 static void entry_create(int e, int battle) {
     static const u16 icon[4] = { 0x20, 0x21, 0x22, 0 };         /* keyblade, magic hat, item bottle, none */
-    int file = G(int, 0x10f9ed48), sq = G(int, 0x10f9ed4c);     /* bc01_00.l2d and its sprite block */
-    G(u8, 0x8f88028) = 0; G(u8, 0x8f8802a) = 0;                 /* created hidden, HUD group */
+    int file = G(int, 0x10f9f448), sq = G(int, 0x10f9f44c);     /* bc01_00.l2d and its sprite block */
+    G(u8, 0x8f88728) = 0; G(u8, 0x8f8872a) = 0;                 /* created hidden, HUD group */
     int h = L2D_CreateLayout(file, 3, 3);                       /* layout 3 = one deck plate */
     if (h <= 0) { g_entry[e] = 0; return; }
     g_entry[e] = h;
@@ -973,7 +973,7 @@ static void sc_anims(void) {
 }
 /* the body node's objects of a deck plate instance, if they are the seven of sequence 0xb */
 static u8 *sc_objs(int h) {
-    u8 *lc = FN(u8*, 0x1a65c0, int)(h);
+    u8 *lc = FN(u8*, 0x1a6460, int)(h);
     if (!lc) return NULL;
     u8 *nodes = *(u8**)(lc + 0x98);
     for (int i = 0; i < *(s16*)(lc + 0xa8); i++) {
@@ -994,7 +994,7 @@ static int sc_body(int h) {
     for (int i = 0; i < SC_OBJS; i++, o += 0x50) {
         if (*(Anim**)(o + 0x30) == &g_sc_anim[i] && *(Key**)(o + 0x38) == g_sc_keys) continue;
         *(Key**)(o + 0x38) = g_sc_keys;
-        FN(void, 0x1aa7f0, u8*, Anim*)(o, &g_sc_anim[i]);       /* the record and, from its kind, "drawn or not" */
+        FN(void, 0x1aa610, u8*, Anim*)(o, &g_sc_anim[i]);       /* the record and, from its kind, "drawn or not" */
     }
     Pair *q;
     int pad = (int)(c_sc_pad + 0.5f);
@@ -1030,7 +1030,7 @@ static int sc_body(int h) {
 static Anim  g_hd_anim[HD_SLOTS];
 static Anim *g_hd_src[HD_SLOTS];
 static u8 *node_objs(int h, u16 node, int *count) {
-    u8 *lc = FN(u8*, 0x1a65c0, int)(h);
+    u8 *lc = FN(u8*, 0x1a6460, int)(h);
     if (!lc) return NULL;
     u8 *nodes = *(u8**)(lc + 0x98);
     for (int i = 0; i < *(s16*)(lc + 0xa8); i++) {
@@ -1078,7 +1078,7 @@ static void hd_node(int h, u16 node, int grey) {
         if (cur >= g_hd_anim && cur < g_hd_anim + HD_SLOTS) {           /* our twin */
             if (grey) { hd_recolour((int)(cur - g_hd_anim)); continue; }          /* the set shown may have changed */
             *(Key**)(ob + 0x38) = gk;
-            FN(void, 0x1aa7f0, u8*, Anim*)(ob, g_hd_src[cur - g_hd_anim]);
+            FN(void, 0x1aa610, u8*, Anim*)(ob, g_hd_src[cur - g_hd_anim]);
             continue;
         }
         if (*(Key**)(ob + 0x38) == g_sc_keys) *(Key**)(ob + 0x38) = gk;  /* the game's record again, our table still on it */
@@ -1095,7 +1095,7 @@ static void hd_node(int h, u16 node, int grey) {
         g_hd_anim[slot] = *cur; g_hd_anim[slot].key = (u16)(HD_KEY0 + slot * HD_KEYS);
         g_hd_src[slot] = cur;
         *(Key**)(ob + 0x38) = g_sc_keys;
-        FN(void, 0x1aa7f0, u8*, Anim*)(ob, &g_hd_anim[slot]);
+        FN(void, 0x1aa610, u8*, Anim*)(ob, &g_hd_anim[slot]);
     }
 }
 static void hd_frame(u8 *cmd, int grey) {
@@ -1116,15 +1116,15 @@ static void sc_frame(u8 *cmd, int show, int battle) {
         int alive = h > 0 && L2D_GetControl(h) != 8;
         if (!show) { if (alive) L2D_Show(h, 0); continue; }
         if (!alive) {
-            int file = G(int, 0x10f9ed48), sq = G(int, 0x10f9ed4c);
-            G(u8, 0x8f88028) = 0; G(u8, 0x8f8802a) = 0;
+            int file = G(int, 0x10f9f448), sq = G(int, 0x10f9f44c);
+            G(u8, 0x8f88728) = 0; G(u8, 0x8f8872a) = 0;
             h = L2D_CreateLayout(file, 3, 0);
             if (h <= 0) { g_sc_entry[r] = 0; continue; }
             g_sc_entry[r] = h; g_sc_key[r] = -2;
             L2D_ReplaceNodeSeq(h, 0x5d, sq, 0xb, 0);                    /* always the field body: seven objects */
             L2D_ShowNode(h, 0x5a, 0);                                   /* no category icon */
             L2D_SetNodeText(h, 0x5d, sc_row_icon(r));                   /* the button, where the game shows its confirm button */
-            FN(int, 0x1a7ec0, int, u16, float, float)(h, 0, -1.0f + c_sc_pad, 0.0f);     /* name: after the tab */
+            FN(int, 0x1a7d60, int, u16, float, float)(h, 0, -1.0f + c_sc_pad, 0.0f);     /* name: after the tab */
         }
         int slot = sc_slot(r);
         u8 *P = slot >= 0 ? slot_plate(cmd, slot) : NULL;
@@ -1133,7 +1133,7 @@ static void sc_frame(u8 *cmd, int show, int battle) {
         int key = id | count << 16 | item << 24;
         if (key != g_sc_key[r]) {
             g_sc_key[r] = key;
-            const char *name = id > 0 && id < 0x23a ? G(const char*, 0x814908 + (u32)id * 0x18) : NULL;
+            const char *name = id > 0 && id < 0x23a ? G(const char*, 0x815908 + (u32)id * 0x18) : NULL;
             L2D_SetNodeText(h, 0, name ? name : "---");
             L2D_ShowNode(h, 0x5c, item); L2D_ShowNode(h, 0x5b, item);  /* item count, as on the game's plates */
             if (item) { char n[8]; snprintf(n, sizeof n, "%d", count); L2D_SetNodeText(h, 0x5b, n); }
@@ -1141,8 +1141,8 @@ static void sc_frame(u8 *cmd, int show, int battle) {
                the small icon, drawn at x 103 for the plain plate; this plate is longer, and its item count is at
                111 where the plain plate's is at 100).  Attack and magic commands get no icon here. */
             if (item) {
-                L2D_ReplaceNodeSeq(h, 0x5a, G(int, 0x10f9ed4c), 0x22, 3);
-                FN(int, 0x1a7ec0, int, u16, float, float)(h, 0x5a, c_sc_item_dx, 0.0f);
+                L2D_ReplaceNodeSeq(h, 0x5a, G(int, 0x10f9f44c), 0x22, 3);
+                FN(int, 0x1a7d60, int, u16, float, float)(h, 0x5a, c_sc_item_dx, 0.0f);
             }
             L2D_ShowNode(h, 0x5a, item);
         }
@@ -1170,10 +1170,10 @@ static void sc_frame(u8 *cmd, int show, int battle) {
 static void strip_gauge_shadow(int h) {
     for (int obj = 1; obj <= 2; obj++) {
         Pair *q = NULL;
-        int n = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x46, obj, &q);
+        int n = FN(int, 0x1a6820, int, u16, int, Pair**)(h, 0x46, obj, &q);
         if (n <= 0 || !q) {
-            FN(int, 0x1a83f0, int, u16, int)(h, 0x46, obj);
-            q = NULL; n = FN(int, 0x1a6980, int, u16, int, Pair**)(h, 0x46, obj, &q);
+            FN(int, 0x1a8290, int, u16, int)(h, 0x46, obj);
+            q = NULL; n = FN(int, 0x1a6820, int, u16, int, Pair**)(h, 0x46, obj, &q);
         }
         if (n < 3 || !q || !q[0].g || !q[0].p) continue;
         if (q[0].p->u0 != 224 || q[0].p->v0 != 2 || q[0].p->u1 != 224 || q[0].p->v1 != 38) continue;      /* not the bar shape */
@@ -1187,7 +1187,7 @@ void menu_frame(u8 *gauge) {
     if (!c_menu) {          /* the game's own deck: only the Command Style offer is drawn, above the gauge window */
         u8 *c = CMD, *a = c ? *(u8**)(c + 0x1b0) : NULL;
         int vis = a && !(*(u32*)(a + 0x60) & 0x80000000u) && L2D_IsVisible(*(int*)(a + 0x4c));
-        style_frame(c, vis, c_prompt_x, (float)G(s16, 0x818308 + 4) - 22.0f);
+        style_frame(c, vis, c_prompt_x, (float)G(s16, 0x819308 + 4) - 22.0f);
         return;
     }
     u8 *cmd = CMD;
@@ -1218,7 +1218,7 @@ void menu_frame(u8 *gauge) {
             u8 *ap = *(u8**)(cmd + 0x1b0 + lv * 8);
             if (!ap) ap = atk;
             u16 *k = *(u16**)(ap + 0x58); int id = k ? k[0] : 0;
-            if (id != g_attack_id && id > 0 && id < 0x23a) { g_attack_id = id; L2D_SetNodeText(h, 0, G(const char*, 0x814908 + (u32)id * 0x18)); }
+            if (id != g_attack_id && id > 0 && id < 0x23a) { g_attack_id = id; L2D_SetNodeText(h, 0, G(const char*, 0x815908 + (u32)id * 0x18)); }
         }
         L2D_SetPos(h, c_main_x + (selected ? c_bump : 0), c_row_y[e]);
         L2D_SetPriority(h, selected ? 7 : 5);
@@ -1252,8 +1252,8 @@ void menu_frame(u8 *gauge) {
 }
 
 /* ---------------- install ---------------- */
-#define VT_PLATE_UPDATE 0x646018        /* PL::CCommandPlate vftable[1] -> 204880 */
-#define VT_CMD_UPDATE   0x647b88        /* PL::CPlayerCommand vftable[1] -> 2363d0 */
+#define VT_PLATE_UPDATE 0x646148        /* PL::CCommandPlate vftable[1] -> 204880 */
+#define VT_CMD_UPDATE   0x647cb8        /* PL::CPlayerCommand vftable[1] -> 2363d0 */
 static int call_ok(u32 rva, u32 target) {
     u8 *p = g_base + rva; s32 d; memcpy(&d, p + 1, 4);
     return p[0] == 0xE8 && (u32)(rva + 5 + d) == target;
@@ -1264,38 +1264,38 @@ int menu_check(void) {
     int bad = 0;
     if (memcmp(g_base + S_deck_input.rva, S_deck_input.bytes, S_deck_input.len)) { LOG("menu: deck input site does not match"); bad++; }
     if (memcmp(g_base + S_confirm.rva, S_confirm.bytes, S_confirm.len)) { LOG("menu: confirm test site does not match"); bad++; }
-    if (G(u64, VT_PLATE_UPDATE) != (u64)(g_base + 0x204880) || G(u64, VT_CMD_UPDATE) != (u64)(g_base + 0x2363d0)) { LOG("menu: vtable slots do not match"); bad++; }
-    if (!call_ok(0x238902, 0x272cd0) || !call_ok(0x2333f1, 0x272c20) || !call_ok(0x2332fe, 0x272c20) || !call_ok(0x236c92, 0x272c20)) { LOG("menu: D-Link pad call sites do not match"); bad++; }
-    if (!call_ok(0x236b97, 0x272860)) { LOG("menu: prompt pad call site does not match"); bad++; }
-    if (c_react && (!call_ok(0x2738c9, 0x273030) || !call_ok(0x27908f, 0x213e50) || !call_ok(0x2794ee, 0x213e50))) { LOG("menu: special command sites do not match"); bad++; }
-    if (!call_ok(0x21fb99, 0x272f10) || !call_ok(0x2337e9, 0x272d30)) { LOG("menu: jump / list close pad call sites do not match"); bad++; }
-    if (!call_ok(0x2332a1, 0x205cf0) || !call_ok(0x233491, 0x205cf0)) { LOG("menu: D-Link list move call sites do not match"); bad++; }
+    if (G(u64, VT_PLATE_UPDATE) != (u64)(g_base + 0x2045a0) || G(u64, VT_CMD_UPDATE) != (u64)(g_base + 0x2360f0)) { LOG("menu: vtable slots do not match"); bad++; }
+    if (!call_ok(0x238622, 0x2729f0) || !call_ok(0x233111, 0x272940) || !call_ok(0x23301e, 0x272940) || !call_ok(0x2369b2, 0x272940)) { LOG("menu: D-Link pad call sites do not match"); bad++; }
+    if (!call_ok(0x2368b7, 0x272580)) { LOG("menu: prompt pad call site does not match"); bad++; }
+    if (c_react && (!call_ok(0x2735e9, 0x272d50) || !call_ok(0x278daf, 0x213b70) || !call_ok(0x27920e, 0x213b70))) { LOG("menu: special command sites do not match"); bad++; }
+    if (!call_ok(0x21f8b9, 0x272c30) || !call_ok(0x233509, 0x272a50)) { LOG("menu: jump / list close pad call sites do not match"); bad++; }
+    if (!call_ok(0x232fc1, 0x205a10) || !call_ok(0x2331b1, 0x205a10)) { LOG("menu: D-Link list move call sites do not match"); bad++; }
     /* placement table rows 2..7: the Attack plate and what stacks on it, y 247 / 249 */
-    if (G(s16, 0x818310 + 4) != 247 || G(s16, 0x818318 + 4) != 249) { LOG("menu: placement table does not match"); bad++; }
+    if (G(s16, 0x819310 + 4) != 247 || G(s16, 0x819318 + 4) != 249) { LOG("menu: placement table does not match"); bad++; }
     return bad == 0;
 }
 void menu_apply(void) {
     if (!c_menu) { LOG("menu: off"); return; }
     hook_fn(&S_deck_input, menu_input, "deck input");
     o_confirm = hook_fn(&S_confirm, confirm_hook, "confirm");
-    o_plate_update = (void*)(g_base + 0x204880); o_cmd_update = (void*)(g_base + 0x2363d0);
+    o_plate_update = (void*)(g_base + 0x2045a0); o_cmd_update = (void*)(g_base + 0x2360f0);
     void *f; u64 old;
-    f = (void*)plate_update_hook; old = (u64)(g_base + 0x204880); patch_bytes(VT_PLATE_UPDATE, (u8*)&old, (u8*)&f, 8, "plate vtable");
-    f = (void*)cmd_update_hook;   old = (u64)(g_base + 0x2363d0); patch_bytes(VT_CMD_UPDATE, (u8*)&old, (u8*)&f, 8, "cmd vtable");
-    hook_call(0x238902, 0x272cd0, link_open_pad, "link open pad");
-    hook_call(0x2333f1, 0x272c20, link_confirm_pad, "link confirm pad");
-    hook_call(0x2332fe, 0x272c20, link_confirm_pad, "link end pad");
-    hook_call(0x236c92, 0x272c20, followup_pad, "follow-up pad");
-    hook_call(0x236b97, 0x272860, prompt_pad, "prompt pad");
+    f = (void*)plate_update_hook; old = (u64)(g_base + 0x2045a0); patch_bytes(VT_PLATE_UPDATE, (u8*)&old, (u8*)&f, 8, "plate vtable");
+    f = (void*)cmd_update_hook;   old = (u64)(g_base + 0x2360f0); patch_bytes(VT_CMD_UPDATE, (u8*)&old, (u8*)&f, 8, "cmd vtable");
+    hook_call(0x238622, 0x2729f0, link_open_pad, "link open pad");
+    hook_call(0x233111, 0x272940, link_confirm_pad, "link confirm pad");
+    hook_call(0x23301e, 0x272940, link_confirm_pad, "link end pad");
+    hook_call(0x2369b2, 0x272940, followup_pad, "follow-up pad");
+    hook_call(0x2368b7, 0x272580, prompt_pad, "prompt pad");
     if (c_react) {
-        hook_call(0x2738c9, 0x273030, special_pad, "special command pad (triangle)");
-        hook_call(0x27908f, 0x213e50, special_icon, "special command icon");
-        hook_call(0x2794ee, 0x213e50, special_icon, "special command icon 2");
+        hook_call(0x2735e9, 0x272d50, special_pad, "special command pad (triangle)");
+        hook_call(0x278daf, 0x213b70, special_icon, "special command icon");
+        hook_call(0x27920e, 0x213b70, special_icon, "special command icon 2");
     }
-    hook_call(0x21fb99, 0x272f10, jump_pad, "jump pad");
-    hook_call(0x2337e9, 0x272d30, link_close_pad, "link close pad");
-    hook_call(0x2332a1, 0x205cf0, link_scroll, "link list move");
-    hook_call(0x233491, 0x205cf0, link_scroll, "link list move");
+    hook_call(0x21f8b9, 0x272c30, jump_pad, "jump pad");
+    hook_call(0x233509, 0x272a50, link_close_pad, "link close pad");
+    hook_call(0x232fc1, 0x205a10, link_scroll, "link list move");
+    hook_call(0x2331b1, 0x205a10, link_scroll, "link list move");
     LOG("menu: on");
 }
 
@@ -1310,7 +1310,7 @@ void menu_dbg(const char *cmd_, char *args) {
     else if (!strcmp(sub, "header") && n >= 2) c_head_dy = a;
     else if (!strcmp(sub, "prompt") && n >= 3) { c_prompt_x = a; c_prompt_y = b; if (n >= 4) c_prompt_raise = c; }
     u8 *cmd = CMD;
-    LOG("  header y %.1f (table %d, shift %.1f)  prompt %.1f %.1f", head_y(), G(s16, 0x818308 + 4), c_head_dy, c_prompt_x, c_prompt_y);
+    LOG("  header y %.1f (table %d, shift %.1f)  prompt %.1f %.1f", head_y(), G(s16, 0x819308 + 4), c_head_dy, c_prompt_x, c_prompt_y);
     LOG("  menu: state %d cursor %d sel %d/%d entries %d %d %d %d  main x %.0f y %.0f %.0f %.0f %.0f  list x %.0f bottom %.0f pitch %.0f",
         g_state, g_cur, g_sel[0], g_sel[1], g_entry[0], g_entry[1], g_entry[2], g_entry[3], c_main_x, c_row_y[0], c_row_y[1], c_row_y[2], c_row_y[3], c_list_x, row_y(3), c_pitch);
     if (cmd) LOG("  cmd flags %08x %08x  magic %d items %d links %d  attack plate visible %d", *(u32*)(cmd + 0x60), *(u32*)(cmd + 0x64),
@@ -1359,7 +1359,7 @@ int test_menu_step(u8 *cmd) {       /* what the command update does around the d
     int r = menu_input(cmd); g_in_cmd = 0; return r;
 }
 void test_uncover_attack(u8 *cmd) { uncover_attack(cmd); }
-int test_confirm(u8 *pad, u8 *cmd) { g_in_cmd = 1; g_swallow = swallow(cmd); int r = FN(int, 0x272860, u8*)(pad); g_in_cmd = 0; return r; }
+int test_confirm(u8 *pad, u8 *cmd) { g_in_cmd = 1; g_swallow = swallow(cmd); int r = FN(int, 0x272580, u8*)(pad); g_in_cmd = 0; return r; }
 void test_plate_update(u8 *P) { plate_update_hook(P); }
 void test_row_colours(int h, int kind) { row_body(h); row_colours(h, kind, 0); }
 void test_row_colours_m(int h, int kind, int mode) { row_body(h); row_colours(h, kind, mode); cursor_body(h, 0x5d, mode); }

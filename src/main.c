@@ -57,8 +57,8 @@ static volatile LONG g_crashes;
    instance's handle, whether it is one of the mod's own, and for every node the data block it draws from (name,
    current / original texture, substituted texture id) - a node whose texture is the address the crash read from is
    the one.  Runs only here, in the exception filter; every read is checked first. */
-#define VT_LAYCTRL 0x6418b8
-#define VT_SEQCTRL 0x641dc0
+#define VT_LAYCTRL 0x6419e8
+#define VT_SEQCTRL 0x641ef0
 /* no IsBadReadPtr here: it works by faulting, and this handler would be entered again for its fault (that is what
    cut the report short the second time the crash was seen) */
 static int rd_ok(const void *p, size_t n) {

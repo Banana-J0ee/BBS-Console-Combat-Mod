@@ -1500,3 +1500,31 @@ leaf, +0x50 flags (0x8000 ended); the prize keeps the handle at +0x244, 130c00(h
 (object, handle, leaf) is noted when it is made; for those draws ANM 0xa4's texref slots point at the orb texture.
 tools/genorbtex.py: the bubble from KH2 obj/PRIZE.mdlx remastered texture 1 (left 128x128), tinted, 60x60 in the
 star's cell, a soft glow in the white star's, the rest clear (no sparkles).
+
+## Epic Games Store port (2026-10-23, branch `epic`)
+* Asked for: the mod on the Epic version (C:\Program Files\Epic Games\KH_1.5_2.5), Steam and main untouched.
+* The Epic BBS exe (sha256 d5c0cf12..., 9 345 296 bytes, built ~3 h after Steam's 375a8112...) is the same code with
+  small differences: .text 0x2f0 longer (EOS instead of Steam API), most functions at Steam - 0x2e0 (it varies),
+  .rdata shifted by varying amounts, .data starts 0x1000 later (0x80f000), .bss + 0x700.  A few functions are
+  compiled differently (e.g. the status panel update 42ab80 -> 42a590 has another prologue).  Game data (Image/en
+  on Epic, Image/dt on Steam) is identical.
+* How the addresses were moved (tools/epic/, paths as on the build machine):
+  - mapper.py: objdump both .text sections, normalize every instruction (addresses masked), match .pdata chunks by
+    hash (SequenceMatcher: 29 678 of 31 050 equal), pair the rest inside the differing blocks and align their
+    instructions (1 125 more); data addresses from the operand pairs of matched instructions (rip-relative targets,
+    call targets), per address.
+  - resolve.py: a code address is accepted when 6 of the next 8 normalized instructions agree; otherwise searched
+    outward from the nearest known delta for a 12-instruction match (small stubs: the nearest one).
+  - translate.py: every hex literal in src (not *_gen.h), test/run.c and tools/gensteal.py that is a Steam
+    instruction start or a referenced data address is rewritten; flags / colours / message ids that happen to fall
+    in those ranges are listed in EX; vtable slots and table entries not referenced exactly (DATA_EXTRA) were checked
+    by content (each Epic slot holds the mapped function).  Run once only (it refuses a second run).
+  - midcheck.py: literals inside instructions (immediates, displacements) - mapped by hand: camera pitch immediates
+    22dae9 / 22daf6 -> 22d809 / 22d816, air lock 26407b -> 263d9b, lunge divisor disp 21cf56 -> 21cc76.
+  - gensteal.py rerun on the Epic exe: all 24 hook sites have the same bytes.
+  - combo.py: the Combo Flow runs (bundle_src/epic/combo_runs.json, genbundle BBS_COMBO_RUNS): the three hook-site
+    jumps moved; Steam's cave at 62f080 is code in Epic (.text is longer), so it goes to the free tail of the .nep
+    page (631340, after the other cave at 631290); its state block 1110d800 lies inside Epic's .bss and moves to
+    the page's tail, 1110dd00; every rel32 / rip-relative operand re-encoded.
+* Test: the whole suite against the Epic exe (BBS_EXE=bbs_epic.exe, BBS_COMBO_RUNS=...): 36 runs exit 0, install=1
+  errors=0, ALL OK, LOOP TEST OK.

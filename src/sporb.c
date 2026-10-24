@@ -43,17 +43,17 @@
 extern char g_ini[MAX_PATH + 32];
 extern int g_debug;
 
-#define DROP_FN     0x2d5b30u
-static const u32 DEATH_CALLS[2] = { 0x2d8f16, 0x2defd8 };
-#define MAKE_FN     0x1e83e0u
-#define MAKE_CALL   0x2d5cc7u
-#define PICK_FN     0x273420u
-#define PICK_CALL   0x273408u
-#define PRIZE_TYPES 0x817b30u
+#define DROP_FN     0x2d5850u
+static const u32 DEATH_CALLS[2] = { 0x2d8c36, 0x2decf8 };
+#define MAKE_FN     0x1e8100u
+#define MAKE_CALL   0x2d59e7u
+#define PICK_FN     0x273140u
+#define PICK_CALL   0x273128u
+#define PRIZE_TYPES 0x818b30u
 #define ORB_CMD     0x1efu
-#define MGR         G(u8*, 0x10f9ee40)
-#define BANK_FN     0x4c3fb0u
-#define BANK_CALL   0x553472u      /* the "se0000" bank */
+#define MGR         G(u8*, 0x10f9f540)
+#define BANK_FN     0x4c3700u
+#define BANK_CALL   0x554f12u      /* the "se0000" bank */
 #define DLINK_SE    12             /* the D-Link prize's pickup sound (the copy's template) */
 
 static int   c_on = 1;              /* [SPOrbs] Enabled */
@@ -75,20 +75,20 @@ static float rnd(void) { g_seed = g_seed * 1103515245u + 12345u; return (float)(
 static int regular(u8 *ent) { return ent && ent[0xf0] == 'm'; }
 
 /* --- the orb texture --- */
-#define FRR_FN      0x1a1770u
-#define FRR_LOAD    0x11d818u      /* 1a1770(frr, 0): the FRR's textures are made */
-#define FRR_FREE    0x11d4a4u      /* 1a1770(frr, 1): released */
+#define FRR_FN      0x1a1610u
+#define FRR_LOAD    0x11d778u      /* 1a1770(frr, 0): the FRR's textures are made */
+#define FRR_FREE    0x11d404u      /* 1a1770(frr, 1): released */
 #define RESIDENT    0x80003800u    /* resident.frr's index (+4) */
-#define TEXMGR      G(u8*, 0x8f869d0)
-#define TEX_MAKE    0x4bc160u
-#define TEX_DROP    0x4bc1f0u
-#define TEX_REG     0x4bbd00u      /* texture manager vtable +0x18: (mgr, owner, tex) -> slot */
-#define TEX_REL     0x158cb0u      /* +0x30: (mgr, slot) */
+#define TEXMGR      G(u8*, 0x8f870d0)
+#define TEX_MAKE    0x4bb8c0u
+#define TEX_DROP    0x4bb950u
+#define TEX_REG     0x4bb460u      /* texture manager vtable +0x18: (mgr, owner, tex) -> slot */
+#define TEX_REL     0x158b50u      /* +0x30: (mgr, slot) */
 #define ORB_TEX_ID  0xf0000040u    /* resident textures are f0000000..f000001c */
-#define ANM_VT      0x63de30u      /* FecAnm_plus vtable slot 3 */
-#define ANM_DRAW    0x1779c0u
-#define EFX_GET     0x130c00u
-#define EFX_ENDED   0x12a890u
+#define ANM_VT      0x63df60u      /* FecAnm_plus vtable slot 3 */
+#define ANM_DRAW    0x177860u
+#define EFX_GET     0x130aa0u
+#define EFX_ENDED   0x12a730u
 #define ORB_ANM     0xf00000a4u    /* the small D-Link prize's sprite */
 #define TW 256
 #define TH 128
@@ -319,7 +319,7 @@ int sporb_check(void) {
     const u8 *k5 = g_base + PRIZE_TYPES + 5 * 0x50;
     if (*(const u32*)(k5 + 0x40) != 0x1e4) { LOG("sp orbs: prize type 5 is not the D-Link prize"); bad++; }
     else { const char *nm = *(const char* const*)(k5 + 0x28); if (!nm || strcmp(nm, "SYS_PRZ_001_0")) { LOG("sp orbs: prize type 5 has another effect"); bad++; } }
-    if (G(u8, 0x814900 + ORB_CMD * 0x18) != 10) { LOG("sp orbs: command %x is not a prize", ORB_CMD); bad++; }
+    if (G(u8, 0x815900 + ORB_CMD * 0x18) != 10) { LOG("sp orbs: command %x is not a prize", ORB_CMD); bad++; }
     return bad == 0;
 }
 void sporb_apply(void) {

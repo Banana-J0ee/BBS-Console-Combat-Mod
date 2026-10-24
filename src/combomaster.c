@@ -57,22 +57,22 @@ extern int g_debug;
 #define CM_ID        0x1c3
 #define FX_ID        0x1c2
 #define LC_ID        0x1c1
-#define NAME_PTR(id) G(const char*, 0x814908 + (u32)(id) * 0x18)
-#define LIST_FN      0x3f1ce0u
-static const u32 LIST_CALLS[3] = { 0x3f2979, 0x3f2f55, 0x3f39a6 };
-#define HELP_FN      0x41d880u
-static const u32 HELP_CALLS[2] = { 0x3f2711, 0x3f3562 };
-#define SWITCH_FN    0x41d2e0u
-#define SWITCH_CALL  0x3f37f0u
-#define WIN_FN       0x21c140u
-#define WIN_CALL     0x22902eu
+#define NAME_PTR(id) G(const char*, 0x815908 + (u32)(id) * 0x18)
+#define LIST_FN      0x3f18b0u
+static const u32 LIST_CALLS[3] = { 0x3f2549, 0x3f2b25, 0x3f3576 };
+#define HELP_FN      0x41d270u
+static const u32 HELP_CALLS[2] = { 0x3f22e1, 0x3f3132 };
+#define SWITCH_FN    0x41ccd0u
+#define SWITCH_CALL  0x3f33c0u
+#define WIN_FN       0x21be60u
+#define WIN_CALL     0x228d4eu
 #define LIST_GAME    30                 /* the game's room: menu+0xa8 .. +0x288, where the 7 rows' positions start */
 #define LIST_MOVED   33                 /* with those moved out: up to +0x2b8, the row objects start at +0x2c0 */
 #define REC_SEEN     0xc000u          /* 0x4000 new, 0x8000 just seen (dim NEW badge), 0xc000 known [41c5f0] */
 #define REC_LEARNED  (1u << 6)          /* one copy */
 #define REC_ON       (1u << 9)          /* copy 0 switched on */
 
-#define SAVE_FLAG    G(u32, 0x10fa3d08 + 0x18cc + 5 * 4)   /* EXP Zero's u32 in the save in memory [1403600f0] */
+#define SAVE_FLAG    G(u32, 0x10fa4408 + 0x18cc + 5 * 4)   /* EXP Zero's u32 in the save in memory [1403600f0] */
 /* the abilities of this file, in the order they are added to the end of Support */
 typedef struct { u16 id; u32 bit; int enabled; char name[48], help[256]; u32 rec; const char *key, *tag; } Extra;
 static Extra g_ab[3] = {
@@ -91,16 +91,16 @@ static float g_rowpos[7][2];            /* the menu's row positions, moved out o
 static int g_rows_moved;                /* all three sites redirected: the list may hold up to 33 */
 
 /* the row positions: lea rdx,[rbx+0x288] (rbx = menu + row * 8) twice in 3f24d0, lea rdi,[rsi+0x288] in the setup */
-static const Steal S_cm_row_a = { 0x3f2644, 7, 0, {0}, {0}, {0x48,0x8d,0x93,0x88,0x02,0x00,0x00} };
-static const Steal S_cm_row_b = { 0x3f2657, 7, 0, {0}, {0}, {0x48,0x8d,0x93,0x88,0x02,0x00,0x00} };
-static const Steal S_cm_row_init = { 0x3f2f60, 7, 0, {0}, {0}, {0x48,0x8d,0xbe,0x88,0x02,0x00,0x00} };
+static const Steal S_cm_row_a = { 0x3f2214, 7, 0, {0}, {0}, {0x48,0x8d,0x93,0x88,0x02,0x00,0x00} };
+static const Steal S_cm_row_b = { 0x3f2227, 7, 0, {0}, {0}, {0x48,0x8d,0x93,0x88,0x02,0x00,0x00} };
+static const Steal S_cm_row_init = { 0x3f2b30, 7, 0, {0}, {0}, {0x48,0x8d,0xbe,0x88,0x02,0x00,0x00} };
 static u64 row_index(Ctx *c) { u64 k = (c->rbx - c->rdi) / 8; return k < 7 ? k : 0; }
-static u64 MSABI row_a(Ctx *c) { c->rdx = (u64)g_rowpos[row_index(c)]; return (u64)(g_base + 0x3f264b); }
-static u64 MSABI row_b(Ctx *c) { c->rdx = (u64)g_rowpos[row_index(c)]; return (u64)(g_base + 0x3f265e); }
-static u64 MSABI row_init(Ctx *c) { c->rdi = (u64)g_rowpos[0]; return (u64)(g_base + 0x3f2f67); }
+static u64 MSABI row_a(Ctx *c) { c->rdx = (u64)g_rowpos[row_index(c)]; return (u64)(g_base + 0x3f221b); }
+static u64 MSABI row_b(Ctx *c) { c->rdx = (u64)g_rowpos[row_index(c)]; return (u64)(g_base + 0x3f222e); }
+static u64 MSABI row_init(Ctx *c) { c->rdi = (u64)g_rowpos[0]; return (u64)(g_base + 0x3f2b37); }
 
 /* the detail page is refused for it (3f3659: mov rax,[rbx+rax*8+0xa8]; then the "seen" test) */
-static const Steal S_cm_detail = { 0x3f3659, 8, 0, {0}, {0}, {0x48,0x8b,0x84,0xc3,0xa8,0x00,0x00,0x00} };
+static const Steal S_cm_detail = { 0x3f3229, 8, 0, {0}, {0}, {0x48,0x8b,0x84,0xc3,0xa8,0x00,0x00,0x00} };
 
 static int ab_on(const Extra *a) { return (SAVE_FLAG & a->bit) != 0; }
 static void ab_rec(Extra *a) { a->rec = REC_SEEN | REC_LEARNED | (ab_on(a) ? REC_ON : 0); }
@@ -164,7 +164,7 @@ static void MSABI switch_hook(u16 id, u8 copy, s8 on) {
 static u64 MSABI detail_hook(Ctx *c) {
     u8 *menu = (u8*)c->rbx;
     s16 i = *(s16*)(menu + 0x8e);
-    if (ab_of(*(u16*)(menu + 0xa8 + i * 0x10 + 8))) return (u64)(g_base + 0x3f3669);   /* buzzer */
+    if (ab_of(*(u16*)(menu + 0xa8 + i * 0x10 + 8))) return (u64)(g_base + 0x3f3239);   /* buzzer */
     return 0;
 }
 /* the names file is in memory (mp.c's hook on its "ready" call): the name goes to the command table */
@@ -215,7 +215,7 @@ int combomaster_check(void) {
     if (memcmp(g_base + S_cm_detail.rva, S_cm_detail.bytes, S_cm_detail.len)) { LOG("combo master: detail site does not match"); bad++; }
     const Steal *rows[3] = { &S_cm_row_a, &S_cm_row_b, &S_cm_row_init };
     for (int i = 0; i < 3; i++) if (memcmp(g_base + rows[i]->rva, rows[i]->bytes, rows[i]->len)) { LOG("combo master: row site %x does not match", rows[i]->rva); bad++; }
-    if (*(u32*)(g_base + 0x3f3661) != 0xc00000f7u) { LOG("combo master: detail test does not match"); bad++; }
+    if (*(u32*)(g_base + 0x3f3231) != 0xc00000f7u) { LOG("combo master: detail test does not match"); bad++; }
     return bad == 0;
 }
 void combomaster_apply(void) {

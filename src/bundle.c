@@ -26,8 +26,8 @@ static int c_combo = 1, c_camera = 1, c_revenge = 1;
 static float c_cam_dist = 0.9f, c_pitch_min = -60.0f, c_pitch_max = 45.0f;
 static u32 cam_scaled_crc[64];
 #define DEG2RAD 0.01745329252f              /* the same constant KH2 uses (0x3c8efa35) */
-#define PITCH_MIN_IMM 0x22dae9              /* FUN_14022d790: mov [rdi+344h], 0bf060a92h (-30 deg), imm at +6 */
-#define PITCH_MAX_IMM 0x22daf6              /*                mov [rdi+348h], 3f490fdbh  (+45 deg), imm at +6 */
+#define PITCH_MIN_IMM 0x22d809              /* FUN_14022d790: mov [rdi+344h], 0bf060a92h (-30 deg), imm at +6 */
+#define PITCH_MAX_IMM 0x22d816              /*                mov [rdi+348h], 3f490fdbh  (+45 deg), imm at +6 */
 #define PITCH_MIN_OLD 0xbf060a92u
 #define PITCH_MAX_OLD 0x3f490fdbu
 
@@ -44,10 +44,10 @@ static int is_factory(const char *buf, size_t n) {
     if (n == FACTORY_RV1_SIZE) return crc32_((const u8*)buf, n) == FACTORY_RV1_CRC;
     return 0;
 }
-#define VT_SLOT   0x637b10      /* CRsrcData::vftable[1] */
-#define VT_STUB   0x114bc0      /* what it points to: ret */
-#define LUA_CALL  0x2c5962      /* call luaL_loadbuffer */
-#define LUA_LOAD  0x5bb9f0
+#define VT_SLOT   0x637c40      /* CRsrcData::vftable[1] */
+#define VT_STUB   0x114b20      /* what it points to: ret */
+#define LUA_CALL  0x2c5682      /* call luaL_loadbuffer */
+#define LUA_LOAD  0x5bb910
 
 static u32 crc32_(const u8 *p, size_t n) {
     static u32 t[256]; static int ready;
@@ -141,10 +141,10 @@ static void mob_patch(void) {
 /* Debug only: BBS_Log(...) for the revenge script, its arguments written to the log as one line.
    The game's own Lua 5.1 API (from luaI_openlib 5bbd40 and luaB_print 5bca60): lua_gettop 5b9900,
    lua_tolstring 5ba7f0, lua_pushcclosure 5b9d80, lua_setfield 5ba4b0. */
-#define LUA_GETTOP   0x5b9900
-#define LUA_TOLSTR   0x5ba7f0
-#define LUA_PUSHCCL  0x5b9d80
-#define LUA_SETFIELD 0x5ba4b0
+#define LUA_GETTOP   0x5b9820
+#define LUA_TOLSTR   0x5ba710
+#define LUA_PUSHCCL  0x5b9ca0
+#define LUA_SETFIELD 0x5ba3d0
 static int MSABI rv_log(void *L) {
     int n = FN(int, LUA_GETTOP, void*)(L);
     char line[600]; int p = 0; line[0] = 0;
@@ -166,7 +166,7 @@ static int lua_api_ok(void) {
    is missing.  Read from the file on every call (the revenge script asks once per boss it creates), so edits take
    effect at the next boss without restarting.  The file is looked for in the game folder, then next to bbskh2.ini.
    lua_pushlstring 5b9ee0 (luaC_checkGC 5c4910, luaS_newlstr 5c57c0, type 4). */
-#define LUA_PUSHLSTR 0x5b9ee0
+#define LUA_PUSHLSTR 0x5b9e00
 static int pushlstr_ok(void) {
     static const u8 head[] = { 0x48, 0x89, 0x5c, 0x24, 0x08, 0x48, 0x89, 0x6c, 0x24, 0x10 };
     return !memcmp(g_base + LUA_PUSHLSTR, head, sizeof head);
@@ -180,7 +180,7 @@ static void boss_ini_path(char *out, size_t n) {
 }
 /* Debug only: BBS_Ms() - milliseconds since the DLL loaded, for the revenge script's timing of boss callbacks.
    lua_pushinteger 5b9ea0 (the number type is float: kept small by counting from the start). */
-#define LUA_PUSHINT 0x5b9ea0
+#define LUA_PUSHINT 0x5b9dc0
 static DWORD g_ms0;
 static int pushint_ok(void) {
     static const u8 head[] = { 0x48, 0x8b, 0x41, 0x10, 0x0f, 0x57, 0xc0, 0xf3, 0x48, 0x0f, 0x2a, 0xc2 };
@@ -198,9 +198,9 @@ static int MSABI rv_ms(void *L) {
    list: node +8 entity, +0x10 next; characters only, vtable+0x28 bit 0x10).  Its shots: the objects of list 0xb
    (1401128b0) of kind 0x10005 whose owner (+0x204) is its id (vtable+0x38).
    Returns windows + 64 x windows not over + 4096 x shots (0 when the entity is not found). */
-#define LUA_TOUDATA 0x5ba960
-#define ENT_OF      0x1d45c0
-#define OBJ_LIST    0x1128b0
+#define LUA_TOUDATA 0x5ba880
+#define ENT_OF      0x1d43e0
+#define OBJ_LIST    0x112810
 static int atk_ok(void) {
     static const u8 a[] = { 0x48, 0x83, 0xec, 0x28, 0xe8 }, b[] = { 0x40, 0x53, 0x48, 0x83, 0xec, 0x20, 0x8b, 0xd9 },
                     c[] = { 0x83, 0xf9, 0x1b, 0x77, 0x0f };

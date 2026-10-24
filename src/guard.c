@@ -28,11 +28,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define VT_SEQ_DRAW 0x641dd8u       /* CD2SeqCtrl vtable slot 3 */
-#define VT_LAY_DRAW 0x6418c8u       /* CD2LayCtrl vtable slot 2 */
-#define FN_SEQ_DRAW 0x1aaea0u
-#define FN_LAY_DRAW 0x1a2bb0u
-#define VT_SEQDATA  0x641f40u
+#define VT_SEQ_DRAW 0x641f08u       /* CD2SeqCtrl vtable slot 3 */
+#define VT_LAY_DRAW 0x6419f8u       /* CD2LayCtrl vtable slot 2 */
+#define FN_SEQ_DRAW 0x1aacc0u
+#define FN_LAY_DRAW 0x1a2a50u
+#define VT_SEQDATA  0x642070u
 #define TIM2_MAGIC  0x324d4954u
 
 static int c_on = 1;                   /* on again by request; the fix for the one known case is menu_shutdown() (menu.c) */
@@ -89,7 +89,7 @@ static int tm2_bad(const u8 *tm) {
 
 /* ---- log ---- */
 static u8 *data_obj(int h) {        /* CD2LayData / CD2SeqData of a data handle */
-    u8 *mgr = G(u8*, 0x8f87fd8);
+    u8 *mgr = G(u8*, 0x8f886d8);
     if (!mgr || h <= 0) return NULL;
     u8 *e = ((u8 *(MSABI *)(u8*, int))(*(void***)mgr)[3])(mgr, h);
     return e ? *(u8**)(e + 8) : NULL;
@@ -101,7 +101,7 @@ static void name16(const u8 *p, char *out) {
 }
 static void res_line(const char *what, u32 id) {
     if (!id) { LOG("     %s: none", what); return; }
-    u8 *r = FN(u8*, 0x11a8a0, u32)(id);
+    u8 *r = FN(u8*, 0x11a800, u32)(id);
     if (!mem_ok(r, 0x90)) { LOG("     %s: id %x is not a resource any more", what, id); return; }
     char nm[20]; name16(r + 0x38, nm);
     LOG("     %s: id %x \"%s\" state %d group %d users %d requests %d data %p size %llx flags %x %x", what, id, nm, r[0x11],
@@ -111,14 +111,14 @@ static void res_line(const char *what, u32 id) {
 }
 /* which loaded files hold this address now (the resource lists, walked under the resource system's own lock) */
 static void owners(const u8 *addr) {
-    u8 *cont = G(u8*, 0x8f7dc10);
+    u8 *cont = G(u8*, 0x8f7e310);
     if (!cont || !mem_ok(cont, 0x60)) return;
     u8 *mx = cont + 0x58; void **vt = *(void***)mx;
     if (!mem_ok(vt, 0x20)) return;
     struct { char nm[20]; int type, state, group, users; u64 data, size; u32 id, arc; } hit[6]; int nh = 0, seen = 0;
     ((void (MSABI *)(u8*))vt[1])(mx);
     for (int t = 0; t < 0x2a; t++) {
-        u8 *r = G(u8*, 0x8f7e328 + t * 0x20);
+        u8 *r = G(u8*, 0x8f7ea28 + t * 0x20);
         for (int k = 0; k < 8192 && r && mem_ok(r, 0x90) && r[0x10] == t; k++, r = *(u8**)(r + 8)) {
             u64 d = *(u64*)(r + 0x70), sz = *(u64*)(r + 0x80); seen++;
             if (!d || (u64)addr < d || (u64)addr >= d + sz || nh >= 6) continue;
@@ -157,7 +157,7 @@ static void report(u8 *self, u8 *sd, u8 *tm, int why, const char *action) {
         char nm[20]; name16(sd + 8, nm);
         LOG("     block %p \"%s\"%s: texture %p, its own texture %p, replacement id %x; HUD flags %08x",
             (void*)sd, nm, *(u64*)sd == (u64)(g_base + VT_SEQDATA) ? "" : " (NOT a data block any more)", (void*)tm,
-            *(void**)(sd + 0x98), *(u32*)(sd + 0xa0), G(u32, 0x10f9ee48));
+            *(void**)(sd + 0x98), *(u32*)(sd + 0xa0), G(u32, 0x10f9f548));
         res_line("block's file", *(u32*)(sd + 0x1c));
         res_line("replacement texture", *(u32*)(sd + 0xa0));
     } else LOG("     block %p cannot be read", (void*)sd);
@@ -171,7 +171,7 @@ static void report(u8 *self, u8 *sd, u8 *tm, int why, const char *action) {
 
 /* ---- an instance and the file it was made from ---- */
 static u8 *inst_obj(int h) {        /* CD2LayCtrl / CD2SeqCtrl of an instance handle */
-    u8 *mgr = G(u8*, 0x8f87fe0);
+    u8 *mgr = G(u8*, 0x8f886e0);
     if (!mgr || h <= 0) return NULL;
     u8 *e = ((u8 *(MSABI *)(u8*, int))(*(void***)mgr)[3])(mgr, h);
     return e ? *(u8**)(e + 8) : NULL;
@@ -179,13 +179,13 @@ static u8 *inst_obj(int h) {        /* CD2LayCtrl / CD2SeqCtrl of an instance ha
 /* 1 = the file (or block) this controller was made from is no longer registered: all its data pointers are dead */
 static int data_gone(const u8 *ctl) {
     s32 d = *(s32*)(ctl + 0x1c);
-    return d > 0 && G(u8*, 0x8f87fd8) && !data_obj(d);
+    return d > 0 && G(u8*, 0x8f886d8) && !data_obj(d);
 }
 int l2d_live(int *ph) {
     u8 *c = inst_obj(*ph);
     if (!c || !data_gone(c)) return 1;
     LOG("2D: instance %d outlived its file (data handle %d): destroyed, to be made again", *ph, *(s32*)(c + 0x1c));
-    FN(void, 0x1a57f0, int)(*ph);       /* safe on dead data: the destroy path looks the data handle up first [1abcf0, 1a3cd0] */
+    FN(void, 0x1a5690, int)(*ph);       /* safe on dead data: the destroy path looks the data handle up first [1abcf0, 1a3cd0] */
     *ph = 0;
     return 0;
 }
@@ -209,7 +209,7 @@ typedef struct { u8 *sd, *tm; u64 nat, nat2; } Seen;
 static Seen g_seen[SEEN_SLOTS];
 static int guard_seq(u8 *self) {
     s8 grp = (s8)self[0x86];
-    if (grp < 0 || grp > 3 || !G(u8, 0x8f88020 + grp) || !G(u8, 0x8f8802c) || (s8)self[0xb2] <= 0) return 0;   /* no bind */
+    if (grp < 0 || grp > 3 || !G(u8, 0x8f88720 + grp) || !G(u8, 0x8f8872c) || (s8)self[0xb2] <= 0) return 0;   /* no bind */
     u8 *sd = *(u8**)(self + 0x90);
     if (!sd) return 0;                                  /* nothing of ours to judge: the game's own business */
     Seen *e = &g_seen[(((u64)sd >> 4) ^ ((u64)sd >> 12)) & (SEEN_SLOTS - 1)];

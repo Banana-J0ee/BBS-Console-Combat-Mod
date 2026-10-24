@@ -15,8 +15,8 @@
 extern char g_ini[MAX_PATH + 32];
 extern int g_debug;
 
-#define FN_ROUTE    0x4b74a0u
-static const u32 ROUTE_CALLS[2] = { 0x4b8549, 0x4b8647 };
+#define FN_ROUTE    0x4b6ce0u
+static const u32 ROUTE_CALLS[2] = { 0x4b7d89, 0x4b7e87 };
 static int c_free = 1;          /* [WorldMap] FreeFlight */
 
 static int MSABI no_route(u8 *ride) { (void)ride; return 0; }

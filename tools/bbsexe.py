@@ -8,14 +8,14 @@ import bisect, hashlib, os, struct, subprocess, sys
 
 import numpy as np
 
-EXPECTED_SHA256 = '375a811243f1f95f786f00318e2e1210dd5881b25bbf0912a0ad8f81650c976c'
+EXPECTED_SHA256 = 'd5c0cf1202bbf44f38d7fed94178664075f52ea65410e0aff0049e47e36613ed'   # Epic Games Store build
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def exe_path():
     p = os.environ.get('BBS_EXE','/home/claude/bbs/bbs.exe')
     if not p or not os.path.isfile(p):
-        sys.exit('Set BBS_EXE to the path of "KINGDOM HEARTS Birth by Sleep FINAL MIX.exe" (Steam build, unmodified).')
+        sys.exit('Set BBS_EXE to the path of "KINGDOM HEARTS Birth by Sleep FINAL MIX.exe" (Epic Games Store build, unmodified).')
     return p
 
 

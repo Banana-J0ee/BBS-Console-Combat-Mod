@@ -96,7 +96,7 @@ static float c_launch_min = 1.1f, c_launch_max = 4.35f, c_launch_reach = 2.6f;
 #define P_RISE   0x0010
 #define P_DOWN   0x0020
 #define P_FLOAT  0x2000
-static u8 *local_player(void) { u8 *m = G(u8*, 0x10f9ee40); return m ? *(u8**)(m + 0x118) : NULL; }
+static u8 *local_player(void) { u8 *m = G(u8*, 0x10f9f540); return m ? *(u8**)(m + 0x118) : NULL; }
 static const u8 *g_hop_live;            /* the record of the hit that is hopping now (started in the air) */
 /* an Attack-button hit in the air that hops, KH2-style */
 static int hop_hit(u8 *pl) {
@@ -115,7 +115,7 @@ static float cmd_override(u8 *pl) {
     return id < CMD_IDS ? g_cmd_speed[id] : 0.0f;
 }
 
-#define STICK_MOVE 0.45f                /* the game's own "moving" threshold (0x646fb8) */
+#define STICK_MOVE 0.45f                /* the game's own "moving" threshold (0x6470e8) */
 enum { K_NORMAL, K_DECK, K_ITEM, K_FRIEND, K_FINISH, K_MAGIC };
 
 /* combo finishers of the Attack button: the PAtkData records the combo tables (PBA_*.bin, PAO_*.bin) use as their
@@ -124,7 +124,7 @@ static const u16 fin_idx[] = { 15, 20, 27, 32, 38, 44, 48, 53, 59, 65, 71, 77, 8
     333, 339, 344, 348, 352, 363, 367, 372, 580, 581, 586, 591, 597, 602, 608, 613, 619, 624, 629, 633, 637, 644, 650,
     654, 660, 664, 864, 871, 878 };
 static int is_finisher(const u8 *rec) {
-    u8 *mgr = G(u8*, 0x10f9ee40); if (!mgr) return 0;
+    u8 *mgr = G(u8*, 0x10f9f540); if (!mgr) return 0;
     u8 *base = *(u8**)(mgr + 0x128); if (!base || rec < base) return 0;
     size_t i = (size_t)(rec - base) / 0x28;
     for (unsigned k = 0; k < sizeof fin_idx / sizeof *fin_idx; k++) if (fin_idx[k] == i) return 1;
@@ -132,7 +132,7 @@ static int is_finisher(const u8 *rec) {
 }
 
 static long patk_index(const u8 *rec) {    /* the record's number in PAtkData (for the log) */
-    u8 *mgr = G(u8*, 0x10f9ee40); u8 *base = mgr ? *(u8**)(mgr + 0x128) : NULL;
+    u8 *mgr = G(u8*, 0x10f9f540); u8 *base = mgr ? *(u8**)(mgr + 0x128) : NULL;
     return base && rec >= base ? (long)((rec - base) / 0x28) : -1;
 }
 static float frame_of(u8 *pl) { u8 *mot = *(u8**)(pl + 0x78); return mot ? *(float*)(mot + 0x3c) : 0.0f; }
@@ -224,7 +224,7 @@ static int leave(u8 *pl, int kind) {
     if (*(u32*)(pl + 0x31c) & 0x2000) return 0;                  /* the game is ignoring the stick */
     if (follow && !g_trk.changed) return 0;
     if (g_debug) LOG("speed: walk-out, command %x record %d frame %.1f (done at %.0f; %d hit windows, last closes at %.0f; kind %d, %s)", *(u16*)(pl + 0x312),
-                     (int)((rec - *(u8**)(G(u8*, 0x10f9ee40) + 0x128)) / 0x28), fr, d, g_dbg_n, g_dbg_last, kind, (*(u32*)(pl + 0x318) & 0xc00000) ? "air" : "ground");
+                     (int)((rec - *(u8**)(G(u8*, 0x10f9f540) + 0x128)) / 0x28), fr, d, g_dbg_n, g_dbg_last, kind, (*(u32*)(pl + 0x318) & 0xc00000) ? "air" : "ground");
     return 1;
 }
 
@@ -376,8 +376,8 @@ static void cc_seen(u8 *pl, int kind) {
 static u16 cc_command(u8 *pl) {
     u32 st = *(u32*)(pl + 0x304); u16 id = *(u16*)(pl + 0x312); s16 part = *(s16*)(pl + 0x310);
     if (id < 0x5b || id > 0xbb || !cc_covered(id)) return 0;
-    if (G(u8, 0x814900 + (u32)id * 0x18) != 2) return 0;                         /* a deck command */
-    u8 cat = G(u8, 0x814901 + (u32)id * 0x18);
+    if (G(u8, 0x815900 + (u32)id * 0x18) != 2) return 0;                         /* a deck command */
+    u8 cat = G(u8, 0x815901 + (u32)id * 0x18);
     if (st == 0x10) return cat == 1 && (part == 3 || part == 4) ? id : 0;
     if (st == 0x11) return cat == 2 && part == 4 ? id : 0;
     return 0;
@@ -499,16 +499,16 @@ static void cc_config(void) {
     if (n) LOG("cancel: %d commands with a delay of their own", n);
 }
 static void MSABI input_hook(u8 *pl) {
-    FN(void, 0x21f9f0, u8*)(pl);
+    FN(void, 0x21f710, u8*)(pl);
     if (c_on) cc_before(pl);
 }
 
-static u64 MSABI h_attack(Ctx *c) { return leave((u8*)c->rbx, K_NORMAL) ? (u64)(g_base + 0x2291cd) : 0; }
-static u64 MSABI h_deck(Ctx *c)   { cc_seen((u8*)c->rdi, K_DECK); return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x2264d3) : 0; }
-static u64 MSABI h_dash(Ctx *c)   { cc_seen((u8*)c->rdi, K_DECK); return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x22540d) : 0; }
-static u64 MSABI h_item(Ctx *c)   { return leave((u8*)c->rbx, K_ITEM) ? (u64)(g_base + 0x262064) : 0; }
-static u64 MSABI h_friend(Ctx *c) { return leave((u8*)c->rbx, K_FRIEND) ? (u64)(g_base + 0x2599b9) : 0; }
-static u64 MSABI h_finish(Ctx *c) { return leave((u8*)c->rbx, K_FINISH) ? (u64)(g_base + 0x2562c6) : 0; }
+static u64 MSABI h_attack(Ctx *c) { return leave((u8*)c->rbx, K_NORMAL) ? (u64)(g_base + 0x228eed) : 0; }
+static u64 MSABI h_deck(Ctx *c)   { cc_seen((u8*)c->rdi, K_DECK); return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x2261f3) : 0; }
+static u64 MSABI h_dash(Ctx *c)   { cc_seen((u8*)c->rdi, K_DECK); return leave((u8*)c->rdi, K_DECK) ? (u64)(g_base + 0x22512d) : 0; }
+static u64 MSABI h_item(Ctx *c)   { return leave((u8*)c->rbx, K_ITEM) ? (u64)(g_base + 0x261d84) : 0; }
+static u64 MSABI h_friend(Ctx *c) { return leave((u8*)c->rbx, K_FRIEND) ? (u64)(g_base + 0x2596d9) : 0; }
+static u64 MSABI h_finish(Ctx *c) { return leave((u8*)c->rbx, K_FINISH) ? (u64)(g_base + 0x255fe6) : 0; }
 
 /* ---- magic ---- */
 enum { F_NONE, F_FIRE, F_BLIZZARD, F_THUNDER, F_CURE };
@@ -529,7 +529,7 @@ static u64 MSABI h_mag_anim(Ctx *c) {
     u8 *pl = (u8*)c->rbx;
     cc_seen(pl, K_MAGIC);
     if (!c_walk || !plain_spell(pl) || *(float*)(pl + 0x1a0) > 40.0f) return 0;
-    return (u64)(g_base + 0x26829a);
+    return (u64)(g_base + 0x267fba);
 }
 /* 26828a: every frame of the recovery in which nothing is queued, just before "lock <= 0 ?" */
 static u64 MSABI h_mag_lock(Ctx *c) {
@@ -543,7 +543,7 @@ static u64 MSABI h_mag_lock(Ctx *c) {
     if (c_on) {                                                  /* KH2's time from release to the next action */
         int f = family(*(u16*)(pl + 0x312));
         float fre = f == F_FIRE ? c_free_fire : f == F_BLIZZARD ? c_free_blizzard : f == F_THUNDER ? c_free_thunder : 40.0f;
-        if (fre < 40.0f && 40.0f - t >= fre && !(*(u32*)(pl + 0x320) & 0x80)) return (u64)(g_base + 0x26829a);
+        if (fre < 40.0f && 40.0f - t >= fre && !(*(u32*)(pl + 0x320) & 0x80)) return (u64)(g_base + 0x267fba);
     }
     if (!c_walk || finished(pl)) return 0;
     if (*(u32*)(pl + 0x320) & 0x80) return 0;
@@ -554,7 +554,7 @@ static u64 MSABI h_mag_lock(Ctx *c) {
     float d = done_frame(pl, rec, K_MAGIC);
     if (d < 0.0f || fr < d) return 0;
     if (g_debug) LOG("speed: walk-out of spell %x at frame %.1f", *(u16*)(pl + 0x312), fr);
-    return (u64)(g_base + 0x26829a);
+    return (u64)(g_base + 0x267fba);
 }
 
 /* ---- air ---- */
@@ -568,7 +568,7 @@ static u64 MSABI h_gravity(Ctx *c) {
         memcpy(c->xmm[0], &g, 4);                                       /* written to pl+0x508 at 21cb7d */
         memcpy(c->xmm[4], &never, 4);                                     /* frMoveEnd: never reached, the rise is not cut */
         c->rax &= ~(u64)0x800000;                                       /* no no-sink clamp */
-        return (u64)(g_base + 0x21cb7a);
+        return (u64)(g_base + 0x21c89a);
     }
     if (c_air && mode && !(mode & 0x2000) && (c->rax & 0x800000) && g_fall == (u8*)c->rcx) {
         static u8 *last_rec;                                     /* (debug: one line per action) */
@@ -576,14 +576,14 @@ static u64 MSABI h_gravity(Ctx *c) {
         if (g_debug && *(u8**)(pl + 0x5b8) != last_rec) { last_rec = *(u8**)(pl + 0x5b8); LOG("speed: falling out of command %x at frame %.1f", *(u16*)(pl + 0x312), frame_of(pl)); }
         c->rax &= ~(u64)0x800000;
     }
-    return (u64)(g_base + (mode ? 0x21cb5a : 0x21cb72));
+    return (u64)(g_base + (mode ? 0x21c87a : 0x21c892));
 }
 /* 2633ff in the fall state: "fall loop frame >= 6 ?" (rdi = player); before that vy is held.  The same hold makes
    the top of every jump hang for 6 animation frames (0.2 s): gone unless JumpHang = 1 (KH2's jumps do not hang). */
 static u64 MSABI h_hover(Ctx *c) {
     u16 prev = *(u16*)((u8*)c->rdi + 0x308);
-    if (!c_jump_hang) return (u64)(g_base + 0x26357c);
-    return c_air && prev >= 0x10 && prev <= 0x14 ? (u64)(g_base + 0x26357c) : 0;
+    if (!c_jump_hang) return (u64)(g_base + 0x26329c);
+    return c_air && prev >= 0x10 && prev <= 0x14 ? (u64)(g_base + 0x26329c) : 0;
 }
 
 /* ---- launcher ---- */
@@ -750,7 +750,7 @@ static void long_action_log(u8 *pl) {
         g_act_t / 60.0f, st, *(s16*)(pl + 0x310), *(s16*)(pl + 0x314), cmd, rec ? (int)patk_index(rec) : -1, fr,
         g_act_still ? " (not moving)" : "", mot ? *(u32*)(mot + 8) : 0, *(float*)(pl + 0x1a8), g_mine, dt,
         *(u32*)(pl + 0x318), *(u32*)(pl + 0x31c), *(u32*)(pl + 0x320), *(float*)(pl + 0x50c), *(float*)(pl + 0x508),
-        (*(u32*)(pl + 0x318) & 0x400000) != 0, G(u32, 0x8f64930) & 0xf0ff);
+        (*(u32*)(pl + 0x318) & 0x400000) != 0, G(u32, 0x8f65030) & 0xf0ff);
     g_act_logged = 1;
 }
 /* ---- frame-gap log (debug only): the time between two updates of the local player, from the clock.  A gap over
@@ -766,7 +766,7 @@ static void frame_gap_log(u8 *pl, DWORD t0) {
         LOG("frame gap: %lu ms  state %x part %d/%d command %x  frame %.1f speed %.2f dt %.2f  318 %x  mot flags %x  buttons %x",
             (unsigned long)gap, *(u16*)(pl + 0x304), *(s16*)(pl + 0x310), *(s16*)(pl + 0x314), *(u16*)(pl + 0x312),
             frame_of(pl), *(float*)(pl + 0x1a8), *(float*)(pl + 0x20), *(u32*)(pl + 0x318), mot ? *(u32*)(mot + 8) : 0,
-            G(u32, 0x8f64930) & 0xf0ff);
+            G(u32, 0x8f65030) & 0xf0ff);
     }
     if (gap > 40) {
         if (!g_fg_slow_since) g_fg_slow_since = t0;
@@ -791,7 +791,7 @@ static void MSABI tick_hook(u8 *pl) {
         DWORD own = GetTickCount() - t0;
         if (own > 20) LOG("frame gap: our per-frame work took %lu ms", (unsigned long)own);
     }
-    FN(void, 0x23b3a0, u8*)(pl);
+    FN(void, 0x23b0c0, u8*)(pl);
 }
 
 /* ---- install ---- */
@@ -849,13 +849,13 @@ int speed_check(void) {
         if (bundle_combo_in_exe() && (s == &S_atk_end || s == &S_mag_anim || s == &S_mag_lock)) continue;   /* put back in speed_apply */
         LOG("speed: site %x does not match", s->rva); bad++;
     }
-    u8 *p = g_base + 0x220b1d; s32 d; memcpy(&d, p + 1, 4);
-    if (p[0] != 0xE8 || (u32)(0x220b1d + 5 + d) != 0x23b3a0) { LOG("speed: call site 220b1d does not match"); bad++; }
-    if (G(u32, 0x26407b) != 0x41f00000) { LOG("speed: 26407b does not match"); bad++; }
-    p = g_base + 0x2206f8; memcpy(&d, p + 1, 4);
-    if (c_cc && (p[0] != 0xE8 || (u32)(0x2206f8 + 5 + d) != 0x21f9f0)) { LOG("speed: call site 2206f8 does not match"); bad++; }
+    u8 *p = g_base + 0x22083d; s32 d; memcpy(&d, p + 1, 4);
+    if (p[0] != 0xE8 || (u32)(0x22083d + 5 + d) != 0x23b0c0) { LOG("speed: call site 220b1d does not match"); bad++; }
+    if (G(u32, 0x263d9b) != 0x41f00000) { LOG("speed: 26407b does not match"); bad++; }
+    p = g_base + 0x220418; memcpy(&d, p + 1, 4);
+    if (c_cc && (p[0] != 0xE8 || (u32)(0x220418 + 5 + d) != 0x21f710)) { LOG("speed: call site 2206f8 does not match"); bad++; }
     static const u8 lunge[] = { 0x41, 0x0f, 0x28, 0xf2, 0xf3, 0x0f, 0x5e, 0x35 };
-    if (memcmp(g_base + 0x21cf4e, lunge, sizeof lunge)) { LOG("speed: 21cf4e does not match"); bad++; }
+    if (memcmp(g_base + 0x21cc6e, lunge, sizeof lunge)) { LOG("speed: 21cf4e does not match"); bad++; }
     return bad == 0;
 }
 void speed_apply(void) {
@@ -873,13 +873,13 @@ void speed_apply(void) {
     hook_ctx(&S_gravity, h_gravity, "air gravity");
     hook_ctx(&S_fall_hover, h_hover, "fall hover");
     if (c_launch) hook_ctx(&S_launch, h_launch, "launch height");
-    hook_call(0x220b1d, 0x23b3a0, tick_hook, "player tick");
-    g_cc_end = (void (MSABI *)(u8*, int, int))(g_base + 0x21c510);
-    if (c_cc) hook_call(0x2206f8, 0x21f9f0, input_hook, "player input (command cancel)");
-    if (c_air && c_airlock != 30.0f) { u32 v; memcpy(&v, &c_airlock, 4); patch_u32(0x26407b, 0x41f00000, v, "air lock"); }
+    hook_call(0x22083d, 0x23b0c0, tick_hook, "player tick");
+    g_cc_end = (void (MSABI *)(u8*, int, int))(g_base + 0x21c230);
+    if (c_cc) hook_call(0x220418, 0x21f710, input_hook, "player input (command cancel)");
+    if (c_air && c_airlock != 30.0f) { u32 v; memcpy(&v, &c_airlock, 4); patch_u32(0x263d9b, 0x41f00000, v, "air lock"); }
     if (c_lunge) {
         g_lunge_div = near_alloc(4);
-        if (g_lunge_div) { *g_lunge_div = 60.0f; patch_riprel(0x21cf56, 0, 0x6ec5a4, g_lunge_div, "lunge speed"); }
+        if (g_lunge_div) { *g_lunge_div = 60.0f; patch_riprel(0x21cc76, 0, 0x6ec4a4, g_lunge_div, "lunge speed"); }
     }
     LOG("speed: actions x%.2f, walk-out %d, air %d (lock %.0f), release fire %.2f blizzard %.2f thunder %.2f cure %.2f, big spells x%.2f, command cancel %d (buffer %.0f)",
         c_actions, c_walk, c_air, c_airlock, c_rel_fire, c_rel_blizzard, c_rel_thunder, c_rel_cure, c_big, c_cc, c_cc_buf);

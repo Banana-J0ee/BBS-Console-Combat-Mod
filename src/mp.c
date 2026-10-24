@@ -1,10 +1,10 @@
 /* MP pool in place of per-command reloads, and the MP bar on the HUD.
 
    Game objects used here (rva = offset from the exe image base):
-     PlayerData            0x10f9eeb0   +0x31 level
-     PL::CPlayerCommand*   [0x10f9ed40] +0x60/+0x64 flags, +0x1e0 deck plates[8], +0x220 count, +0xc8 D-Link prompt
-     Gauge::CPlayerGauge*  [0x10f9ec60] +0x20 dt (60 Hz ticks), +0x8c HUD layout handle
-     PL::CPlayerManager*   [0x10f9ee40] +0x118 player
+     PlayerData            0x10f9f5b0   +0x31 level
+     PL::CPlayerCommand*   [0x10f9f440] +0x60/+0x64 flags, +0x1e0 deck plates[8], +0x220 count, +0xc8 D-Link prompt
+     Gauge::CPlayerGauge*  [0x10f9f368] +0x20 dt (60 Hz ticks), +0x8c HUD layout handle
+     PL::CPlayerManager*   [0x10f9f540] +0x118 player
      PL::CCommandPlate     +0x30 type (2 = deck), +0x31 state, +0x58 COMMAND*, +0x60 flags (0x2 unavailable,
                            0x800 item), +0x64 reload percent, +0x6c list position
    See docs/NOTES.md for how these were found. */
@@ -20,18 +20,18 @@ extern char g_dir[MAX_PATH], g_ini[MAX_PATH + 32];
 extern int g_debug;
 void dbg_frame(void);
 
-#define PD      ((u8*)RVA(0x10f9eeb0))
-#define CMD     G(u8*, 0x10f9ed40)
-#define GAUGE   G(u8*, 0x10f9ec60)
-#define MGR     G(u8*, 0x10f9ee40)
+#define PD      ((u8*)RVA(0x10f9f5b0))
+#define CMD     G(u8*, 0x10f9f440)
+#define GAUGE   G(u8*, 0x10f9f368)
+#define MGR     G(u8*, 0x10f9f540)
 static u8 *player(void) { u8 *m = MGR; return m ? *(u8**)(m + 0x118) : NULL; }
 
 /* command tables in the exe */
-#define CMD_TYPE(id)   G(u8, 0x814900 + (u32)(id) * 0x18 + 0)
-#define CMD_CAT(id)    G(u8, 0x814900 + (u32)(id) * 0x18 + 1)
-#define CMD_SUB(id)    G(u8, 0x814900 + (u32)(id) * 0x18 + 3)
-#define CMD_CLASS(id)  (G(u8, 0x814900 + (u32)(id) * 0x18 + 4) & 15)       /* 1..3: the command's rank */
-#define CMD_RELOAD(id) G(u8, 0x811080 + (u32)(id) * 0x1e + 3)
+#define CMD_TYPE(id)   G(u8, 0x815900 + (u32)(id) * 0x18 + 0)
+#define CMD_CAT(id)    G(u8, 0x815900 + (u32)(id) * 0x18 + 1)
+#define CMD_SUB(id)    G(u8, 0x815900 + (u32)(id) * 0x18 + 3)
+#define CMD_CLASS(id)  (G(u8, 0x815900 + (u32)(id) * 0x18 + 4) & 15)       /* 1..3: the command's rank */
+#define CMD_RELOAD(id) G(u8, 0x812080 + (u32)(id) * 0x1e + 3)
 #define CMD_MAX 0x23a
 
 /* ---------------- settings (bbskh2.ini) ---------------- */
@@ -105,9 +105,9 @@ static u32 ini_x(const char *sec, const char *key, u32 def) {
    the game applies it only when the player has the ability 0x1c9.  That test (the call at d29a5) is answered
    "yes" on Critical as well, so there the minimum holds for every hit (c_floor 2: on every difficulty).  The
    other effects of the ability (no EXP, the cap on damage taken) are untouched. */
-#define FLOOR_CALL 0xd29a5
-#define HAS_ABILITY 0x221900
-#define DIFFICULTY G(u8, 0x10fa0881)        /* 0 Beginner, 1 Standard, 2 Proud, 3 Critical */
+#define FLOOR_CALL 0xd2a15
+#define HAS_ABILITY 0x221620
+#define DIFFICULTY G(u8, 0x10fa0f81)        /* 0 Beginner, 1 Standard, 2 Proud, 3 Critical */
 static int c_floor = 1;
 static int c_desc_cost = 1;        /* MP cost at the end of command descriptions */
 static int MSABI floor_ability_hook(u8 *player, u16 id) {
@@ -119,17 +119,17 @@ static int MSABI floor_ability_hook(u8 *player, u16 id) {
    1402d2ec0 when the HP is set again from it.  After either, a listed boss gets percent x that value, max and
    current HP alike.  Only the value the game itself just wrote is changed, so nothing is scaled twice.
    Default: a ramp over the stories (Final Mix superbosses, Mirage Arena and the minigames left out). */
-#define EPD_LOAD 0x2d0700
-#define EPD_LOAD_A 0x2d2dd0
-#define EPD_LOAD_B 0x2d2e24
-#define EPD_LOAD_C 0x2d528e
-#define EPD_LOAD_D 0x2d52b4
-#define EPD_LOAD_E 0x2d52d2
-#define EPD_LOAD_F 0x2d52f2
-#define EPD_RESET 0x2d2ec0
-#define EPD_RESET_A 0x2b7dfe
-#define FLOOR_FN 0xd2960
-#define FLOOR_FN_CALL 0x2d2510       /* the enemy damage function 1402d24b0 asks for EXP Zero's minimum */
+#define EPD_LOAD 0x2d0420
+#define EPD_LOAD_A 0x2d2af0
+#define EPD_LOAD_B 0x2d2b44
+#define EPD_LOAD_C 0x2d4fae
+#define EPD_LOAD_D 0x2d4fd4
+#define EPD_LOAD_E 0x2d4ff2
+#define EPD_LOAD_F 0x2d5012
+#define EPD_RESET 0x2d2be0
+#define EPD_RESET_A 0x2b7b1e
+#define FLOOR_FN 0xd29d0
+#define FLOOR_FN_CALL 0x2d2230       /* the enemy damage function 1402d24b0 asks for EXP Zero's minimum */
 #define FLOOR_BOSS_MAX 1500          /* the table's boss row ends there */
 typedef struct { char name[8]; s16 pct; } BossHp;
 static const BossHp k_boss_hp[] = {
@@ -354,8 +354,8 @@ int mp_would_burn(int id) {
    (character code f951 = colour style 2, f941 = back to the text's own colour; the descriptions use f959, yellow,
    the same way for "(Uses two slots.)").  A last line that would get longer than the game's longest line gets
    the cost on a line of its own while the box (three lines) has room. */
-#define DESC_CALL 0x1a81bf
-#define MSG_FIND  0x1b3750
+#define DESC_CALL 0x1a805f
+#define MSG_FIND  0x1b3570
 #define DESC_MSG  0x320000u
 #define DESC_MAX_LINE 54                 /* longest line of the original descriptions */
 static char g_desc[768];
@@ -387,9 +387,9 @@ static void fx_spend(int id) {
     if (v < 0) v = 0;
     int h = *(int*)(g + 0x8c);
     *(u32*)(g + 0x84) &= ~0x10000u;                                 /* no longer MAX */
-    if (h > 0) FN(int, 0x1a7db0, int, u16, int)(h, 0xde, 0);         /* the fill's plain control, not the MAX glow */
-    if (v > 0.01f) FN(void, 0x20ad00, u8*, float)(g, v);
-    else { *(float*)(g + 0x68) = 0; if (h > 0) FN(int, 0x1a7d30, int, u16, float, int)(h, 0xde, 0.0f, 0); }
+    if (h > 0) FN(int, 0x1a7c50, int, u16, int)(h, 0xde, 0);         /* the fill's plain control, not the MAX glow */
+    if (v > 0.01f) FN(void, 0x20aa20, u8*, float)(g, v);
+    else { *(float*)(g + 0x68) = 0; if (h > 0) FN(int, 0x1a7bd0, int, u16, float, int)(h, 0xde, 0.0f, 0); }
     *(float*)(g + 0x6c) = pend;
     if (g_debug) LOG("focus exchange: command %x costs %.1f FP -> %.1f", id, mp_cost(id), *(float*)(g + 0x68));
 }
@@ -501,12 +501,12 @@ static u8 *MSABI use_hook(u8 *P) {
     int id = item ? 0 : plate_id(P);
     if (!item && mp_fx(id)) {                      /* Focus Exchange: Focus, the whole cost, MP charge or not */
         if (!fx_ready(id)) return NULL;
-        u8 *c = FN(u8*, 0x2063c0, u8*)(P);
+        u8 *c = FN(u8*, 0x2060e0, u8*)(P);
         if (c) { fx_spend(id); *(float*)(P + 0x64) = fx_progress(id); }
         return c;
     }
     if (!item && g_burn) return NULL;
-    u8 *c = FN(u8*, 0x2063c0, u8*)(P);
+    u8 *c = FN(u8*, 0x2060e0, u8*)(P);
     if (c && !item) {
         mp_spend(*(u16*)c);
         *(float*)(P + 0x64) = g_burn ? 0.0f : 100.0f;
@@ -540,7 +540,7 @@ static void plates_block(u8 *cmd) {
         if (mp_fx(plate_id(P))) continue;                    /* Focus Exchange: its own rule (fx_block) */
         *(float*)(P + 0x64) = burn_pct();
         *(u32*)(P + 0x60) = fl | 2;
-        FN(void, 0x2060d0, u8*)(P);                           /* the game's own redraw of a plate */
+        FN(void, 0x205df0, u8*)(P);                           /* the game's own redraw of a plate */
     }
 }
 /* Focus Exchange: a ready physical command whose cost the Focus no longer covers is made unavailable, as plates_block
@@ -557,7 +557,7 @@ static void fx_block(u8 *cmd) {
         if (!mp_fx(id) || fx_ready(id)) continue;
         *(float*)(P + 0x64) = fx_progress(id);
         *(u32*)(P + 0x60) = fl | 2;
-        FN(void, 0x2060d0, u8*)(P);
+        FN(void, 0x205df0, u8*)(P);
     }
 }
 /* any physical command in the deck that Focus Exchange lets through an MP charge (the menu's Skills entry and list) */
@@ -576,7 +576,7 @@ int mp_fx_any(u8 *cmd) {
 static int (MSABI *o_dlink_open)(u8 *cmd);
 static int MSABI dlink_open_hook(u8 *cmd) {
     if (mp_blocks_link() && !(*(u32*)(cmd + 0x64) & 0x80)) {
-        FN(int, 0x1a5b30, int, int)(*(int*)(cmd + 0xc8), 0);
+        FN(int, 0x1a59d0, int, int)(*(int*)(cmd + 0xc8), 0);
         return 0;
     }
     return o_dlink_open(cmd);
@@ -608,9 +608,9 @@ u8 *test_dlink_pick(u8 *P) { return dlink_pick_hook(P); }
    their cost when they start (1403c2780: the bars are taken away, and the partial bar too when the gauge was full)
    and keep the form's time on a gauge of its own, which a revert simply throws away.  The same here: once a link
    has ended the gauge holds at most DLinkGaugeAfter percent (0).  Illusions (gauge flag 0x8000) are not D-Links. */
-#define LINK_END_A 0x28ac09u
-#define LINK_END_B 0x28ae3du
-#define LINK_END   0x208390u
+#define LINK_END_A 0x28a929u
+#define LINK_END_B 0x28ab5du
+#define LINK_END   0x2080b0u
 static void (MSABI *g_link_set)(u8 *g, float v);           /* 20ac70 = set the D-Link gauge (and its HUD state) */
 static void MSABI link_end_hook(u8 *g, int now) {
     u32 fl = g ? *(u32*)(g + 0x84) : 0;
@@ -635,7 +635,7 @@ static void MSABI item_effect_hook(u8 *pl) {
         if (id >= 0xbc && id <= 0xc4 && row) {
             int focus = *(s16*)(row + 0xc);
             if (focus > 0) {
-                int boost = (FN(u8, 0x221900, u8*, int)(pl, 0x1ce) + 10) * 10;   /* Item Boost, as for the heal */
+                int boost = (FN(u8, 0x221620, u8*, int)(pl, 0x1ce) + 10) * 10;   /* Item Boost, as for the heal */
                 mp_restore((float)focus * (float)boost / 100.0f);
             }
         }
@@ -661,22 +661,22 @@ typedef struct { Grp *g; Part *p; } Pair;
 static int g_bar;               /* L2D sequence instance, 0 = none */
 static int g_bar_fail;
 
-static int bar_alive(void) { l2d_live(&g_bar); return g_bar > 0 && FN(int, 0x1a60e0, int)(g_bar) != 8; }
+static int bar_alive(void) { l2d_live(&g_bar); return g_bar > 0 && FN(int, 0x1a5f80, int)(g_bar) != 8; }
 static void bar_destroy(void) {
-    if (g_bar > 0) FN(void, 0x1a57f0, int)(g_bar); g_bar = 0;
+    if (g_bar > 0) FN(void, 0x1a5690, int)(g_bar); g_bar = 0;
 }
 /* a new instance of the Focus fill sequence with its mask emptied and its fill sprite made private; 0 on failure */
 static int bar_instance(int prio) {
-    G(u8, 0x8f88028) = 0;       /* created hidden */
-    G(u8, 0x8f8802a) = 0;       /* timer/draw group 0, like the rest of the HUD */
-    int h = FN(int, 0x1a5350, const char*, u16, int, void*)("gauge_01:0", 0x12d, 0, NULL);
+    G(u8, 0x8f88728) = 0;       /* created hidden */
+    G(u8, 0x8f8872a) = 0;       /* timer/draw group 0, like the rest of the HUD */
+    int h = FN(int, 0x1a51f0, const char*, u16, int, void*)("gauge_01:0", 0x12d, 0, NULL);
     if (h <= 0) return 0;
-    FN(int, 0x1a7600, int, s16, int)(h, (s16)prio, 0);
-    FN(int, 0x1a74c0, int, float, int)(h, 0.0f, 0);          /* hold the animation */
-    FN(int, 0x1a7be0, int, int)(h, 2);                       /* private copies: mask quad, fill sprite */
-    FN(int, 0x1a7be0, int, int)(h, 3);
+    FN(int, 0x1a74a0, int, s16, int)(h, (s16)prio, 0);
+    FN(int, 0x1a7360, int, float, int)(h, 0.0f, 0);          /* hold the animation */
+    FN(int, 0x1a7a80, int, int)(h, 2);                       /* private copies: mask quad, fill sprite */
+    FN(int, 0x1a7a80, int, int)(h, 3);
     Pair *m = NULL;
-    int n = FN(int, 0x1a6350, int, int, Pair**)(h, 2, &m);
+    int n = FN(int, 0x1a61f0, int, int, Pair**)(h, 2, &m);
     for (int i = 0; i < n && m; i++) { m[i].g->x0 = m[i].g->x1 = m[i].g->y0 = m[i].g->y1 = 0; }   /* no mask */
     return h;
 }
@@ -703,7 +703,7 @@ typedef struct { float t, v; u32 interp; } RootKey;
 typedef struct { RootAnim rec; RootKey key[2]; } RootScale;
 static RootScale g_root_bar, g_root_timer;
 static void root_scale(int h, RootScale *r, float se) {
-    u8 *sc = c_bar_exact ? FN(u8*, 0x1a5fd0, int)(h) : NULL;        /* the instance's CD2SeqCtrl */
+    u8 *sc = c_bar_exact ? FN(u8*, 0x1a5e70, int)(h) : NULL;        /* the instance's CD2SeqCtrl */
     u8 *o = sc && (s8)sc[0xb2] > 0 && *(u8***)(sc + 0xa8) ? **(u8***)(sc + 0xa8) : NULL;     /* its first object: the root */
     RootAnim *cur = o ? *(RootAnim**)(o + 0x30) : NULL;
     if (cur && cur != &r->rec) {
@@ -715,12 +715,12 @@ static void root_scale(int h, RootScale *r, float se) {
             r->key[0].t = r->key[1].t = 0; r->key[0].interp = r->key[1].interp = 0;
             r->key[0].v = r->key[1].v = se;
             *(RootKey**)(o + 0x38) = r->key;
-            FN(void, 0x1aa7f0, u8*, RootAnim*)(o, &r->rec);
+            FN(void, 0x1aa610, u8*, RootAnim*)(o, &r->rec);
         }
     }
-    if (!cur || se == 1.0f) { FN(int, 0x1a7730, int, float)(h, se); return; }     /* as before: on the pixel grid */
+    if (!cur || se == 1.0f) { FN(int, 0x1a75d0, int, float)(h, se); return; }     /* as before: on the pixel grid */
     r->key[0].v = r->key[1].v = se;
-    FN(int, 0x1a7730, int, float)(h, 1.0f);
+    FN(int, 0x1a75d0, int, float)(h, 1.0f);
 }
 int own_add(char *out, int n, const char *name, int h) {
     if (h <= 0) return 0;
@@ -753,8 +753,8 @@ static void bar_update(u8 *g) {
     if (!bar_alive()) { bar_create(); if (!g_bar) return; }
     int h = g_bar;
     Pair *q = NULL;
-    int n = FN(int, 0x1a6350, int, int, Pair**)(h, 3, &q);
-    if (n < 5 || !q) { FN(int, 0x1a5b30, int, int)(h, 0); return; }
+    int n = FN(int, 0x1a61f0, int, int, Pair**)(h, 3, &q);
+    if (n < 5 || !q) { FN(int, 0x1a59d0, int, int)(h, 0); return; }
 
     float len = c_bar_len * (1.0f + c_bar_grow * (g_mpmax - 100.0f) / 100.0f);
     if (len < 8) len = 8; if (len > 160) len = 160;
@@ -823,9 +823,9 @@ static void bar_update(u8 *g) {
     }
     root_scale(h, &g_root_bar, se);
     /* the sprite sits at (-77, +1) from the instance origin, in sprite units */
-    FN(int, 0x1a7660, int, float, float)(h, c_bar_right - (right_sx - 77.0f) * se, c_bar_top - (top_sy + 1.0f) * se);
-    int vis = FN(int, 0x1a6060, int)(*(int*)(g + 0x8c)) != 0;                         /* follow the HP gauge */
-    FN(int, 0x1a5b30, int, int)(h, vis);
+    FN(int, 0x1a7500, int, float, float)(h, c_bar_right - (right_sx - 77.0f) * se, c_bar_top - (top_sy + 1.0f) * se);
+    int vis = FN(int, 0x1a5f00, int)(*(int*)(g + 0x8c)) != 0;                         /* follow the HP gauge */
+    FN(int, 0x1a59d0, int, int)(h, vis);
 }
 
 /* A small plain bar for other parts of the mod (the Command Style prompt's timer), made the same way: black frame,
@@ -833,13 +833,13 @@ static void bar_update(u8 *g) {
    left / top / w / hgt in screen units; the fill colour is a tint (AABBGGRR, 80 = as is, ff = doubled). */
 void hud_timer_bar(int *ph, float left, float top, float w, float hgt, float frac, u32 fill, int prio, int show) {
     l2d_live(ph);
-    int alive = *ph > 0 && FN(int, 0x1a60e0, int)(*ph) != 8;
-    if (frac < 0) { if (alive) FN(void, 0x1a57f0, int)(*ph); *ph = 0; return; }
+    int alive = *ph > 0 && FN(int, 0x1a5f80, int)(*ph) != 8;
+    if (frac < 0) { if (alive) FN(void, 0x1a5690, int)(*ph); *ph = 0; return; }
     if (!alive) { *ph = bar_instance(prio); if (*ph <= 0) { *ph = 0; return; } }
     int h = *ph;
     Pair *q = NULL;
-    int n = FN(int, 0x1a6350, int, int, Pair**)(h, 3, &q);
-    if (n < 3 || !q) { FN(int, 0x1a5b30, int, int)(h, 0); return; }
+    int n = FN(int, 0x1a61f0, int, int, Pair**)(h, 3, &q);
+    if (n < 3 || !q) { FN(int, 0x1a59d0, int, int)(h, 0); return; }
     if (frac > 1) frac = 1;
     const int K = 8;                                            /* sprite units per screen unit */
     int W = (int)(w * K + 0.5f), H = (int)(hgt * K + 0.5f), b = K / 2;      /* frame 0.5 thick */
@@ -854,8 +854,8 @@ void hud_timer_bar(int *ph, float left, float top, float w, float hgt, float fra
     for (int i = 3; i < n; i++) no_quad(&q[i]);
     float se = 1.0f / K;
     root_scale(h, &g_root_timer, se);
-    FN(int, 0x1a7660, int, float, float)(h, left + 77.0f * se, top - 1.0f * se);   /* the sprite sits at (-77, +1) from the origin */
-    FN(int, 0x1a5b30, int, int)(h, show);
+    FN(int, 0x1a7500, int, float, float)(h, left + 77.0f * se, top - 1.0f * se);   /* the sprite sits at (-77, +1) from the origin */
+    FN(int, 0x1a59d0, int, int)(h, show);
 }
 
 /* The context prompt (cmd+0x60 bit 0x40000, plate at cmd+0x298) is the save point's: command 0x12e "Save". */
@@ -891,14 +891,14 @@ static int at_save_point(u8 *cmd) {
    is a whole number (fractions dropped, at least 1); the bonus is added to it, rounded up.  Whose
    attack: attack+0x94 is the owner's entity id (it becomes hit+0x8c, which 1402d24b0 looks up with 1401d45c0
    and tests the same way: the entity or its parent, +0x10, of type +0x28 == 1, the player's). */
-#define VT_CTD_READY 0x637910u          /* CRsrcCTD vtable slot 1 */
-#define FN_CTD_READY 0x112ed0u
+#define VT_CTD_READY 0x637a40u          /* CRsrcCTD vtable slot 1 */
+#define FN_CTD_READY 0x112e30u
 #define AB_ATTACK_HASTE 0x1cf
 #define AB_MAGIC_HASTE  0x1d0
 #define AB_RELOAD_BOOST 0x1d9
-#define DMG_CALL 0x1f985au
-#define DMG_FN   0x1f9180u
-#define ENTITY_BY_ID 0x1d45c0u
+#define DMG_CALL 0x1f957au
+#define DMG_FN   0x1f8ea0u
+#define ENTITY_BY_ID 0x1d43e0u
 /* percent this attack's damage is raised by; 0 = not at all */
 static double berserk_pct(u8 *atk) {
     if (!(c_berserk_pct > 0) || !g_burn || !atk) return 0;
@@ -963,7 +963,7 @@ static void haste_texts(u8 *self) {
             char *t = ctd_text(self, MSG_NAMES + ab[i].id);
             if (!t || !(ab[i].name_set || !strcmp(t, ab[i].name))) continue;
             if (strlen(ab[i].new_name) <= strlen(t) && can_write(t, strlen(t) + 1)) strcpy(t, ab[i].new_name);
-            else G(const char*, 0x814908 + ab[i].id * 0x18) = ab[i].new_name;
+            else G(const char*, 0x815908 + ab[i].id * 0x18) = ab[i].new_name;
             if (g_debug) LOG("mp: %s is named \"%s\"", ab[i].name, ab[i].new_name);
         } else {
             char *t = ctd_text(self, MSG_ABILITY_HELP + ab[i].id);
@@ -986,7 +986,7 @@ static u64 MSABI ctd_ready_hook(u8 *self, u64 a, u64 b, u64 c) {
    140219e80 / 140219e90, the getters behind Lua's Player.GetPlayerHP / GetPlayerHPMax).  HP lost since the last
    frame gives lost / max HP x max MP x MPRage% x copies / the most copies (140811083 + id * 0x1e: 5), never during
    the MP charge.  Kept with its fraction (the bar is a float), so small hits add up. */
-#define AB_MAX_COPIES(id) G(u8, 0x811083 + (u32)(id) * 0x1e)
+#define AB_MAX_COPIES(id) G(u8, 0x812083 + (u32)(id) * 0x1e)
 #define PL_HP    0x4a0
 #define PL_HPMAX 0x4a2
 static u8 *g_rage_pl; static int g_rage_hp = -1;
@@ -1039,9 +1039,9 @@ static void tick(u8 *g) {
 static float link_drain(u8 *g) {
     u32 f = *(u32*)(g + 0x84);
     if (!(f & 0x200) || (f & (0x1000 | 0x8800 | 0x400))) return 0;
-    float dt = *(float*)(g + 0x20), d = dt * G(float, 0x6468b4);
-    float t = *(float*)(g + 0xac), lim = G(float, 0x6468a8);
-    if (t < lim) { float a = dt * G(float, 0x6468ac) * *(float*)(g + 0x60), b = dt * G(float, 0x6468b0); d = a <= b ? a : b; }
+    float dt = *(float*)(g + 0x20), d = dt * G(float, 0x6469e4);
+    float t = *(float*)(g + 0xac), lim = G(float, 0x6469d8);
+    if (t < lim) { float a = dt * G(float, 0x6469dc) * *(float*)(g + 0x60), b = dt * G(float, 0x6469e0); d = a <= b ? a : b; }
     return d;
 }
 float test_link_drain(u8 *g) { return link_drain(g); }
@@ -1073,8 +1073,8 @@ int mod_install(void) {
     const Steal *all[] = { &S_gauge_update, &S_gauge_dtor, &S_dlink_open, &S_dlink_pick, &S_item_effect, &S_pd_init };
     int bad = 0;
     for (unsigned i = 0; i < sizeof all / sizeof *all; i++) if (!site_ok(all[i])) { LOG("site %x does not match", all[i]->rva); bad++; }
-    if (!call_ok(0x233d40, 0x2063c0)) { LOG("call site 233d40 does not match"); bad++; }
-    if (!call_ok(0x206a6e, 0x1ce550)) { LOG("call site 206a6e does not match"); bad++; }
+    if (!call_ok(0x233a60, 0x2060e0)) { LOG("call site 233d40 does not match"); bad++; }
+    if (!call_ok(0x20678e, 0x1ce370)) { LOG("call site 206a6e does not match"); bad++; }
     if ((c_desc_cost || c_ether) && !call_ok(DESC_CALL, MSG_FIND)) { LOG("description site does not match"); bad++; }
     if (c_floor && !call_ok(FLOOR_CALL, HAS_ABILITY)) { LOG("damage floor site does not match"); bad++; }
     if (c_boss_hp) {
@@ -1112,7 +1112,7 @@ int mod_install(void) {
         hook_call(FLOOR_FN_CALL, FLOOR_FN, floor_hp_hook, "boss HP (damage floor)");
         LOG("combat: boss HP for %d bosses", g_boss_hp_n);
     }
-    g_link_set = (void (MSABI *)(u8*, float))(g_base + 0x20ac70);
+    g_link_set = (void (MSABI *)(u8*, float))(g_base + 0x20a990);
     if (c_link_keep < 100.0f) {
         hook_call(LINK_END_A, LINK_END, link_end_hook, "D-Link end (revert)");
         hook_call(LINK_END_B, LINK_END, link_end_hook, "D-Link end (finisher)");
@@ -1141,8 +1141,8 @@ int mod_install(void) {
     o_dlink_pick   = hook_fn(&S_dlink_pick, dlink_pick_hook, "dlink_pick");
     o_item_effect  = hook_fn(&S_item_effect, item_effect_hook, "item_effect");
     o_pd_init      = hook_fn(&S_pd_init, pd_init_hook, "pd_init");
-    hook_call(0x233d40, 0x2063c0, use_hook, "deck_use");
-    hook_call(0x206a6e, 0x1ce550, reload_hook, "reload");
+    hook_call(0x233a60, 0x2060e0, use_hook, "deck_use");
+    hook_call(0x20678e, 0x1ce370, reload_hook, "reload");
     return g_patch_errors == 0;
 }
 
@@ -1174,9 +1174,9 @@ void dbg_custom(const char *cmd, char *args) {
     } else if (!strcmp(cmd, "hud")) {
         u8 *g = GAUGE;
         LOG("  gauge %p state %d handle %d visible %d  G %08x  bar %d", g, g ? *(int*)(g + 0x88) : -1, g ? *(int*)(g + 0x8c) : 0,
-            g ? FN(int, 0x1a6060, int)(*(int*)(g + 0x8c)) : 0, G(u32, 0x10f9ee48), g_bar);
+            g ? FN(int, 0x1a5f00, int)(*(int*)(g + 0x8c)) : 0, G(u32, 0x10f9f548), g_bar);
         if (bar_alive()) {
-            Pair *q = NULL; int n = FN(int, 0x1a6350, int, int, Pair**)(g_bar, 3, &q);
+            Pair *q = NULL; int n = FN(int, 0x1a61f0, int, int, Pair**)(g_bar, 3, &q);
             for (int i = 0; i < n && q; i++)
                 LOG("   quad %d xy (%d,%d)-(%d,%d) uv (%d,%d)-(%d,%d) col %08x %08x %08x %08x", i, q[i].g->x0, q[i].g->y0, q[i].g->x1, q[i].g->y1,
                     q[i].p->u0, q[i].p->v0, q[i].p->u1, q[i].p->v1, q[i].p->col[0], q[i].p->col[1], q[i].p->col[2], q[i].p->col[3]);
