@@ -41,6 +41,7 @@ static float c_max_per_slot = 10.0f;   /* extra MP per command deck slot the cha
 static float c_max_per_level = 0.0f;   /* extra MP per level above 1 */
 static float c_cost_scale = 1.0f;      /* MP cost = command's reload seconds x this */
 static int   c_cure_all = 1;           /* Cure/Cura/Curaga use all remaining MP (KH2 rule) */
+static int   c_rebalance = 1;          /* the strongest commands cost by their strength (see k_rebalance) */
 static float c_charge_seconds = 25.0f; /* MP charge: seconds to recharge from empty (KH2: 50) */
 static float c_haste_bonus = 0.10f;    /* ... divided by 1 + this for every Magic Haste ("MP Haste") installed */
 static int   c_haste_rename = 1;       /* it is shown as MP Haste, with a description of what it does here */
@@ -211,6 +212,7 @@ static void load_ini(void) {
     c_max_per_level = ini_f("MP", "MaxPerLevel", c_max_per_level);
     c_cost_scale = ini_f("MP", "CostScale", c_cost_scale);
     c_cure_all = (int)ini_f("MP", "CureUsesAllMP", (float)c_cure_all);
+    c_rebalance = (int)ini_f("MP", "Rebalanced", (float)c_rebalance);
     c_charge_seconds = ini_f("MP", "ChargeSeconds", c_charge_seconds);
     c_haste_bonus = ini_f("MP", "MPHasteBonus", c_haste_bonus);
     c_haste_rename = (int)ini_f("MP", "MPHasteRename", (float)c_haste_rename);
@@ -307,10 +309,36 @@ static float max_mp(void) {
    strength 100 / 125 / 150 by D-Link level where Curaga's is 100) are cures: 30 like Cure, and all remaining MP
    under CureUsesAllMP.  ini DLinkCostByClass = 0 puts the 5 back. */
 static s16 g_cost_over[CMD_MAX];        /* 0 = none */
+/* Rebalanced costs (2026-10-24, asked for; ini [MP] Rebalanced): costs that follow strength, from the command data.
+   Power is a percent of Strength (attack commands) or Magic (magic), per hit; Fire 200 for 10, Firaga 540 for 20,
+   Mega Flare 1350 for 50.  Several commands were far cheaper than that: Meteor (1450 in one hit) at 25, Firaga Burst
+   (~15 x 140) at 25, the mines (3..8 x 360), Quake (4 x 500), the long chains (Chaos Blade 9 dashes + finisher, Time
+   Splicer 3..8 slashes + finisher, Ars Arcanum 7 steps), and the two that heal as they hit - Faith (300 per hit and
+   50..100 % of max HP) and Salvation (40..90 %).  Faith counts as a cure: all remaining SP (50 with CureUsesAllMP=0).
+   Deep Freeze (one 350 hit) stays at 25, as asked.  [Cost] still overrides any of these. */
+#define FAITH 0xa6
+static const struct { u8 id, cost; } k_rebalance[] = {
+    { 0x7c, 50 },  /* Salvation */        { 0xaf, 50 },  /* Meteor */           { 0xaa, 50 },  /* Firaga Burst */
+    { 0x63, 50 },  /* Chaos Blade */      { 0x70, 50 },  /* Time Splicer */     { 0x6f, 50 },  /* Ars Arcanum */
+    { 0xad, 45 },  /* Quake */            { 0x98, 45 },  /* Seeker Mine */      { 0x97, 40 },  /* Mine Square */
+    { 0x96, 35 },  /* Mine Shield */      { 0x80, 35 },  /* Geo Impact */       { 0x62, 30 },  /* Sonic Blade */
+    { 0x68, 30 },  /* Spark Raid */       { 0x81, 30 },  /* Sacrifice */        { 0x89, 30 },  /* Crawling Fire */
+    { 0xa5, 30 },  /* Warp */             { 0xa8, 30 },  /* Glacier */          { 0x88, 25 },  /* Triple Firaga */
+    { 0x8d, 25 },  /* Triple Blizzaga */  { 0x7f, 25 },  /* Collision Magnet */ { 0x7b, 25 },  /* Magnet Spiral */
+    { 0x5c, 20 },  /* Blitz */            { 0x6a, 20 },  /* Fire Surge */       { 0x6c, 20 },  /* Thunder Surge */
+    { FAITH, 50 }, /* Faith: all remaining SP under CureUsesAllMP */
+};
+static int rebalanced(int id) {
+    if (!c_rebalance) return 0;
+    for (unsigned i = 0; i < sizeof k_rebalance / sizeof *k_rebalance; i++) if (k_rebalance[i].id == id) return k_rebalance[i].cost;
+    return 0;
+}
 static int is_dlink_only(int id) { return id >= 0xe4 && id <= 0xf1; }
 static int is_dlink_cure(int id) { return id == 0xe8 || id == 0xe9; }
 static int base_cost(int id) {
     if (g_cost_over[id] > 0) return g_cost_over[id];
+    int rb = rebalanced(id);
+    if (rb) return rb;
     int c = CMD_RELOAD(id);
     if (c_dlink_cost && is_dlink_only(id)) {
         if (is_dlink_cure(id)) return 30;
@@ -332,16 +360,17 @@ float mp_cost(int id) {
     float c = (float)base_cost(id) * c_cost_scale;
     return c < 1.0f ? 1.0f : c;
 }
-/* Cure, Cura, Curaga, and the D-Link decks' two heals: what CureUsesAllMP is about.  A command with a cost of its
+/* Cure, Cura, Curaga, the D-Link decks' two heals and (Rebalanced) Faith: what CureUsesAllMP is about.  A command with a cost of its
    own in [Cost] is not one of them: that cost is what it costs, as the ini says. */
 static int is_cure(int id) {
     if (id <= 0 || id >= CMD_MAX || g_cost_over[id] > 0) return 0;
-    return (id >= 0x92 && id <= 0x94) || (c_dlink_cost && is_dlink_cure(id));
+    return (id >= 0x92 && id <= 0x94) || (c_dlink_cost && is_dlink_cure(id)) || (c_rebalance && id == FAITH);
 }
 
 /* would using this command now end in MP burn?  (what the menu marks) */
 s16 *mp_cost_overrides(void) { return g_cost_over; }
 int *test_dlink_cost(void) { return &c_dlink_cost; }
+int *test_rebalance(void) { return &c_rebalance; }
 int mp_would_burn(int id) {
     if (g_burn || id <= 0 || id >= CMD_MAX || mp_fx(id)) return 0;     /* Focus Exchange: no MP charge to warn of */
     if (c_cure_all && is_cure(id)) return 1;
