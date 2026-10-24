@@ -362,7 +362,7 @@ static void t_orbtex(void) {
     for (int by = 0; by < 16; by++) for (int bx = 0; bx < 64; bx++) for (int r = 0; r < 8; r++, q += 16) memcpy(&lin[by * 8 + r][bx * 4], q, 16);
     int a_bub = 0, a_top = 0, a_glow = 0;
     for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++) { a_bub += lin[64 + y][x][3]; a_top += lin[y][x][3]; a_glow += lin[64 + y][64 + x][3]; }
-    CHECK(a_bub > 64 * 64 * 20 && a_top == 0 && a_glow > 0 && lin[96][32][2] >= lin[96][32][0], "bubble in the solid cell (blue), glow beside it, the sparkle area clear");
+    CHECK(a_bub > 64 * 64 * 20 && a_top == 0 && a_glow == 0 && lin[96][32][2] >= lin[96][32][0], "bubble in the solid cell (blue); the glow cell and the sparkle area clear");
     /* an orb's effect, as the game builds it */
     u8 *e = calloc(1, 0x100), *leaf = calloc(1, 0x200), *fep = calloc(1, 0x100), *amgr = calloc(1, 0x400), *ao = calloc(1, 0x20), *anm = calloc(1, 0x100);
     u8 *ctx = calloc(1, 0x100), *prm = calloc(1, 0x40), *prize = calloc(1, 0x300);

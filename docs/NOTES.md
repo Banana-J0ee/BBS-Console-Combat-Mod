@@ -1500,3 +1500,5 @@ leaf, +0x50 flags (0x8000 ended); the prize keeps the handle at +0x244, 130c00(h
 (object, handle, leaf) is noted when it is made; for those draws ANM 0xa4's texref slots point at the orb texture.
 tools/genorbtex.py: the bubble from KH2 obj/PRIZE.mdlx remastered texture 1 (left 128x128), tinted, 60x60 in the
 star's cell, a soft glow in the white star's, the rest clear (no sparkles).
+Later (asked for): the glow cell is clear as well - the D-Link prize's pulsing additive glow parts showed as a shine
+inside the bubble.
