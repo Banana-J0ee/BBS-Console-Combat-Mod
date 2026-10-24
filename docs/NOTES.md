@@ -1548,3 +1548,6 @@ inside the bubble.
   for Seeker Mine 45 and the three chains 50, Deep Freeze kept at 25): see k_rebalance.  Faith is a cure for
   CureUsesAllMP (all remaining SP; 50 without).  [Cost] overrides still win.  Test: t_ether's cost block (with
   Rebalanced=0 the old values), t_fx runs with Rebalanced=0 (its Sonic Blade is the 20-SP command).
+## Final Braig's revenge limit back up (2026-10-24)
+* Asked for: Braig in the Keyblade Graveyard (Aqua's final episode, b30ex00 = braigLate) 6 -> 8 (re-rolled +-1 after
+  each break-out as every boss).  His other fight (b32ex00) stays 9.

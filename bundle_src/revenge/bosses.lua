@@ -452,7 +452,7 @@ local braig = {
 cfg.b32ex00 = braig
 local braigLate = {}
 for k, v in pairs(braig) do braigLate[k] = v end
-braigLate.limit = 6                 -- (2026-10-19: 7 -> 6, a full combo usually brings his break-out)
+braigLate.limit = 8                 -- (2026-10-19: 7 -> 6; 2026-10-24, asked for: 8)
 cfg.b30ex00 = braigLate
 
 -- Mysterious Figure: guard / warp counter / time-slip rolls on every hit.
