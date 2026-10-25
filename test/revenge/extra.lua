@@ -274,12 +274,14 @@ do
   for k = 1, 80 do
     pcall(e2.GotoState, e2, "BattleIdling")
     st2.rv, st2.firing, st2.armor = 0, false, 0
-    for i = 1, 12 do if hit(h2) ~= nil then break end end
+    local nh = 12
+    for i = 1, 12 do if hit(h2) ~= nil then nh = i break end end
+    if nh < 12 and (nh < 2 or nh > 4) then nd = -1000 - nh end   -- limit 3 +- 1: a break-out on hit 2-4 (12: their own dodge roll)
     local s2 = e2:GetState()
     if s2 == "EvasionAction" then nd = nd + 1 elseif s2 == "Combo" or s2 == "SpecialCommandAttack0" or s2 == "ShortDistAttackCommand" then na = na + 1 end
   end
   M.num["Entity.IsGround"] = nil
-  check(na > nd and nd > 0, "Terra (practice): " .. na .. " attacks, " .. nd .. " dodges out of 80 break-outs")
+  check(na > nd and nd > 0, "Terra (practice, limit 3 +- 1): " .. na .. " attacks, " .. nd .. " dodges out of 80 break-outs")
   -- bbskh2_boss.ini [Keyblade wielders]: the enemy wielders get the combo window and the gaps, the allies nothing
   local e6 = M.create("b82ex00")
   local st6 = BBS_REVENGE.ents.b82ex00

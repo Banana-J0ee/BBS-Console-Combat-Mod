@@ -689,7 +689,7 @@ local function wielderPost(self, fired)
 end
 -- (a wielder whose script has no dodge chance, e.g. in mid-air, still has none)
 -- fire 0.999: their own dodge roll does not come out by itself at the limit, the counter picks (mostly an attack)
-local wielder = { limit = 9, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter,
+local wielder = { limit = 3, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter,
                   answer = wielderAnswer }
 local wielders = { "b60ex00", "b62ex00", "b68ex00", "b69ex00", "b70ex00", "b72ex00", "b73ex00",
                    "b78ex00", "b79ex00", "b80ex00", "b82ex00", "b83ex00", "b88ex00", "b89ex00" }

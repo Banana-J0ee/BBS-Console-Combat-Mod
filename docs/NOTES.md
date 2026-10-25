@@ -1555,3 +1555,8 @@ inside the bubble.
 ## Terra-Xehanort's revenge limit up (2026-10-24)
 * Asked for: Terra-Xehanort 6 -> 8 in all three fights (b50ex00 / b51ex00 = xehanort, b52ex00 the final episode),
   re-rolled +-1 after each break-out as every boss.  Test: extra.lua's b50ex00 break-out (8 +- 1).
+
+## Ventus / Terra / Aqua revenge limit down (2026-10-24)
+* Asked for: every Ventus / Terra / Aqua fight (the shared wielder entry: b60/b62, b70/b72/b73, b80/b82/b83, the
+  practice fights included) 9 -> 3, re-rolled +-1 after each break-out.  The allies (b68/b69, b78/b79, b88/b89) are
+  inactive as before.  Test: extra.lua's practice Terra break-outs land at 2-4.
