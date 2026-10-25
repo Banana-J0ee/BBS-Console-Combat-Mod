@@ -1551,3 +1551,7 @@ inside the bubble.
 ## Final Braig's revenge limit back up (2026-10-24)
 * Asked for: Braig in the Keyblade Graveyard (Aqua's final episode, b30ex00 = braigLate) 6 -> 8 (re-rolled +-1 after
   each break-out as every boss).  His other fight (b32ex00) stays 9.
+
+## Terra-Xehanort's revenge limit up (2026-10-24)
+* Asked for: Terra-Xehanort 6 -> 8 in all three fights (b50ex00 / b51ex00 = xehanort, b52ex00 the final episode),
+  re-rolled +-1 after each break-out as every boss.  Test: extra.lua's b50ex00 break-out (8 +- 1).
