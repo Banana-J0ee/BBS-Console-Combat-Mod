@@ -253,7 +253,7 @@ do
     local r
     for i = 1, 10 do r = hit(h) if r ~= nil then break end end
     seen[e:GetState()] = true
-    check(r == "before" and st.rv >= 5 and st.rv <= 7, "Terra-Xehanort breaks out at his limit (6 +- 1): value " .. st.rv)
+    check(r == "before" and st.rv >= 7 and st.rv <= 9, "Terra-Xehanort breaks out at his limit (8 +- 1): value " .. st.rv)
   end
   local atk = seen.Combo
   check(atk and not seen.EvasionAction, "... always with an attack of his own, never only the dodge roll")

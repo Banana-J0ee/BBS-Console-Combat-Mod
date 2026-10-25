@@ -708,7 +708,7 @@ end
 -- bbskh2_boss.ini [Terra-Xehanort]: the wielder AI waits in BattleIdling (Entity.SetTimer), his own AI (b52ex00)
 -- counts AttackTimer down while he circles; the dodge roll and his side-step go straight back to his idle
 local xehanortTempo = { idle = { BattleIdling = "timer", Idling = { field = "AttackTimer" } } }
-local xehanort = { limit = 6, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter,
+local xehanort = { limit = 8, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter,
                    answer = wielderAnswer, tempo = xehanortTempo }
 cfg.b50ex00 = xehanort
 cfg.b51ex00 = xehanort
@@ -717,7 +717,7 @@ cfg.b51ex00 = xehanort
 -- wielder AI otherwise).  vanilla: counter-attacks after 2-5 hits.
 local function ownAI(self) return self.SetDmgCount ~= nil end
 cfg.b52ex00 = {
-  limit = 6,
+  limit = 8,
   attack = 1,
   tempo = xehanortTempo,
   active = wielderActive,
