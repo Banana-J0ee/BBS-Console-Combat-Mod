@@ -1456,6 +1456,8 @@ static void t_cancel(void) {
 /* Terra's Air Slide lock: 0.60 s (36 ticks) from the start of one, only Air Slide and only Terra */
 extern void test_as_frame(u8 *pl); extern u64 test_as_dec(u8 *pl, u16 cmd, u64 rax); extern u64 test_as_hover(u8 *pl, u64 rax);
 extern float *test_as_lock(void); extern void test_as_reset(void);
+static float g_body_v;
+static void MSABI body_stub(u8 *pl, float v) { (void)pl; g_body_v = v; }
 static void t_airslide(void) {
     u8 *p = memalign(16, 0x800), *mgr = calloc(1, 0x200); memset(p, 0, 0x800);
     u8 *keep = G(u8*, 0x10f9ee40); *(u8**)(mgr + 0x118) = p; G(u8*, 0x10f9ee40) = mgr;
@@ -1482,6 +1484,23 @@ static void t_airslide(void) {
     *(u16*)(p + 0x304) = 0x15; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
     *test_as_lock() = 0; CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b, "AirSlideLock=0: no lock");
     *test_as_lock() = 0.6f; test_as_reset();
+    /* momentum: half the slide's top speed carried into the fall, fading, gone on landing */
+    extern float test_as_fall(u8 *pl, float speed, void (MSABI *body)(u8*, float)); extern float *test_as_carry(void);
+    CHECK(*test_as_carry() == 0.5f, "AirSlideCarry 0.5 by default");
+    *(u64*)p = (u64)RVA(0x649ec8);
+    *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff;
+    for (int i = 0; i < 12; i++) { *(float*)(p + 0x4dc) = i < 10 ? 0.4f : 0.0f; test_as_frame(p); }
+    *(u16*)(p + 0x304) = 5; *(u16*)(p + 0x312) = 0; *(float*)(p + 0x4dc) = 0; test_as_frame(p);
+    float v0 = test_as_fall(p, 0.02f, body_stub);
+    CHECK(fabsf(v0 - 0.2f) < 1e-4f && fabsf(g_body_v - 0.2f) < 1e-4f, "falling out of the slide: half its speed (%.3f)", g_body_v);
+    for (int i = 0; i < 15; i++) test_as_frame(p);
+    float v1 = test_as_fall(p, 0.02f, body_stub);
+    CHECK(v1 < 0.2f * 0.3f && v1 > 0.02f, "a quarter second later mostly faded (%.3f)", v1);
+    test_as_fall(p, 0.3f, body_stub); CHECK(g_body_v == 0.3f, "a faster speed of the game's own is kept");
+    *(u16*)(p + 0x304) = 7; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
+    *(float*)(p + 0x4dc) = 0; test_as_fall(p, 0.02f, body_stub);
+    CHECK(fabsf(g_body_v - 0.02f) < 1e-6f, "after landing: no carry");
+    test_as_reset();
     G(u8*, 0x10f9ee40) = keep;
     printf("t_airslide done\n");
 }
