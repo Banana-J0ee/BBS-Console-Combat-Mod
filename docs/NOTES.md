@@ -1582,3 +1582,9 @@ inside the bubble.
 * Then (asked for: "a bit of a pause"): frPlayEnd 10 - 4 frames (0.13 s) after the slide's movement, against the
   original 17 (0.57 s).
 * Then (asked for: "a little more"): frPlayEnd 12 - 6 frames (0.20 s) after the slide's movement.
+* Then (asked for: "can't instantly air slide again ... a 0.25 buffer"): `[Speed] AirSlideCooldown` (0.25 s, 0 = off),
+  speed.c move_start_hook on 2430c0 (every MOVE command starts there, whichever caller took the press: air state
+  218e09, input 21782d, command window 21c219, chaining 242c9d).  Air Slide (0xff in pl+0x34c) within the cooldown
+  after Terra's last one ended (seen in the player tick: state 0x15, command 0xff, his record - flag 0x0002, anims
+  50 / 9) is not started; the press does nothing.  Ventus / Aqua (flag 0x1002, anims 50 / 51) and every other MOVE
+  command are not held back.  Time = the player's dt.  Test: t_airslide.
