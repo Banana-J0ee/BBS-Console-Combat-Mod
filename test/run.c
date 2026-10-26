@@ -1439,6 +1439,40 @@ static void t_cancel(void) {
     #undef PRESS
     printf("t_cancel done\n");
 }
+/* diagnostics (diag.c): the portable parts */
+typedef struct { u32 rva, len; } TDiffRange;
+extern int diag_ranges(const u8 *a, const u8 *b, u32 n, u32 rva0, u32 join, TDiffRange *out, int max);
+extern int diag_targets(const u8 *p, u32 n, u64 mem_va, u64 *out, int max);
+extern u32 diag_crc32(const u8 *p, size_t n); extern const char *diag_known(u32 crc, u32 size);
+static void t_diag(void) {
+    u8 a[64], b[64]; memset(a, 0x90, 64); memcpy(b, a, 64);
+    TDiffRange r[8];
+    CHECK(diag_ranges(a, b, 64, 0x1000, 8, r, 8) == 0, "no difference: no range");
+    a[10] = 0xE9; a[11] = 1; a[12] = 2; a[13] = 3; a[14] = 4;      /* a jmp hook at +10 */
+    a[30] = 0xCC; a[35] = 0xCC;                                     /* two bytes 5 apart: one range */
+    a[60] = 0x11;                                                   /* far away: its own */
+    int c = diag_ranges(a, b, 64, 0x1000, 8, r, 8);
+    CHECK(c == 3 && r[0].rva == 0x100a && r[0].len == 5 && r[1].rva == 0x101e && r[1].len == 6 && r[2].rva == 0x103c && r[2].len == 1,
+          "ranges: %d (%x+%u, %x+%u, %x+%u)", c, r[0].rva, r[0].len, r[1].rva, r[1].len, r[2].rva, r[2].len);
+    CHECK(diag_ranges(a, b, 64, 0x1000, 8, r, 1) == 3 && r[0].rva == 0x100a, "max only limits what is stored");
+    u64 t[4];
+    CHECK(diag_targets(a + 10, 5, 0x140001000ull, t, 4) == 1 && t[0] == 0x140001000ull + 5 + 0x04030201, "jmp rel32 -> its target");
+    u8 ind[6] = { 0xFF, 0x25, 0x10, 0, 0, 0 };
+    CHECK(diag_targets(ind, 6, 0x2000, t, 4) == 1 && t[0] == ((0x2000 + 6 + 0x10) | 1ull << 63), "jmp [rip+x] -> the slot it reads");
+    u8 ptr[8]; u64 v = 0x7ff612345678ull; memcpy(ptr, &v, 8);
+    CHECK(diag_targets(ptr, 8, 0x3000, t, 4) == 1 && t[0] == v, "a changed 8-byte table entry -> the new pointer");
+    CHECK(diag_crc32((const u8*)"123456789", 9) == 0xcbf43926u, "crc32 check value");
+    CHECK(diag_known(0x74e356ffu, 9345296) && strstr(diag_known(0x74e356ffu, 9345296), "Epic 1.0.0.10_WW")
+          && diag_known(0x79a373dbu, 9346320) && !diag_known(0x12345678u, 9345296), "known builds named, others not");
+    const char *fn = getenv("BBS_EXE"); size_t n; u8 *d = fn ? slurp(fn, &n) : NULL;
+    if (d) { const char *k = diag_known(diag_crc32(d, n), (u32)n); CHECK(k != NULL, "the exe under test is a known build: %s", k ? k : "no"); }
+    { extern int log_mask(char *s, int n);
+      char l[256] = "settings C:\\Users\\Joe\\Desktop\\Games\\x.ini and D:\\users\\Some.Name\\a, Z:/home/deck/b, C:\\Program Files\\y";
+      int m = log_mask(l, (int)strlen(l)); l[m] = 0;
+      CHECK(!strcmp(l, "settings C:\\Users\\<user>\\Desktop\\Games\\x.ini and D:\\users\\<user>\\a, Z:/home/<user>/b, C:\\Program Files\\y"),
+            "user names masked in the log: %s", l); }
+    printf("t_diag done\n");
+}
 static void t_speed(void) {
     u8 *p = memalign(16, 0x800), *mot = calloc(1, 0xb0), *phys = memalign(16, 0x200), *wp = calloc(1, 0x200);
     u8 *ctl = calloc(1, 0x60), *ent = calloc(2, 0x90), *desc = calloc(2, 0x34);
@@ -3379,6 +3413,7 @@ int main(int argc, char **argv) {
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);
+    bad |= run("t_diag", t_diag);
     bad |= run("t_cancel", t_cancel);
     bad |= run("t_special", t_special);
     bad |= run("t_berserk", t_berserk);

@@ -2,6 +2,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#ifndef _WIN32
+#include <strings.h>
+#define _strnicmp strncasecmp
+#endif
 
 u8 *g_base;
 int g_patch_errors;
@@ -17,11 +21,37 @@ void log_open(void) {
     snprintf(p, sizeof p, "%sbbskh2_log.txt", g_dir);
     g_log = CreateFileA(p, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 }
+/* privacy (2026-10-26): the log goes to other people (diagnostics), so the user name in a path never reaches it -
+   "\Users\<name>\" (any case, either slash) and Wine's "/home/<name>/" become "<user>".  In place (the buffer is
+   the log line's 2048 bytes; a line that would grow past that is cut); returns the new length. */
+int log_mask(char *s, int n) {
+    static const char *const pre[] = { "\\users\\", "/users/", "/home/", "\\home\\" };
+    char out[2048]; int o = 0;
+    for (int i = 0; i < n && o < (int)sizeof out - 8; ) {
+        int hit = 0;
+        for (unsigned k = 0; k < sizeof pre / sizeof *pre && !hit; k++) {
+            int L = (int)strlen(pre[k]);
+            if (i + L <= n && _strnicmp(s + i, pre[k], L) == 0) {
+                int e = i + L; while (e < n && s[e] != '\\' && s[e] != '/' && s[e] != ' ' && s[e] != '\n') e++;
+                if (e > i + L && e < n && (s[e] == '\\' || s[e] == '/')) {
+                    memcpy(out + o, s + i, L); o += L;
+                    memcpy(out + o, "<user>", 6); o += 6;
+                    i = e; hit = 1;
+                }
+            }
+        }
+        if (!hit) out[o++] = s[i++];
+    }
+    memcpy(s, out, o);
+    return o;
+}
 void logf_(const char *fmt, ...) {
     char buf[2048]; va_list ap; DWORD w;
     if (g_log == INVALID_HANDLE_VALUE) return;
     int n = snprintf(buf, sizeof buf, "[%8lu] ", (unsigned long)GetTickCount());
     va_start(ap, fmt); n += vsnprintf(buf + n, sizeof buf - n - 2, fmt, ap); va_end(ap);
+    if (n > (int)sizeof buf - 2) n = sizeof buf - 2;
+    n = log_mask(buf, n);
     if (n > (int)sizeof buf - 2) n = sizeof buf - 2;
     buf[n++] = '\n';
     if (g_logcs_init) EnterCriticalSection(&g_logcs);

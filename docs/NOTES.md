@@ -1551,3 +1551,17 @@ inside the bubble.
 ## Final Braig's revenge limit back up (2026-10-24)
 * Asked for: Braig in the Keyblade Graveyard (Aqua's final episode, b30ex00 = braigLate) 6 -> 8 (re-rolled +-1 after
   each break-out as every boss).  His other fight (b32ex00) stays 9.
+
+## Diagnostics on a refusal (src/diag.c, 2026-10-26)
+* Asked for: a build that finds out by itself why the mod refuses a player's game (an Epic player's log: 12 checks
+  failed - engine calls, vtables, tables - while the player code matched).  When install fails, or always with
+  `[Debug] Diagnose=1`, the log gets: the exe on disk (size, CRC-32, named if known: Epic 1.0.0.10_WW 74e356ff /
+  9345296, Steam 79a373db / 9346320), the DLLs next to it (Panacea DBGHELP / version, LuaBackend, dinput8) and in
+  the mod's folder, every module in the process, and memory against the exe file relocated to the same base for
+  .text / .nep / .rdata (import table excluded) - each differing range with its bytes and, for a jmp / call /
+  pointer, the module it leads into (.data only counted).  Runs before anything is changed.  Test: t_diag.
+* Also: user names masked in every log line (core.c log_mask: "\Users\<name>\", "/home/<name>/" -> <user>; the log
+  is sent to us), and the Mods Manager: panacea_settings.txt's lines, its release (openkh-release next to the mod
+  folder), the BBS mods ticked (mods-BBS.txt), and the Panacea DLL named when known (release2-1691: 6aa54300).
+  The diagnostic zip (branch epic-1.8-diag, from the 1.8 Epic release): title "BBS KH2-Style (Epic, diagnostic)",
+  [Debug] Diagnose=1 so the report is written at every start.
