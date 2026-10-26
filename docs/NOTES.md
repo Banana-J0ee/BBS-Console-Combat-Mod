@@ -1578,3 +1578,25 @@ inside the bubble.
 * Then (asked for: "he never changed moves after I countered him"): that dodge only warps him into the next round
   (InvertedCount 2-5, one less per warp; at 0 he comes down, steps 8-11, and goes to WaitIdling).  braig.post: a
   break-out in InvertedShoot sets InvertedCount = 1, so the warp it starts is his last round.  Test: extra.lua.
+
+## PSP multiplayer leftovers in the HD exe (survey only, 2026-10-26; Steam addresses)
+Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mode) survive?  Nothing changed.
+* **No network layer.**  The exe imports no socket / HTTP library; of Steam it uses Apps, Input, RemoteStorage,
+  UserStats, Friends - no Networking / Matchmaking / P2P.  The PSP ad-hoc layer is gone, so nothing can connect.
+* **Game side, still compiled in** (RTTI name, vtable, code refs to the vtable):
+  - `NetGame::CMirageArena` 665f18 (ctor 34acd0) and `NetGame::CNetGameArena` 666138 (ctor 350090): **reached** -
+    the offline Mirage Arena runs on this framework (main flow 1ebb08 -> 26b8b0 -> 26a260 -> 34b950 / 350e60).
+  - `NetGame::CNetGameVSMode` 6667f0 (ctor 35a0c0) and `NetGame::CNetGameRace` 666688 (ctor 358e00), `CMgRrNetCar`
+    66fff8: **dead** - no code or data reference to the constructors.
+  - `NetGame::CGameCockpit` 666450, `NetGame::CNickNameGauge` 6663e0 (name over other players), `CGOnlineWait`
+    6365d8 (ctor f5eb0, called from the arena / race / VS net code).
+  - `CBdNetwork` 66c510 (Command Board; its creator 370540 sits in a function table at 81bd10 - may still be used
+    offline, for the CPU players; not traced).
+  - Versus menus: `CVSPrepTop` 67b870 (+ Frame / Help / Info / Team / TeamSel; its caller 4365e0 is unreferenced),
+    `CVSResultTop` 67be98 (+ Wnd / RankBtn), `CTermNewVSTop` 67a528, `CTermDLink*` 6798c0 (D-Link terminal).
+  - Versus arena gimmicks (namespace Gimmick): CVSBumper 65f010, CVSFlipper, CVSSwingShot, CVSWoolball,
+    CVSMonstJumpGimmick, CVsPanel; Enemy::CVsMimicCopyGauge.
+  - Lua constants `COMMAND_CATEGORY_NETWORK` and `COMMAND_CATEGORY_EMOTE` (the PSP emotes).
+* Not checked: whether the versus arenas' data (maps, gimmick models) still ships in the game's archives.
+* Reviving versus would need: re-attaching CNetGameVSMode (and its prep menu) to a reachable entry, plus a new
+  network layer - or a local two-controller mode on one PC.
