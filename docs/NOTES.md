@@ -1560,3 +1560,13 @@ inside the bubble.
 * Asked for: every Ventus / Terra / Aqua fight (the shared wielder entry: b60/b62, b70/b72/b73, b80/b82/b83, the
   practice fights included) 9 -> 3, re-rolled +-1 after each break-out.  The allies (b68/b69, b78/b79, b88/b89) are
   inactive as before.  Test: extra.lua's practice Terra break-outs land at 2-4.
+
+## Braig in Radiant Garden, and SP on Continue / Retry (2026-10-26)
+* Asked for: Braig's revenge limit 7 in Terra's Radiant Garden fight only (b32ex00 = braig, was 9); the Keyblade
+  Graveyard fight (b30ex00 = braigLate) stays 8.  Test: extra.lua checks both limits.
+* Asked for: Continue / Retry after a Game Over starts with a full SP bar.  The bar is the mod's own value (g_mp), so
+  the game's restart left it where it was.  CGameOver (vtable 672de8, update 3ef900) leaves the window's choice in
+  14081e149; 3eeb00 carries it out with one call per choice: 0 3eeb86 -> 1dab70 and 2 3eeb78 -> 1db1b0 (restart in
+  place, 1ec240 / 1ec250 -> 1eca40), 1 3eeb7f -> 1db060 and 3 3eeb71 -> 1dad00 (tasks: load / title).  All four are
+  hooked (mp.c go_hook_*): g_fresh, so the next gauge update fills the bar and ends an MP charge.  [MP]
+  RetryRefillsMP=1 (0 = off).  Test: t_retry (sites hooked, the refill mark).

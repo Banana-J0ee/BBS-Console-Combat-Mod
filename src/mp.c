@@ -67,6 +67,7 @@ static float c_link_keep = 100.0f;     /* percent of a full D-Link gauge that ca
 static int   c_link_in_burn = 1;       /* a D-Link can be started during MP charge (0 = not until the bar is back) */
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
+static int   c_retry_refill = 1;       /* Continue / Retry (any Game Over choice): the bar starts full again */
 /* MP bar: right end and top edge in the game's screen units (480 x 272), thickness, length of the bar itself at
    100 MP, and the share of any extra MP that lengthens it */
 /* The bar hangs under the Focus bar, whose outline ends at about y 253.9: 0.7 below that, 4.5 high, and 57.6 long at
@@ -244,6 +245,7 @@ static void load_ini(void) {
     c_cursor_advance = (int)ini_f("MP", "CursorAdvance", (float)c_cursor_advance);
     c_ether = (int)ini_f("MP", "EtherRestoresMP", (float)c_ether);
     c_save_seconds = ini_f("MP", "SavePointSeconds", c_save_seconds);
+    c_retry_refill = (int)ini_f("MP", "RetryRefillsMP", (float)c_retry_refill);
     c_tiered = (int)ini_f("MP", "TieredMagic", (float)c_tiered);
     c_dlink_cost = (int)ini_f("MP", "DLinkCostByClass", (float)c_dlink_cost);
     c_link_in_burn = (int)ini_f("MP", "DLinkDuringCharge", (float)c_link_in_burn);
@@ -671,6 +673,26 @@ static void MSABI item_effect_hook(u8 *pl) {
     }
     o_item_effect(pl);
 }
+
+/* Game Over: the choice is carried out at 3eeb00 (CGameOver's window leaves it in 14081e149), one call per choice -
+   0 1dab70 and 2 1db1b0 restart the player in place (Continue / Retry), 1 1db060 and 3 1dad00 start a task (load /
+   title, which reset PlayerData anyway).  The mod's MP is its own, not the game's, so nothing there fills it: every
+   choice marks the bar for a fill at the next gauge update, as a new game does (2026-10-26, asked for). */
+#define GO_SITE_0 0x3ee846
+#define GO_FN_0   0x1da890
+#define GO_SITE_1 0x3ee83f
+#define GO_FN_1   0x1dad80
+#define GO_SITE_2 0x3ee838
+#define GO_FN_2   0x1daed0
+#define GO_SITE_3 0x3ee831
+#define GO_FN_3   0x1daa20
+static void go_refill(void) { g_fresh = 1; g_burn = 0; g_charge = 0; if (g_debug) LOG("mp: game over choice, the bar fills"); }
+static void MSABI go_hook_0(void) { go_refill(); FN(void, GO_FN_0, void)(); }
+static void MSABI go_hook_1(void) { go_refill(); FN(void, GO_FN_1, void)(); }
+static void MSABI go_hook_2(void) { go_refill(); FN(void, GO_FN_2, void)(); }
+static void MSABI go_hook_3(void) { go_refill(); FN(void, GO_FN_3, void)(); }
+void test_go_refill(void) { go_refill(); }
+int *test_retry_refill(void) { return &c_retry_refill; }
 
 /* 285780: PlayerData is reset (new game / load) */
 static void (MSABI *o_pd_init)(void);
@@ -1115,6 +1137,9 @@ int mod_install(void) {
     if (G(u64, VT_CTD_READY) != (u64)(g_base + FN_CTD_READY)) { LOG("message file vtable does not match"); bad++; }
     if (c_berserk_pct > 0 && !call_ok(DMG_CALL, DMG_FN)) { LOG("damage site does not match"); bad++; }
     if (c_link_keep < 100.0f && (!call_ok(LINK_END_A, LINK_END) || !call_ok(LINK_END_B, LINK_END))) { LOG("D-Link end sites do not match"); bad++; }
+    if (c_retry_refill && (!call_ok(GO_SITE_0, GO_FN_0) || !call_ok(GO_SITE_1, GO_FN_1) || !call_ok(GO_SITE_2, GO_FN_2) || !call_ok(GO_SITE_3, GO_FN_3))) {
+        LOG("game over sites do not match"); bad++;
+    }
     if (!bundle_check()) bad++;
     if (!menu_check()) bad++;
     if (!tex_check()) bad++;
@@ -1172,6 +1197,12 @@ int mod_install(void) {
     o_pd_init      = hook_fn(&S_pd_init, pd_init_hook, "pd_init");
     hook_call(0x233a60, 0x2060e0, use_hook, "deck_use");
     hook_call(0x20678e, 0x1ce370, reload_hook, "reload");
+    if (c_retry_refill) {
+        hook_call(GO_SITE_0, GO_FN_0, go_hook_0, "game over: continue");
+        hook_call(GO_SITE_1, GO_FN_1, go_hook_1, "game over: choice 1");
+        hook_call(GO_SITE_2, GO_FN_2, go_hook_2, "game over: retry");
+        hook_call(GO_SITE_3, GO_FN_3, go_hook_3, "game over: choice 3");
+    }
     return g_patch_errors == 0;
 }
 

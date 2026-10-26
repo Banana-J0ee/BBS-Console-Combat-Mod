@@ -316,6 +316,7 @@ do
   end
   check(shots == 20, "Braig: escape, then one of his shots, in " .. shots .. " of 20 break-outs")
   check(st3.limit >= 7 and st3.limit <= 9, "Braig in the Keyblade Graveyard: limit 8 +- 1 (" .. st3.limit .. ")")
+  check(BBS_REVENGE.cfg.b32ex00.limit == 7 and BBS_REVENGE.cfg.b30ex00.limit == 8, "Braig: Radiant Garden (Terra) limit 7, Keyblade Graveyard 8")
   -- his escape warp goes far, his other warps keep their range
   local got
   rawset(e3, "__wt", nil)
