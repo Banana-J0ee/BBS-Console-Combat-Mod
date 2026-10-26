@@ -430,7 +430,14 @@ local braig = {
   -- rounds (step 2 = the dash after the warp), Warp Shoot two volleys with a warp between (step 5 = the second).
   -- Each round gets the window of bbskh2_boss.ini again; before, only the first one had one.
   rearm = rounds({ InvertedShoot = { step = 3 }, DashShoot = { step = 2 }, WarpShoot = { step = 5 } }),
-  fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
+  -- his own plain escape does not come out at the limit: the counter answers.  Inverted Shoot is the exception
+  -- (2026-10-26, log: Terra juggled him in it to 26 / 7): the counter does not run there and his update stops
+  -- while he is kept in hit-stun in the air, so at the limit his own dodge of that move comes out instead
+  -- (OnDamageBefore, steps 3-7, Random < 0.3: no damage, step 7 = the warp into the next round)
+  fire = function(self)
+    if type(self.GetState) == "function" and self:GetState() == "InvertedShoot" then return 0 end
+    return 0.999
+  end,
   -- (no paceFields: his waits are bbskh2_boss.ini's beat)
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end

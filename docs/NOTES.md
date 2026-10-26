@@ -1567,3 +1567,11 @@ inside the bubble.
   Timer: from the frame the player tick first sees state 0x15 / command 0xff, the player's dt.  Terra = the
   CPlayerTerra vtable 649ec8 (Ventus 64a0d8, Aqua 646ff8).  Test: t_airslide.
 * Then (asked for): AirSlideLock 0.60 s.
+
+## Braig juggled in Inverted Shoot (2026-10-26, user's log)
+* Terra kept Braig (b32ex00) in hit-stun in the air during Inverted Shoot with rising attacks: gauge 7 / 7 up to
+  26 / 7, no break-out.  His counter skips InvertedShoot (and Sniper, ChargeShoot ...), his own escape is held off
+  at the limit (fire 0.999), and his OnUpdate - so the watchdog too - did not run while he was kept in hit-stun
+  (his clock stayed at 1268).  Fix: fire is a function - 0 in InvertedShoot, so at the limit his own dodge of that
+  move comes out (OnDamageBefore: steps 3-7, Random < 0.3 -> step 7, the warp into the next round, no damage);
+  0.999 elsewhere as before.  Both fights (braigLate copies it).  Test: extra.lua (20 of 20 at the limit, none early).

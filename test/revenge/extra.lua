@@ -317,6 +317,23 @@ do
   check(shots == 20, "Braig: escape, then one of his shots, in " .. shots .. " of 20 break-outs")
   check(st3.limit >= 7 and st3.limit <= 9, "Braig in the Keyblade Graveyard: limit 8 +- 1 (" .. st3.limit .. ")")
   check(BBS_REVENGE.cfg.b32ex00.limit == 7 and BBS_REVENGE.cfg.b30ex00.limit == 8, "Braig: Radiant Garden (Terra) limit 7, Keyblade Graveyard 8")
+  -- juggled in Inverted Shoot (air, steps 3-7): at the limit his own dodge-warp of that move comes out (the counter
+  -- does not run there); below it, no dodge
+  do
+    local dodged, early = 0, 0
+    for k = 1, 20 do
+      pcall(e3.GotoState, e3, "InvertedShoot")
+      e3.step = 3
+      st3.rv, st3.firing, st3.armor, st3.mArmor = 0, false, 0, 0
+      local at
+      for i = 1, 14 do
+        local r = hit(h3)
+        if e3.step == 7 then at = i break end
+      end
+      if at ~= nil and at >= st3.limit - 1.01 then dodged = dodged + 1 elseif at ~= nil then early = early + 1 end
+    end
+    check(dodged == 20 and early == 0, "Braig in Inverted Shoot: his dodge-warp at the limit in " .. dodged .. " of 20 (" .. early .. " early)")
+  end
   -- his escape warp goes far, his other warps keep their range
   local got
   rawset(e3, "__wt", nil)
