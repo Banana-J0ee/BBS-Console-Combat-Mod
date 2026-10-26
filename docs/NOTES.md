@@ -1601,3 +1601,6 @@ inside the bubble.
   (his clock stayed at 1268).  Fix: fire is a function - 0 in InvertedShoot, so at the limit his own dodge of that
   move comes out (OnDamageBefore: steps 3-7, Random < 0.3 -> step 7, the warp into the next round, no damage);
   0.999 elsewhere as before.  Both fights (braigLate copies it).  Test: extra.lua (20 of 20 at the limit, none early).
+* Then (asked for: "he never changed moves after I countered him"): that dodge only warps him into the next round
+  (InvertedCount 2-5, one less per warp; at 0 he comes down, steps 8-11, and goes to WaitIdling).  braig.post: a
+  break-out in InvertedShoot sets InvertedCount = 1, so the warp it starts is his last round.  Test: extra.lua.
