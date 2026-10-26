@@ -1919,7 +1919,7 @@ static void t_bundle(void) {
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
     /* data files through the patched vtable slot */
     static const struct { const char *env, *inner; u32 crc_new; } F[] = {
-        { "BBS_ARC_P00COMMON", "PAtkData.bin", 0x1d2d9c52 },     /* the old Combo Flow file + Terra's Air Slide end */ { "BBS_ARC_P01INIT", "PCamV000.bin", 0x3f85eb17 },
+        { "BBS_ARC_P00COMMON", "PAtkData.bin", 0x395c1721 },     /* the old Combo Flow file + Terra's Air Slide end */ { "BBS_ARC_P01INIT", "PCamV000.bin", 0x3f85eb17 },
         { "BBS_ARC_P02INIT", "PCamA000.bin", 0xe8f3d034 } };
     test_cam_dist(1.0f);
     for (int i = 0; i < 3; i++) {
@@ -1934,7 +1934,7 @@ static void t_bundle(void) {
         printf("  %s: %u bytes, crc %08x -> %08x\n", F[i].inner, len, before, after);
         CHECK(after == F[i].crc_new, "%s equals the expected file", F[i].inner);
         if (i == 0) {
-            CHECK(*(s16*)(dd + 667 * 0x28) == 10 && dd[667 * 0x28 + 0x1f] == 6, "Terra's Air Slide (PAtk 667) ends at frame 10, 4 frames after its movement");
+            CHECK(*(s16*)(dd + 667 * 0x28) == 12 && dd[667 * 0x28 + 0x1f] == 6, "Terra's Air Slide (PAtk 667) ends at frame 12, 6 frames after its movement");
             CHECK(*(s16*)(dd + 91 * 0x28) == 23 && *(s16*)(dd + 377 * 0x28) == 22, "Ventus' and Aqua's Air Slides unchanged");
             /* a file the standalone Combo Flow mod already changed (crc 571a7c74): the Air Slide byte is set too */
             *(s16*)(dd + 667 * 0x28) = 23; CHECK(test_crc(dd, len) == 0x571a7c74, "the Combo Flow-only file");
