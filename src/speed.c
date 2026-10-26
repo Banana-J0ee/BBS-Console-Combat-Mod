@@ -778,12 +778,48 @@ static void frame_gap_log(u8 *pl, DWORD t0) {
         }
     } else if (g_fg_slow_since && t0 - g_fg_slow_since > 2000) { g_fg_slow_since = 0; g_fg_slow_n = 0; }
 }
+/* ---- Terra's Air Slide: a cooldown before the next one (2026-10-26, asked for) ----
+   With its end frame cut to 12 (patches.json) Terra could chain Air Slides back to back.  Every MOVE command starts
+   in 2430c0 (rcx = player, the command already queued in pl+0x34c), whichever of its callers took the press: the
+   air state [218e09], the input dispatcher 2176b0 [21782d], an action's command window 21c140 [21c219], a slide
+   chaining [242c9d].  Entering it for Air Slide (0xff) less than AirSlideCooldown seconds after Terra's last Air
+   Slide ended does not start it: the press does nothing and the player stays as he is.  Terra's is told by its
+   record (PAtk 667: flag AERIAL only, animations 50 then 9 - Ventus' and Aqua's have NEXT and 50 then 51), so
+   the others are not affected.  The time runs on the player's own dt (60 Hz ticks). */
+static float c_as_cool = 0.25f;                 /* seconds; 0 = off */
+static double g_as_clock, g_as_end = -1e9;
+static int g_as_on;
+static u64 (MSABI *o_move_start)(u8 *pl, u64 a);
+static int terra_air_slide(const u8 *pl) {
+    if (*(const u16*)(pl + 0x304) != 0x15 || *(const u16*)(pl + 0x312) != 0xff) return 0;
+    const u8 *rec = *(u8* const*)(pl + 0x5b8);
+    return rec && *(const u16*)(rec + 4) == 0x0002 && rec[8] == 50 && rec[9] == 9;
+}
+static void air_slide_frame(u8 *pl) {
+    float dt = *(float*)(pl + 0x20); if (!(dt >= 0.0f) || dt > 6.0f) dt = 1.0f;
+    g_as_clock += dt;
+    int now = terra_air_slide(pl);
+    if (g_as_on && !now) g_as_end = g_as_clock;
+    g_as_on = now;
+}
+static int air_slide_blocked(u8 *pl) {
+    return c_as_cool > 0.0f && pl && pl == local_player() && *(u16*)(pl + 0x34c) == 0xff && !g_as_on
+           && g_as_clock - g_as_end < c_as_cool * 60.0f;
+}
+static u64 MSABI move_start_hook(u8 *pl, u64 a) {
+    if (air_slide_blocked(pl)) {
+        if (g_debug) LOG("speed: Air Slide %.0f ticks after the last one: not yet", g_as_clock - g_as_end);
+        return 0;
+    }
+    return o_move_start(pl, a);
+}
+
 static void MSABI tick_hook(u8 *pl) {
     DWORD t0 = g_debug ? GetTickCount() : 0;
     frame_gap_log(pl, t0);
     long_action_log(pl);
     if (c_on) cc_after(pl);
-    if (pl == local_player()) g_tick++;
+    if (pl == local_player()) { g_tick++; air_slide_frame(pl); }
     if (c_on) speed_frame(pl);
     if (c_on) { hop_frame(pl); air_log(pl); }
     g_fall = NULL;
@@ -823,6 +859,7 @@ int speed_check(void) {
     c_launch_min = ini_f("LaunchMin", c_launch_min); c_launch_max = ini_f("LaunchMax", c_launch_max);
     c_launch_reach = ini_f("LaunchReach", c_launch_reach);
     c_reach_min = ini_f("AirReachMin", c_reach_min); c_reach_max = ini_f("AirReachMax", c_reach_max); c_airlog = (int)ini_f("AirLog", (float)c_airlog);
+    c_as_cool = ini_f("AirSlideCooldown", c_as_cool); if (c_as_cool < 0.0f) c_as_cool = 0.0f; if (c_as_cool > 5.0f) c_as_cool = 5.0f;
     c_hop_keep = ini_f("AirHopKeep", c_hop_keep); c_hop_first = ini_f("AirHopFirst", c_hop_first);
     c_hop_fin = ini_f("AirHopFinisher", c_hop_fin); c_hop_grav = ini_f("AirHopGravity", c_hop_grav);
     if (c_hop_grav < 0.1f) c_hop_grav = 0.1f;
@@ -854,6 +891,7 @@ int speed_check(void) {
     if (G(u32, 0x26407b) != 0x41f00000) { LOG("speed: 26407b does not match"); bad++; }
     p = g_base + 0x2206f8; memcpy(&d, p + 1, 4);
     if (c_cc && (p[0] != 0xE8 || (u32)(0x2206f8 + 5 + d) != 0x21f9f0)) { LOG("speed: call site 2206f8 does not match"); bad++; }
+    if (c_as_cool > 0.0f && memcmp(g_base + S_move_start.rva, S_move_start.bytes, S_move_start.len)) { LOG("speed: site %x does not match", S_move_start.rva); bad++; }
     static const u8 lunge[] = { 0x41, 0x0f, 0x28, 0xf2, 0xf3, 0x0f, 0x5e, 0x35 };
     if (memcmp(g_base + 0x21cf4e, lunge, sizeof lunge)) { LOG("speed: 21cf4e does not match"); bad++; }
     return bad == 0;
@@ -874,6 +912,7 @@ void speed_apply(void) {
     hook_ctx(&S_fall_hover, h_hover, "fall hover");
     if (c_launch) hook_ctx(&S_launch, h_launch, "launch height");
     hook_call(0x220b1d, 0x23b3a0, tick_hook, "player tick");
+    if (c_as_cool > 0.0f) o_move_start = hook_fn(&S_move_start, move_start_hook, "move command start (Air Slide cooldown)");
     g_cc_end = (void (MSABI *)(u8*, int, int))(g_base + 0x21c510);
     if (c_cc) hook_call(0x2206f8, 0x21f9f0, input_hook, "player input (command cancel)");
     if (c_air && c_airlock != 30.0f) { u32 v; memcpy(&v, &c_airlock, 4); patch_u32(0x26407b, 0x41f00000, v, "air lock"); }
@@ -891,6 +930,10 @@ void  test_cc_after(u8 *pl) { cc_after(pl); }
 void  test_cc_before(u8 *pl) { cc_before(pl); }
 void  test_cc_seen(u8 *pl, int magic) { cc_seen(pl, magic ? K_MAGIC : K_DECK); }
 void  test_cc_tick(void) { g_tick++; }
+void  test_as_frame(u8 *pl) { air_slide_frame(pl); }
+u64   test_move_start(u8 *pl, u64 (MSABI *orig)(u8*, u64)) { o_move_start = orig; return move_start_hook(pl, 0); }
+float *test_as_cool(void) { return &c_as_cool; }
+void  test_as_reset(void) { g_as_clock = 0; g_as_end = -1e9; g_as_on = 0; }
 int   test_cc_state(void) { return g_cc.state; }
 u32   test_cc_stash(void) { return g_cc.stash; }
 void  test_cc_reset(void) { memset(&g_cc, 0, sizeof g_cc); g_cc.seen = (unsigned)-1; }

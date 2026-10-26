@@ -1453,6 +1453,46 @@ static void t_cancel(void) {
     #undef PRESS
     printf("t_cancel done\n");
 }
+/* Terra's Air Slide: no new one for AirSlideCooldown (0.25 s = 15 ticks) after the last one ended; others unaffected */
+extern void test_as_frame(u8 *pl); extern u64 test_move_start(u8 *pl, u64 (MSABI *orig)(u8*, u64));
+extern float *test_as_cool(void); extern void test_as_reset(void);
+static int g_ms_n;
+static u64 MSABI ms_stub(u8 *pl, u64 a) { (void)pl; (void)a; g_ms_n++; return 0; }
+static void t_airslide(void) {
+    u8 *p = memalign(16, 0x800), *mgr = calloc(1, 0x200); memset(p, 0, 0x800);
+    static u8 rec_t[0x28], rec_v[0x28];
+    *(u16*)(rec_t + 4) = 0x0002; rec_t[8] = 50; rec_t[9] = 9;          /* Terra's Air Slide (PAtk 667) */
+    *(u16*)(rec_v + 4) = 0x1002; rec_v[8] = 50; rec_v[9] = 51;         /* Ventus' (PAtk 91) */
+    u8 *keep = G(u8*, 0x10f9ee40); *(u8**)(mgr + 0x118) = p; G(u8*, 0x10f9ee40) = mgr;
+    *(float*)(p + 0x20) = 1.0f; test_as_reset();
+    CHECK(*test_as_cool() == 0.25f, "AirSlideCooldown 0.25 s by default");
+    /* Terra air-slides for 24 ticks, then falls */
+    *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff; *(u8**)(p + 0x5b8) = rec_t;
+    for (int i = 0; i < 24; i++) test_as_frame(p);
+    *(u16*)(p + 0x304) = 5; *(u16*)(p + 0x312) = 0; test_as_frame(p);
+    *(u16*)(p + 0x34c) = 0xff; g_ms_n = 0;
+    test_move_start(p, ms_stub);
+    CHECK(g_ms_n == 0, "an Air Slide right after the last one does not start");
+    for (int i = 0; i < 13; i++) test_as_frame(p);
+    test_move_start(p, ms_stub); CHECK(g_ms_n == 0, "... nor 14 ticks after");
+    test_as_frame(p); test_as_frame(p);
+    test_move_start(p, ms_stub); CHECK(g_ms_n == 1, "16 ticks after: it starts");
+    /* other movement right away is not held back */
+    test_as_reset(); *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff; test_as_frame(p);
+    *(u16*)(p + 0x304) = 5; test_as_frame(p); g_ms_n = 0;
+    *(u16*)(p + 0x34c) = 0xfb; test_move_start(p, ms_stub); CHECK(g_ms_n == 1, "a Dodge Roll right after is not held back");
+    /* Ventus' Air Slide sets no cooldown */
+    test_as_reset(); *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff; *(u8**)(p + 0x5b8) = rec_v;
+    for (int i = 0; i < 24; i++) test_as_frame(p);
+    *(u16*)(p + 0x304) = 5; test_as_frame(p); g_ms_n = 0;
+    *(u16*)(p + 0x34c) = 0xff; test_move_start(p, ms_stub); CHECK(g_ms_n == 1, "Ventus: no cooldown");
+    /* off */
+    test_as_reset(); *(u8**)(p + 0x5b8) = rec_t; *(u16*)(p + 0x304) = 0x15; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
+    *test_as_cool() = 0; g_ms_n = 0; test_move_start(p, ms_stub); CHECK(g_ms_n == 1, "AirSlideCooldown=0: no wait");
+    *test_as_cool() = 0.25f; test_as_reset();
+    G(u8*, 0x10f9ee40) = keep;
+    printf("t_airslide done\n");
+}
 static void t_speed(void) {
     u8 *p = memalign(16, 0x800), *mot = calloc(1, 0xb0), *phys = memalign(16, 0x200), *wp = calloc(1, 0x200);
     u8 *ctl = calloc(1, 0x60), *ent = calloc(2, 0x90), *desc = calloc(2, 0x34);
@@ -3400,6 +3440,7 @@ int main(int argc, char **argv) {
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);
     bad |= run("t_retry", t_retry);
+    bad |= run("t_airslide", t_airslide);
     bad |= run("t_cancel", t_cancel);
     bad |= run("t_special", t_special);
     bad |= run("t_berserk", t_berserk);
