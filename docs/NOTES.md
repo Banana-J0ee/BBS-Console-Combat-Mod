@@ -1593,3 +1593,10 @@ inside the bubble.
   Timer: from the frame the player tick first sees state 0x15 / command 0xff, the player's dt.  Terra = the
   CPlayerTerra vtable 649ec8 (Ventus 64a0d8, Aqua 646ff8).  Test: t_airslide.
 * Then (asked for): AirSlideLock 0.60 s.
+* Then (asked for: "keep the forward momentum after the slide, maybe not the full speed but something"):
+  `[Speed] AirSlideCarry` (0.5, 0 = off), speed.c fall_speed_hook.  The slide's speed is gone by its end frame, and
+  the fall state 263030 eases its air speed pl+0x51c to the stick's target (x 0.05 a tick) and cuts anything above it
+  by x0.8 a tick (2636*), so a value written once fades in a few frames.  So: the slide's top pl+0x4dc is kept while
+  it runs; when it ends in state 5 a carry = AirSlideCarry x that speed starts, x0.92 a tick (about 70 % gone after
+  0.25 s), and it is the floor of the speed both calls of 1d32d0 in the fall state hand to the body (2636af stick
+  tilted, 263759 neutral).  Direction = the game's facing.  Ends on landing or in any other state.  Test: t_airslide.
