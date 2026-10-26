@@ -790,7 +790,7 @@ static void frame_gap_log(u8 *pl, DWORD t0) {
    Slide by itself: the hook at 218d9f clears those bits for it too.  Terra = the CPlayerTerra vtable (649ec8);
    time = the player's dt (60 Hz ticks). */
 #define VT_TERRA 0x649ff8u
-static float c_as_lock = 0.40f;                  /* seconds; 0 = off */
+static float c_as_lock = 0.60f;                  /* seconds; 0 = off (0.40 at first, 0.60 asked for) */
 static double g_as_clock, g_as_start = -1e9;
 static int g_as_on;
 static int is_terra(const u8 *pl) { return pl && *(const u64*)pl == (u64)(g_base + VT_TERRA); }

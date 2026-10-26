@@ -1592,3 +1592,4 @@ inside the bubble.
   8 (the style hover, 218c10) makes an Air Slide of its own from bits 0x108: ctx hook 218d9f clears them for it.
   Timer: from the frame the player tick first sees state 0x15 / command 0xff, the player's dt.  Terra = the
   CPlayerTerra vtable 649ec8 (Ventus 64a0d8, Aqua 646ff8).  Test: t_airslide.
+* Then (asked for): AirSlideLock 0.60 s.

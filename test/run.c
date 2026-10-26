@@ -1453,14 +1453,14 @@ static void t_cancel(void) {
     #undef PRESS
     printf("t_cancel done\n");
 }
-/* Terra's Air Slide lock: 0.40 s (24 ticks) from the start of one, only Air Slide and only Terra */
+/* Terra's Air Slide lock: 0.60 s (36 ticks) from the start of one, only Air Slide and only Terra */
 extern void test_as_frame(u8 *pl); extern u64 test_as_dec(u8 *pl, u16 cmd, u64 rax); extern u64 test_as_hover(u8 *pl, u64 rax);
 extern float *test_as_lock(void); extern void test_as_reset(void);
 static void t_airslide(void) {
     u8 *p = memalign(16, 0x800), *mgr = calloc(1, 0x200); memset(p, 0, 0x800);
     u8 *keep = G(u8*, 0x10f9f540); *(u8**)(mgr + 0x118) = p; G(u8*, 0x10f9f540) = mgr;
     *(u64*)p = (u64)RVA(0x649ff8); *(float*)(p + 0x20) = 1.0f; test_as_reset();
-    CHECK(*test_as_lock() == 0.4f, "AirSlideLock 0.4 s by default");
+    CHECK(*test_as_lock() == 0.6f, "AirSlideLock 0.6 s by default");
     CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b, "no Air Slide yet: available");
     *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff;              /* it starts */
     test_as_frame(p);
@@ -1469,10 +1469,10 @@ static void t_airslide(void) {
     CHECK(test_as_dec(p, 0xff, 0x29b) == 0, "13 ticks after the start: Air Slide not available");
     CHECK(test_as_dec(p, 0xfb, 0x2a0) == 0x2a0 && test_as_dec(p, 0x10a, 0x2b0) == 0x2b0, "... other commands are");
     CHECK(test_as_hover(p, 0x108) == 0 && test_as_hover(p, 0x4) == 0x4, "style hover: its Air Slide bits cleared, others kept");
-    for (int i = 0; i < 10; i++) test_as_frame(p);
-    CHECK(test_as_dec(p, 0xff, 0x29b) == 0, "23 ticks after the start: still not");
+    for (int i = 0; i < 22; i++) test_as_frame(p);
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0, "35 ticks after the start: still not");
     test_as_frame(p);
-    CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b && test_as_hover(p, 0x108) == 0x108, "24 ticks (0.40 s) after the start: available again");
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b && test_as_hover(p, 0x108) == 0x108, "36 ticks (0.60 s) after the start: available again");
     /* Ventus: not Terra's class, never held back */
     test_as_reset(); *(u64*)p = (u64)RVA(0x64a208);
     *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
@@ -1481,7 +1481,7 @@ static void t_airslide(void) {
     test_as_reset(); *(u64*)p = (u64)RVA(0x649ff8);
     *(u16*)(p + 0x304) = 0x15; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
     *test_as_lock() = 0; CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b, "AirSlideLock=0: no lock");
-    *test_as_lock() = 0.4f; test_as_reset();
+    *test_as_lock() = 0.6f; test_as_reset();
     G(u8*, 0x10f9f540) = keep;
     printf("t_airslide done\n");
 }
