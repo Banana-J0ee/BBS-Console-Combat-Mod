@@ -701,7 +701,8 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 
 ## Texture guard (src/guard.c, `[Safety] TextureGuard`)
 
-* **Off by default since the owner asked for it to be taken out** (the game felt slightly laggy; whether the guard
+* **Off by default again (2026-10-26, asked for: "remove the texture guard"; it had been switched back on by request in
+  between)**.  Before that: **off by default since the owner asked for it to be taken out** (the game felt slightly laggy; whether the guard
   is why is not measured - it is the only thing the crash fix added that runs for every 2D node every frame).  With
   it off the two draw vtable slots are not patched at all.  What stays is the fix itself (`menu_shutdown` from the
   gauge's destructor) and `l2d_live` in the modules' own "is it alive" tests.
