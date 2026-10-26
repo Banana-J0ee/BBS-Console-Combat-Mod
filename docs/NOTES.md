@@ -1582,3 +1582,13 @@ inside the bubble.
 * Then (asked for: "a bit of a pause"): frPlayEnd 10 - 4 frames (0.13 s) after the slide's movement, against the
   original 17 (0.57 s).
 * Then (asked for: "a little more"): frPlayEnd 12 - 6 frames (0.20 s) after the slide's movement.
+* Then (asked for: "remove the pause", and "a hidden timer for slide 0.40 s ... starts when the slide animation
+  starts, you cannot slide again until this timer is done, I don't want the button disabled, just the slide"): end
+  frame 6 again, and `[Speed] AirSlideLock` (0.4 s, 0 = off), speed.c.  (A first try that refused the start in
+  2430c0 itself, a cooldown after the end, was undone on request.)  Now the press is turned away before any of it:
+  the command decoder 2172f0 asks vtable slot 0x198 (CPlayerTerra 28ea70: command -> PAtk record, 0 = none) whether
+  the character has the movement command; ctx hook 217393 (eax = answer, edi = command) makes it 0 for 0xff while
+  the timer runs, so the game takes its own "no such command" path (clears the command, no request bit 8).  State
+  8 (the style hover, 218c10) makes an Air Slide of its own from bits 0x108: ctx hook 218d9f clears them for it.
+  Timer: from the frame the player tick first sees state 0x15 / command 0xff, the player's dt.  Terra = the
+  CPlayerTerra vtable 649ec8 (Ventus 64a0d8, Aqua 646ff8).  Test: t_airslide.

@@ -778,12 +778,52 @@ static void frame_gap_log(u8 *pl, DWORD t0) {
         }
     } else if (g_fg_slow_since && t0 - g_fg_slow_since > 2000) { g_fg_slow_since = 0; g_fg_slow_n = 0; }
 }
+/* ---- Terra's Air Slide lock (2026-10-26, asked for) ----
+   His Air Slide ends when its slide does (end frame 6, patches.json); a hidden timer of AirSlideLock seconds starts
+   on the frame an Air Slide starts, and until it has run out Air Slide is not available - only Air Slide: the
+   button and everything else stay as they are.  The press is turned away where the game decides whether the
+   character has the movement command at all: the command decoder 2172f0 asks the player's vtable slot 0x198
+   (CPlayerTerra 28ea70: command -> PAtk record, 0 = none) and only with a record sets the movement request bit
+   (pl+0x31c |= 8); with none it clears the command, the game's own path for a movement command it cannot do.  The
+   hook at 217393 (just after that call: eax = the answer, edi = the command) makes the answer 0 for Air Slide (0xff)
+   while the timer runs.  The hover state of styles (218c10) turns a guard / movement press (bits 0x108) into an Air
+   Slide by itself: the hook at 218d9f clears those bits for it too.  Terra = the CPlayerTerra vtable (649ec8);
+   time = the player's dt (60 Hz ticks). */
+#define VT_TERRA 0x649ff8u
+static float c_as_lock = 0.40f;                  /* seconds; 0 = off */
+static double g_as_clock, g_as_start = -1e9;
+static int g_as_on;
+static int is_terra(const u8 *pl) { return pl && *(const u64*)pl == (u64)(g_base + VT_TERRA); }
+static void air_slide_frame(u8 *pl) {
+    if (!is_terra(pl)) { g_as_on = 0; return; }
+    float dt = *(float*)(pl + 0x20); if (!(dt >= 0.0f) || dt > 6.0f) dt = 1.0f;
+    g_as_clock += dt;
+    int now = *(const u16*)(pl + 0x304) == 0x15 && *(const u16*)(pl + 0x312) == 0xff;
+    if (now && !g_as_on) g_as_start = g_as_clock;
+    g_as_on = now;
+}
+static int air_slide_locked(u8 *pl) {
+    return c_as_lock > 0.0f && pl == local_player() && is_terra(pl) && g_as_clock - g_as_start < c_as_lock * 60.0f;
+}
+static u64 MSABI h_move_dec(Ctx *c) {             /* 217393: eax = record for the command in edi (0 = none) */
+    u8 *pl = (u8*)c->rbx;
+    if ((u16)c->rdi == 0xff && (u32)c->rax && air_slide_locked(pl)) {
+        c->rax &= ~0xffffffffull;
+        if (g_debug) LOG("speed: Air Slide %.0f ticks after the last one started: not available yet", g_as_clock - g_as_start);
+    }
+    return 0;
+}
+static u64 MSABI h_hover_slide(Ctx *c) {         /* 218d9f: test eax, 0x108 (guard / movement -> Air Slide) */
+    if ((c->rax & 0x108) && air_slide_locked((u8*)c->rbx)) c->rax &= ~0x108ull;
+    return 0;
+}
+
 static void MSABI tick_hook(u8 *pl) {
     DWORD t0 = g_debug ? GetTickCount() : 0;
     frame_gap_log(pl, t0);
     long_action_log(pl);
     if (c_on) cc_after(pl);
-    if (pl == local_player()) g_tick++;
+    if (pl == local_player()) { g_tick++; air_slide_frame(pl); }
     if (c_on) speed_frame(pl);
     if (c_on) { hop_frame(pl); air_log(pl); }
     g_fall = NULL;
@@ -823,6 +863,7 @@ int speed_check(void) {
     c_launch_min = ini_f("LaunchMin", c_launch_min); c_launch_max = ini_f("LaunchMax", c_launch_max);
     c_launch_reach = ini_f("LaunchReach", c_launch_reach);
     c_reach_min = ini_f("AirReachMin", c_reach_min); c_reach_max = ini_f("AirReachMax", c_reach_max); c_airlog = (int)ini_f("AirLog", (float)c_airlog);
+    c_as_lock = ini_f("AirSlideLock", c_as_lock); if (c_as_lock < 0.0f) c_as_lock = 0.0f; if (c_as_lock > 5.0f) c_as_lock = 5.0f;
     c_hop_keep = ini_f("AirHopKeep", c_hop_keep); c_hop_first = ini_f("AirHopFirst", c_hop_first);
     c_hop_fin = ini_f("AirHopFinisher", c_hop_fin); c_hop_grav = ini_f("AirHopGravity", c_hop_grav);
     if (c_hop_grav < 0.1f) c_hop_grav = 0.1f;
@@ -854,6 +895,11 @@ int speed_check(void) {
     if (G(u32, 0x263d9b) != 0x41f00000) { LOG("speed: 26407b does not match"); bad++; }
     p = g_base + 0x220418; memcpy(&d, p + 1, 4);
     if (c_cc && (p[0] != 0xE8 || (u32)(0x220418 + 5 + d) != 0x21f710)) { LOG("speed: call site 2206f8 does not match"); bad++; }
+    if (c_as_lock > 0.0f) {
+        const Steal *as[] = { &S_move_dec, &S_hover_slide };
+        for (int i = 0; i < 2; i++) if (memcmp(g_base + as[i]->rva, as[i]->bytes, as[i]->len)) { LOG("speed: site %x does not match", as[i]->rva); bad++; }
+        if (G(u64, VT_TERRA) == 0 || G(u64, VT_TERRA + 0x198) != (u64)(g_base + 0x28e790)) { LOG("speed: Terra's player class does not match"); bad++; }
+    }
     static const u8 lunge[] = { 0x41, 0x0f, 0x28, 0xf2, 0xf3, 0x0f, 0x5e, 0x35 };
     if (memcmp(g_base + 0x21cc6e, lunge, sizeof lunge)) { LOG("speed: 21cf4e does not match"); bad++; }
     return bad == 0;
@@ -874,6 +920,10 @@ void speed_apply(void) {
     hook_ctx(&S_fall_hover, h_hover, "fall hover");
     if (c_launch) hook_ctx(&S_launch, h_launch, "launch height");
     hook_call(0x22083d, 0x23b0c0, tick_hook, "player tick");
+    if (c_as_lock > 0.0f) {
+        hook_ctx(&S_move_dec, h_move_dec, "movement command decode (Air Slide lock)");
+        hook_ctx(&S_hover_slide, h_hover_slide, "style hover Air Slide (Air Slide lock)");
+    }
     g_cc_end = (void (MSABI *)(u8*, int, int))(g_base + 0x21c230);
     if (c_cc) hook_call(0x220418, 0x21f710, input_hook, "player input (command cancel)");
     if (c_air && c_airlock != 30.0f) { u32 v; memcpy(&v, &c_airlock, 4); patch_u32(0x263d9b, 0x41f00000, v, "air lock"); }
@@ -891,6 +941,11 @@ void  test_cc_after(u8 *pl) { cc_after(pl); }
 void  test_cc_before(u8 *pl) { cc_before(pl); }
 void  test_cc_seen(u8 *pl, int magic) { cc_seen(pl, magic ? K_MAGIC : K_DECK); }
 void  test_cc_tick(void) { g_tick++; }
+void  test_as_frame(u8 *pl) { air_slide_frame(pl); }
+u64   test_as_dec(u8 *pl, u16 cmd, u64 rax) { Ctx c; memset(&c, 0, sizeof c); c.rbx = (u64)pl; c.rdi = cmd; c.rax = rax; h_move_dec(&c); return c.rax; }
+u64   test_as_hover(u8 *pl, u64 rax) { Ctx c; memset(&c, 0, sizeof c); c.rbx = (u64)pl; c.rax = rax; h_hover_slide(&c); return c.rax; }
+float *test_as_lock(void) { return &c_as_lock; }
+void  test_as_reset(void) { g_as_clock = 0; g_as_start = -1e9; g_as_on = 0; }
 int   test_cc_state(void) { return g_cc.state; }
 u32   test_cc_stash(void) { return g_cc.stash; }
 void  test_cc_reset(void) { memset(&g_cc, 0, sizeof g_cc); g_cc.seen = (unsigned)-1; }
