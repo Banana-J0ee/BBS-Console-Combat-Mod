@@ -1463,7 +1463,7 @@ static void t_airslide(void) {
     static u8 rec_t[0x28], rec_v[0x28];
     *(u16*)(rec_t + 4) = 0x0002; rec_t[8] = 50; rec_t[9] = 9;          /* Terra's Air Slide (PAtk 667) */
     *(u16*)(rec_v + 4) = 0x1002; rec_v[8] = 50; rec_v[9] = 51;         /* Ventus' (PAtk 91) */
-    u8 *keep = G(u8*, 0x10f9ee40); *(u8**)(mgr + 0x118) = p; G(u8*, 0x10f9ee40) = mgr;
+    u8 *keep = G(u8*, 0x10f9f540); *(u8**)(mgr + 0x118) = p; G(u8*, 0x10f9f540) = mgr;
     *(float*)(p + 0x20) = 1.0f; test_as_reset();
     CHECK(*test_as_cool() == 0.25f, "AirSlideCooldown 0.25 s by default");
     /* Terra air-slides for 24 ticks, then falls */
@@ -1490,7 +1490,7 @@ static void t_airslide(void) {
     test_as_reset(); *(u8**)(p + 0x5b8) = rec_t; *(u16*)(p + 0x304) = 0x15; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
     *test_as_cool() = 0; g_ms_n = 0; test_move_start(p, ms_stub); CHECK(g_ms_n == 1, "AirSlideCooldown=0: no wait");
     *test_as_cool() = 0.25f; test_as_reset();
-    G(u8*, 0x10f9ee40) = keep;
+    G(u8*, 0x10f9f540) = keep;
     printf("t_airslide done\n");
 }
 static void t_speed(void) {
