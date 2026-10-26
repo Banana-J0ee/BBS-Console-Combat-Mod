@@ -1453,6 +1453,38 @@ static void t_cancel(void) {
     #undef PRESS
     printf("t_cancel done\n");
 }
+/* Terra's Air Slide lock: 0.40 s (24 ticks) from the start of one, only Air Slide and only Terra */
+extern void test_as_frame(u8 *pl); extern u64 test_as_dec(u8 *pl, u16 cmd, u64 rax); extern u64 test_as_hover(u8 *pl, u64 rax);
+extern float *test_as_lock(void); extern void test_as_reset(void);
+static void t_airslide(void) {
+    u8 *p = memalign(16, 0x800), *mgr = calloc(1, 0x200); memset(p, 0, 0x800);
+    u8 *keep = G(u8*, 0x10f9ee40); *(u8**)(mgr + 0x118) = p; G(u8*, 0x10f9ee40) = mgr;
+    *(u64*)p = (u64)RVA(0x649ec8); *(float*)(p + 0x20) = 1.0f; test_as_reset();
+    CHECK(*test_as_lock() == 0.4f, "AirSlideLock 0.4 s by default");
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b, "no Air Slide yet: available");
+    *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff;              /* it starts */
+    test_as_frame(p);
+    for (int i = 0; i < 12; i++) test_as_frame(p);                       /* the slide (6 frames = 12 ticks) */
+    *(u16*)(p + 0x304) = 5; *(u16*)(p + 0x312) = 0; test_as_frame(p);   /* falling */
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0, "13 ticks after the start: Air Slide not available");
+    CHECK(test_as_dec(p, 0xfb, 0x2a0) == 0x2a0 && test_as_dec(p, 0x10a, 0x2b0) == 0x2b0, "... other commands are");
+    CHECK(test_as_hover(p, 0x108) == 0 && test_as_hover(p, 0x4) == 0x4, "style hover: its Air Slide bits cleared, others kept");
+    for (int i = 0; i < 10; i++) test_as_frame(p);
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0, "23 ticks after the start: still not");
+    test_as_frame(p);
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b && test_as_hover(p, 0x108) == 0x108, "24 ticks (0.40 s) after the start: available again");
+    /* Ventus: not Terra's class, never held back */
+    test_as_reset(); *(u64*)p = (u64)RVA(0x64a0d8);
+    *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
+    CHECK(test_as_dec(p, 0xff, 0x5b) == 0x5b, "Ventus: no lock");
+    /* off */
+    test_as_reset(); *(u64*)p = (u64)RVA(0x649ec8);
+    *(u16*)(p + 0x304) = 0x15; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
+    *test_as_lock() = 0; CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b, "AirSlideLock=0: no lock");
+    *test_as_lock() = 0.4f; test_as_reset();
+    G(u8*, 0x10f9ee40) = keep;
+    printf("t_airslide done\n");
+}
 static void t_speed(void) {
     u8 *p = memalign(16, 0x800), *mot = calloc(1, 0xb0), *phys = memalign(16, 0x200), *wp = calloc(1, 0x200);
     u8 *ctl = calloc(1, 0x60), *ent = calloc(2, 0x90), *desc = calloc(2, 0x34);
@@ -1919,7 +1951,7 @@ static void t_bundle(void) {
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
     /* data files through the patched vtable slot */
     static const struct { const char *env, *inner; u32 crc_new; } F[] = {
-        { "BBS_ARC_P00COMMON", "PAtkData.bin", 0x395c1721 },     /* the old Combo Flow file + Terra's Air Slide end */ { "BBS_ARC_P01INIT", "PCamV000.bin", 0x3f85eb17 },
+        { "BBS_ARC_P00COMMON", "PAtkData.bin", 0x55ce8ab4 },     /* the old Combo Flow file + Terra's Air Slide end */ { "BBS_ARC_P01INIT", "PCamV000.bin", 0x3f85eb17 },
         { "BBS_ARC_P02INIT", "PCamA000.bin", 0xe8f3d034 } };
     test_cam_dist(1.0f);
     for (int i = 0; i < 3; i++) {
@@ -1934,7 +1966,7 @@ static void t_bundle(void) {
         printf("  %s: %u bytes, crc %08x -> %08x\n", F[i].inner, len, before, after);
         CHECK(after == F[i].crc_new, "%s equals the expected file", F[i].inner);
         if (i == 0) {
-            CHECK(*(s16*)(dd + 667 * 0x28) == 12 && dd[667 * 0x28 + 0x1f] == 6, "Terra's Air Slide (PAtk 667) ends at frame 12, 6 frames after its movement");
+            CHECK(*(s16*)(dd + 667 * 0x28) == 6 && dd[667 * 0x28 + 0x1f] == 6, "Terra's Air Slide (PAtk 667) ends at frame 6, when its movement does");
             CHECK(*(s16*)(dd + 91 * 0x28) == 23 && *(s16*)(dd + 377 * 0x28) == 22, "Ventus' and Aqua's Air Slides unchanged");
             /* a file the standalone Combo Flow mod already changed (crc 571a7c74): the Air Slide byte is set too */
             *(s16*)(dd + 667 * 0x28) = 23; CHECK(test_crc(dd, len) == 0x571a7c74, "the Combo Flow-only file");
@@ -3400,6 +3432,7 @@ int main(int argc, char **argv) {
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);
     bad |= run("t_retry", t_retry);
+    bad |= run("t_airslide", t_airslide);
     bad |= run("t_cancel", t_cancel);
     bad |= run("t_special", t_special);
     bad |= run("t_berserk", t_berserk);
