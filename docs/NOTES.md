@@ -1581,3 +1581,4 @@ inside the bubble.
   standalone Combo Flow mod already changed is accepted and given the same values.  Test: t_bundle.
 * Then (asked for: "a bit of a pause"): frPlayEnd 10 - 4 frames (0.13 s) after the slide's movement, against the
   original 17 (0.57 s).
+* Then (asked for: "a little more"): frPlayEnd 12 - 6 frames (0.20 s) after the slide's movement.
