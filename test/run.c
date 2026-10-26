@@ -663,6 +663,20 @@ static void t_link_end(void) {
     *test_link_keep() = 100;
     printf("t_link_end done\n");
 }
+/* Game Over: every choice (Continue / Retry / the other two) refills the bar at the next gauge update */
+extern void test_go_refill(void); extern int *test_retry_refill(void); extern int *test_fresh(void); extern float *test_mp(void);
+static u8 *go_target(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
+static void t_retry(void) {
+    static const u32 site[4] = { 0x3eeb86, 0x3eeb7f, 0x3eeb78, 0x3eeb71 }, fn[4] = { 0x1dab70, 0x1db060, 0x1db1b0, 0x1dad00 };
+    CHECK(*test_retry_refill() == 1, "RetryRefillsMP on by default");
+    for (int i = 0; i < 4; i++)
+        CHECK(*(u8*)RVA(site[i]) == 0xe8 && go_target(site[i]) != RVA(fn[i]), "game over choice %d: the call is hooked", i);
+    *test_mp() = 12; *test_fresh() = 0;
+    test_go_refill();
+    CHECK(*test_fresh() == 1, "a game over choice marks the bar for a full fill at the next update");
+    *test_fresh() = 0;
+    printf("t_retry done\n");
+}
 /* MP Rage: Attack Haste renamed; HP lost gives lost / max HP x max MP x 25% x copies / 5, never during the MP charge */
 static void t_rage(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
@@ -1899,7 +1913,7 @@ static void t_bundle(void) {
             for (u32 k = 0; k < rs; k++) if (g_base[va + k] != d[ro + k]) diff++;
         }
         printf("  code bytes differing from the original exe: %ld (our own hooks)\n", diff);
-        CHECK(diff > 0 && diff < 400, "only our hook sites differ");
+        CHECK(diff > 0 && diff < 450, "only our hook sites differ");
         CHECK(!memcmp(RVA(0x62f080), d + 0x400 + 0x62e080, 349), "the old Combo Flow routines are not installed (speed.c has the walk-out)");
         CHECK(*(u8*)RVA(0x2291bf) == 0xe9 && *(u8*)RVA(0x26825f) == 0xe9 && *(u8*)RVA(0x26828a) == 0xe9, "its three sites carry our hooks");
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
@@ -3378,6 +3392,7 @@ int main(int argc, char **argv) {
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);
+    bad |= run("t_retry", t_retry);
     bad |= run("t_cancel", t_cancel);
     bad |= run("t_special", t_special);
     bad |= run("t_berserk", t_berserk);

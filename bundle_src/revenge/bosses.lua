@@ -396,7 +396,7 @@ cfg.b81vs00 = armor
 -- Shoot whole), gaps and cooldowns.  His Idling picks the next shot at once (0-1 frame): the beat is a hold of ours
 -- there; after Warp / Charge / Inverted Shoot his WaitIdling counts its own frames (self.timer) before a warp.
 local braig = {
-  limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
+  limit = 7,                    -- b32ex00, Terra's fight in Radiant Garden (2026-10-26, asked for: 9 -> 7); b30ex00 (Keyblade Graveyard) gets his own copy below
   -- His shots are long shooting phases, and after Dash / Round Shoot his Idling picks the next one at once
   -- (0-1 frame in play).  armorStates: the whole move where bbskh2_boss.ini has no window for it.
   armorStates = { RoundShoot = true, DashShoot = true, WarpShoot = true, ChargeShoot = true, InvertedShoot = true,
