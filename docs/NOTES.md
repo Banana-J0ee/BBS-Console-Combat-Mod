@@ -1553,3 +1553,5 @@ inside the bubble.
   (26680 = 6) in the PAtkData.bin set of patches.json, so it follows [Bundle] ComboFlow like the rest of that set.
   Ventus (PAtk 91: mve 8, end 23) and Aqua (377: mve 7, end 22) are unchanged.  crc_alt (bundle.c): a file the
   standalone Combo Flow mod already changed is accepted and given the same values.  Test: t_bundle.
+* Then (asked for: "a bit of a pause"): frPlayEnd 10 - 4 frames (0.13 s) after the slide's movement, against the
+  original 17 (0.57 s).
