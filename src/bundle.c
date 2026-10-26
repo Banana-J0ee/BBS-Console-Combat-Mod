@@ -81,7 +81,8 @@ static u64 MSABI rsrc_loaded(u8 *r) {
         if (cam && cam_scaled_crc[i] && c == cam_scaled_crc[i]) return 0;     /* this mod's own result */
         if (c == df_files[i].crc_new) {
             if (g_debug) LOG("bundle: %s already changed", name);
-        } else if (c != df_files[i].crc_old) {
+        } else if (c != df_files[i].crc_old && !(df_files[i].crc_alt && c == df_files[i].crc_alt)) {   /* crc_alt: changed by the
+                                                     standalone Combo Flow mod already; the same values are set again */
             LOG("bundle: %s is not the expected original (crc %08x): left alone", name, c); return 0;
         } else {
             for (unsigned k = 0; k < df_files[i].n; k++) data[df_files[i].set[2 * k]] = (u8)df_files[i].set[2 * k + 1];

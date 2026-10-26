@@ -1570,3 +1570,11 @@ inside the bubble.
   place, 1ec240 / 1ec250 -> 1eca40), 1 3eeb7f -> 1db060 and 3 3eeb71 -> 1dad00 (tasks: load / title).  All four are
   hooked (mp.c go_hook_*): g_fresh, so the next gauge update fills the bar and ends an MP charge.  [MP]
   RetryRefillsMP=1 (0 = off).  Test: t_retry (sites hooked, the refill mark).
+
+## Terra's Air Slide: no pause after the slide (2026-10-26)
+* Asked for ("no pause"): Terra's Air Slide (command 0xff, PAtk 667) ends when its movement does.  The MOVE state
+  (0x15, 242370; slides 2421b0) ends at frame >= frPlayEnd (PAtk +0, frames = ticks / 2): 23, while the slide moves
+  until mve (+0x1f) 6 and the rest of the action hangs at 16 % gravity (0.57 s).  frPlayEnd 23 -> 6: one more byte
+  (26680 = 6) in the PAtkData.bin set of patches.json, so it follows [Bundle] ComboFlow like the rest of that set.
+  Ventus (PAtk 91: mve 8, end 23) and Aqua (377: mve 7, end 22) are unchanged.  crc_alt (bundle.c): a file the
+  standalone Combo Flow mod already changed is accepted and given the same values.  Test: t_bundle.
