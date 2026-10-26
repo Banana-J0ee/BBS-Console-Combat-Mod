@@ -323,16 +323,16 @@ do
     local dodged, early = 0, 0
     for k = 1, 20 do
       pcall(e3.GotoState, e3, "InvertedShoot")
-      e3.step = 3
+      e3.step = 3; e3.InvertedCount = 4
       st3.rv, st3.firing, st3.armor, st3.mArmor = 0, false, 0, 0
       local at
       for i = 1, 14 do
         local r = hit(h3)
         if e3.step == 7 then at = i break end
       end
-      if at ~= nil and at >= st3.limit - 1.01 then dodged = dodged + 1 elseif at ~= nil then early = early + 1 end
+      if at ~= nil and at >= st3.limit - 1.01 and e3.InvertedCount == 1 then dodged = dodged + 1 elseif at ~= nil then early = early + 1 end
     end
-    check(dodged == 20 and early == 0, "Braig in Inverted Shoot: his dodge-warp at the limit in " .. dodged .. " of 20 (" .. early .. " early)")
+    check(dodged == 20 and early == 0, "Braig in Inverted Shoot: his dodge-warp at the limit, his last round, in " .. dodged .. " of 20 (" .. early .. " early)")
   end
   -- his escape warp goes far, his other warps keep their range
   local got

@@ -438,6 +438,11 @@ local braig = {
     if type(self.GetState) == "function" and self:GetState() == "InvertedShoot" then return 0 end
     return 0.999
   end,
+  -- that dodge only warps him into the next round of the move (2-5 rounds): a break-out there makes it the last
+  -- one, so after the warp he comes down and picks another move (asked for: he never changed moves after it)
+  post = function(self, fired)
+    if fired and type(self.GetState) == "function" and self:GetState() == "InvertedShoot" then self.InvertedCount = 1 end
+  end,
   -- (no paceFields: his waits are bbskh2_boss.ini's beat)
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
