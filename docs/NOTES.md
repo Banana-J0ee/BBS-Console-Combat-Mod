@@ -1600,3 +1600,12 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
 * Not checked: whether the versus arenas' data (maps, gimmick models) still ships in the game's archives.
 * Reviving versus would need: re-attaching CNetGameVSMode (and its prep menu) to a reachable entry, plus a new
   network layer - or a local two-controller mode on one PC.
+
+## Braig's descent after Inverted Shoot keeps his own armour (2026-10-27)
+* Asked for: Braig could be juggled as he came down after his last round of Inverted Shoot (steps 8-11: hang,
+  motion, drop, land); "not staggerable during this animation".  His script switches "no damage reaction" on for
+  that descent (step 7 -> 8) and off on landing (11), but the mod holds a move open past its armour window every
+  frame (st.winOff in the update) - also where the script armours it - and Inverted Shoot is one state, rounds and
+  descent; his break-out (the dodge) exists only in steps 3-7.  New cfg.scriptArmor(self): where it is true the
+  window rule leaves the script's own armour alone.  Braig: InvertedShoot and step >= 8.  The rounds stay open
+  past their 46 frames.  Test: extra.lua (open in its rounds, kept on the way down).
