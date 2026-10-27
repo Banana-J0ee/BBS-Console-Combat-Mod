@@ -24,6 +24,8 @@
 --            back at you, several BBS scripts just stand up into idling
 --   clear    true: the gauge is cleared after a break-out and when the boss recovers (default:
 --            KH2's rule - it is kept and drains while the boss acts)
+--   scriptArmor function(self) -> true: where a move is held open past its window, this part keeps the
+--            boss's own "no damage reaction" (Braig's descent after Inverted Shoot)
 --   pace     false: the boss keeps its own pace (superbosses, Hades).  Otherwise [Bosses] in the ini
 --            shortens its idle waits and caps its walks (revenge.lua, "Boss pace")
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
@@ -442,6 +444,12 @@ local braig = {
   -- one, so after the warp he comes down and picks another move (asked for: he never changed moves after it)
   post = function(self, fired)
     if fired and type(self.GetState) == "function" and self:GetState() == "InvertedShoot" then self.InvertedCount = 1 end
+  end,
+  -- after his last round of Inverted Shoot he drops down and lands (steps 8-11); his script makes that whole
+  -- descent unstaggerable, and the mod's "open past the window" no longer overrides it there (2026-10-27, asked
+  -- for: he could be juggled as he came down, with no break-out - his dodge exists only in steps 3-7)
+  scriptArmor = function(self)
+    return type(self.GetState) == "function" and self:GetState() == "InvertedShoot" and type(self.step) == "number" and self.step >= 8
   end,
   -- (no paceFields: his waits are bbskh2_boss.ini's beat)
   counter = function(self)

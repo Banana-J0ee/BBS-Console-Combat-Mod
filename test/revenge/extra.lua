@@ -798,6 +798,18 @@ do
     pcall(e3.OnUpdate, e3)
   end
   check(open, "Braig's Inverted Shoot: open after its 46 frames although his script armours it (" .. n .. ")")
+  -- ... but his descent after the last round (steps 8-11) keeps his own armour: no stagger as he comes down
+  do
+    pcall(e3.GotoState, e3, "Idling")
+    pcall(e3.GotoState, e3, "InvertedShoot")
+    for i = 1, 60 do pcall(e3.OnUpdate, e3) end              -- past the window: held open
+    local roundOpen = log[h3] == 0
+    e3.step = 8; e3.timer = 1000
+    Enemy.EnableNoDamageReaction(h3, 1)                     -- (his script, as the descent starts)
+    local kept = true
+    for i = 1, 10 do pcall(e3.OnUpdate, e3); if e3.step >= 8 and log[h3] ~= 1 then kept = false end end
+    check(roundOpen and kept and e3:GetState() == "InvertedShoot", "Braig's Inverted Shoot: open in its rounds, his own armour kept on the way down")
+  end
   M.num["Enemy.EnableNoDamageReaction"] = nil
   M.num["Enemy.IsNoDamageReaction"] = nil
   M.num["Entity.SetTimer"] = nil

@@ -1635,3 +1635,12 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   the mod's folder, every module in the process, and memory against the exe file relocated to the same base for
   .text / .nep / .rdata (import table excluded) - each differing range with its bytes and, for a jmp / call /
   pointer, the module it leads into (.data only counted).  Runs before anything is changed.  Test: t_diag.
+
+## Braig's descent after Inverted Shoot keeps his own armour (2026-10-27)
+* Asked for: Braig could be juggled as he came down after his last round of Inverted Shoot (steps 8-11: hang,
+  motion, drop, land); "not staggerable during this animation".  His script switches "no damage reaction" on for
+  that descent (step 7 -> 8) and off on landing (11), but the mod holds a move open past its armour window every
+  frame (st.winOff in the update) - also where the script armours it - and Inverted Shoot is one state, rounds and
+  descent; his break-out (the dodge) exists only in steps 3-7.  New cfg.scriptArmor(self): where it is true the
+  window rule leaves the script's own armour alone.  Braig: InvertedShoot and step >= 8.  The rounds stay open
+  past their 46 frames.  Test: extra.lua (open in its rounds, kept on the way down).

@@ -1221,8 +1221,11 @@ local function attach(ent, name, handle)
     if st.mArmor ~= nil and st.mArmor > 0 and active(self) and type(Enemy.EnableNoDamageReaction) == "function" then
       Enemy.EnableNoDamageReaction(myh(self), 1)
     end
-    -- past its window a move stays open, also where the boss's own script armours the whole move
-    if st.winOff and not (st.armor > 0) and active(self) and type(Enemy.EnableNoDamageReaction) == "function" then
+    -- past its window a move stays open, also where the boss's own script armours the whole move - except a part
+    -- the boss's config gives back to the script (cfg.scriptArmor(self) -> true: his own armour stands there)
+    local keepOwn = false
+    if c.scriptArmor ~= nil then local okA, r = pcall(c.scriptArmor, self); keepOwn = okA and r == true end
+    if st.winOff and not keepOwn and not (st.armor > 0) and active(self) and type(Enemy.EnableNoDamageReaction) == "function" then
       Enemy.EnableNoDamageReaction(myh(self), 0)
     end
     -- break-outs that start from the boss's own update instead of from a hit
