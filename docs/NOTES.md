@@ -1600,12 +1600,3 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
 * Not checked: whether the versus arenas' data (maps, gimmick models) still ships in the game's archives.
 * Reviving versus would need: re-attaching CNetGameVSMode (and its prep menu) to a reachable entry, plus a new
   network layer - or a local two-controller mode on one PC.
-
-## Diagnostics on a refusal (src/diag.c, 2026-10-26)
-* Asked for: a build that finds out by itself why the mod refuses a player's game (an Epic player's log: 12 checks
-  failed - engine calls, vtables, tables - while the player code matched).  When install fails, or always with
-  `[Debug] Diagnose=1`, the log gets: the exe on disk (size, CRC-32, named if known: Epic 1.0.0.10_WW 74e356ff /
-  9345296, Steam 79a373db / 9346320), the DLLs next to it (Panacea DBGHELP / version, LuaBackend, dinput8) and in
-  the mod's folder, every module in the process, and memory against the exe file relocated to the same base for
-  .text / .nep / .rdata (import table excluded) - each differing range with its bytes and, for a jmp / call /
-  pointer, the module it leads into (.data only counted).  Runs before anything is changed.  Test: t_diag.
