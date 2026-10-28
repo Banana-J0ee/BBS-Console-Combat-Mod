@@ -1011,23 +1011,66 @@ do
   check(lock == 0, "... and open again once he walks (lock " .. tostring(lock) .. ")")
   M.num["Enemy.EnableNoDamageReaction"] = nil
 end
--- helmet Zack: idle 1.0 s / strafe 1.0 s / 2.0 s of moving (his data for the story fight) brought down to the
--- helmetless Zack's 0.5 / 0.5 / 3.0; any other values are left alone.  (The stand-in engine can only enter the mode
--- that reads the short parameter names, so those carry the values here.)
+-- helmet Zack (his story fight: layout parameter 0, the mode that reads the long parameter names)
 do
-  local real = { IdlingTim = 1.0, MoveTim = 1.0, ChaIdlinT = 2.0 }
+  local real = { IdlingTime = 1.0, MoveTime = 1.0, ChaIdlingT = 2.0, ActionDist1 = 5, ComboDist = 2,
+                 Action1Rate = 50, Action2Rate = 40, Action3Rate = 30, Action4Rate = 70, Action5Rate = 60, Action6Rate = 60 }
   M.num["Enemy.GetExtraParam"] = function(h, n) return real[n] or 8 end
-  M.num["Entity.GetLayoutParam"] = 1
+  M.num["Entity.GetLayoutParam"] = 0
+  M.num["Script.GetDebugTestParam"] = 0
   M.script("b40he00")
-  local e = M.create("b30he00")
+  local e, h = M.create("b30he00")
+  rawset(e, "AddBushinCnt", function() end)
+  -- strafe and idle as short as the helmetless Zack's
   check(e:GetIdlingTime() == 30 and e:GetMoveTime() == 30 and e:GetIdlingChangeTime() == 180,
         "helmet Zack: idle " .. tostring(e:GetIdlingTime()) .. ", strafe " .. tostring(e:GetMoveTime()) .. ", moving " .. tostring(e:GetIdlingChangeTime()) .. " frames (30 / 30 / 180)")
+  check(BBS_REVENGE.cfg.b40he00.setup == nil and BBS_REVENGE.cfg.b60vs00.setup == nil, "helmetless and Mirage Arena Zack: no change")
+  -- dice in order: the next values Script.Random gives
+  local q = {}
+  local mr = M.rand
+  M.rand = function() if #q > 0 then return table.remove(q, 1) end return mr() end
+  local function decide(rolls, dist)
+    q = rolls
+    M.num["Entity.CalcDistanceSq"] = dist
+    BBS_REVENGE.ents.b30he00.owe = nil
+    pcall(e.GotoState, e, "Idling")
+    e:EnableActionSelect()
+    return e:GetState()
+  end
+  -- close (3 m), not the combo (0.9 > 50 %), then our roll
+  check(decide({ 0.9, 0.2 }, 9) == "Approache", "close, no combo picked, our roll 0.2: the combo instead (" .. e:GetState() .. ")")
+  check(decide({ 0.9, 0.8 }, 9) == "BackJump", "... our roll 0.8: his own back-up and Hakougeki (" .. e:GetState() .. ")")
+  check(decide({ 0.9, 0.2 }, 1) == "ComboAttack", "within combo range: straight into the combo (" .. e:GetState() .. ")")
+  -- after a Hakougeki, player near: follow-up
+  local function after(rolls, dist)
+    pcall(e.GotoState, e, "Hakougeki")
+    q = rolls
+    M.num["Entity.CalcDistanceSq"] = dist
+    pcall(e.GotoState, e, "Move")
+    return e:GetState()
+  end
+  BBS_REVENGE.ents.b30he00.cdUntil = {}
+  check(after({ 0.1, 0.2 }, 9) == "Climbhazard", "Hakougeki, player near, follow-up roll 0.1 / 0.2: Climbhazard (" .. e:GetState() .. ")")
+  check(after({ 0.1, 0.7 }, 1) == "ComboAttack", "... 0.1 / 0.7, within combo range: the combo (" .. e:GetState() .. ")")
+  BBS_REVENGE.ents.b30he00.cdUntil = { Climbhazard = 1e9 }
+  check(after({ 0.1, 0.2 }, 1) == "ComboAttack", "... Climbhazard cooling down: the combo (" .. e:GetState() .. ")")
+  BBS_REVENGE.ents.b30he00.cdUntil = {}
+  check(after({ 0.6 }, 9) == "Move", "... roll 0.6: no follow-up (" .. e:GetState() .. ")")
+  check(after({ 0.1, 0.2 }, 36) == "Move", "... player far: no follow-up (" .. e:GetState() .. ")")
+  M.rand = mr
+  M.num["Entity.CalcDistanceSq"] = 4
+  -- his strongest mode on the same entry: none of this
+  M.num["Entity.GetLayoutParam"] = 1
   real = { IdlingTim = 0.75, MoveTim = 0.5, ChaIdlinT = 3.0 }
   M.script("b40he00")
   local e3 = M.create("b30he00")
-  check(e3:GetIdlingTime() == 45 and e3:GetMoveTime() == 30 and e3:GetIdlingChangeTime() == 180, "other values: as his data has them")
-  check(BBS_REVENGE.cfg.b40he00.setup == nil and BBS_REVENGE.cfg.b60vs00.setup == nil, "helmetless and Mirage Arena Zack: no change")
+  check(e3:GetIdlingTime() == 45 and e3:GetMoveTime() == 30 and e3:GetIdlingChangeTime() == 180, "strongest mode: times as his data has them")
+  pcall(e3.GotoState, e3, "Hakougeki"); M.num["Entity.CalcDistanceSq"] = 1
+  pcall(e3.GotoState, e3, "Move")
+  check(e3:GetState() == "Move", "strongest mode: no follow-up (" .. e3:GetState() .. ")")
+  M.num["Entity.CalcDistanceSq"] = 4
   M.num["Entity.GetLayoutParam"] = nil
+  M.num["Script.GetDebugTestParam"] = nil
   M.num["Enemy.GetExtraParam"] = 8
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))

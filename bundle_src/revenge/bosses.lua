@@ -829,7 +829,74 @@ zackStory.tempo = { idle = { Idling = "timer" }, pop = { BackJump_Short = true }
 local zackHelmet = {}
 for k, v in pairs(zackStory) do zackHelmet[k] = v end
 local zackPace = { GetIdlingTime = { 60, 30 }, GetMoveTime = { 60, 30 }, GetIdlingChangeTime = { 120, 180 } }
+-- his first mode up close (2026-10-28, asked for: he felt ranged-only):
+--   closeSwing: when he is near (ActionDist1) and does not pick the combo, his script always backs up and throws
+--     Hakougeki - this share of those goes into the combo instead (walking in first beyond combo range)
+--   followUp: after a Hakougeki, with the player still near, this share follows up with the combo or Climbhazard
+--     (Climbhazard only while it is off cooldown), instead of the strafe / idle that would come next
+zackHelmet.closeSwing = 0.5
+zackHelmet.followUp = 0.4
+local function zackRand() return Script.Random() end
+local function zackNear(self, d2)
+  local d = Entity.CalcDistanceSq(self.myHandle, self.targetHandle)
+  return type(d) == "number" and type(d2) == "number" and d < d2, d
+end
+-- the combo from where he stands: walk in first when beyond combo range
+local function zackComboStack(self, d)
+  self.stack:clear()
+  self.stack:push("Move")
+  self.stack:push("ComboAttack")
+  local cd = self:GetComboAttackDist()
+  if type(cd) == "number" and type(d) == "number" and d >= cd then self.stack:push("Approache") end
+  return self.stack:pop(1)
+end
 zackHelmet.setup = function(ent)
+  local origMove = ent.GetMoveTime
+  local function firstMode(self) return type(origMove) == "function" and origMove(self) == 60 end
+  -- closeSwing: his decision is made in EnableActionSelect and ends with GotoState(stack:pop()); the close-range
+  -- "BackJump, then Hakougeki" is caught there
+  local eas = ent.EnableActionSelect
+  if type(eas) == "function" then
+    rawset(ent, "EnableActionSelect", function(self, a, b)
+      if not firstMode(self) or type(self.stack) ~= "table" then return eas(self, a, b) end
+      rawset(self, "GotoState", function(me, st0, x, y)
+        rawset(me, "GotoState", nil)
+        if st0 == "BackJump" and me.stack:getn() > 0 then
+          local nxt = me.stack:pop(1)
+          me.stack:push(nxt)
+          local near, d = zackNear(me, me:GetActionDist1())
+          if nxt == "Hakougeki" and near and zackRand() < zackHelmet.closeSwing then
+            st0 = zackComboStack(me, d)
+          end
+        end
+        return me:GotoState(st0, x, y)
+      end)
+      local ok, r = pcall(eas, self, a, b)
+      rawset(self, "GotoState", nil)
+      if not ok then error(r, 0) end
+      return r
+    end)
+  end
+  -- followUp: the state after a Hakougeki
+  local gss = ent.GotoStateSub
+  if type(gss) == "function" then
+    rawset(ent, "GotoStateSub", function(self, s, a, b)
+      if (s == "Move" or s == "Idling") and type(self.GetState) == "function" and self:GetState() == "Hakougeki"
+         and firstMode(self) and type(self.stack) == "table" then
+        local near, d = zackNear(self, self:GetActionDist1())
+        if near and zackRand() < zackHelmet.followUp then
+          local st = RV.ents.b30he00
+          local climbReady = st == nil or st.cdUntil == nil or (st.cdUntil.Climbhazard or -1e9) <= (st.t or 0)
+          if climbReady and zackRand() < 0.5 then
+            self.stack:clear(); self.stack:push("Move")
+            return gss(self, "Climbhazard", a, b)
+          end
+          return gss(self, zackComboStack(self, d), a, b)
+        end
+      end
+      return gss(self, s, a, b)
+    end)
+  end
   for fname, map in pairs(zackPace) do
     local fn = ent[fname]
     if type(fn) == "function" then
