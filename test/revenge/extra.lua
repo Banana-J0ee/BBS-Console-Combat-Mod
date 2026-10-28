@@ -1024,16 +1024,17 @@ do
   -- strafe and idle as short as the helmetless Zack's
   check(e:GetIdlingTime() == 30 and e:GetMoveTime() == 30 and e:GetIdlingChangeTime() == 180,
         "helmet Zack: idle " .. tostring(e:GetIdlingTime()) .. ", strafe " .. tostring(e:GetMoveTime()) .. ", moving " .. tostring(e:GetIdlingChangeTime()) .. " frames (30 / 30 / 180)")
-  check(BBS_REVENGE.cfg.b40he00.setup == nil and BBS_REVENGE.cfg.b60vs00.setup == nil, "helmetless and Mirage Arena Zack: no change")
+  check(BBS_REVENGE.cfg.b60vs00.setup == nil, "Mirage Arena Zack: no change")
   -- dice in order: the next values Script.Random gives
   local q = {}
   local mr = M.rand
   M.rand = function() if #q > 0 then return table.remove(q, 1) end return mr() end
   local function decide(rolls, dist)
-    q = rolls
     M.num["Entity.CalcDistanceSq"] = dist
     BBS_REVENGE.ents.b30he00.owe = nil
     pcall(e.GotoState, e, "Idling")
+    e.stack:clear()
+    q = rolls                                                 -- (after the idle's own dice)
     e:EnableActionSelect()
     return e:GetState()
   end
@@ -1057,6 +1058,30 @@ do
   BBS_REVENGE.ents.b30he00.cdUntil = {}
   check(after({ 0.6 }, 9) == "Move", "... roll 0.6: no follow-up (" .. e:GetState() .. ")")
   check(after({ 0.1, 0.2 }, 36) == "Move", "... player far: no follow-up (" .. e:GetState() .. ")")
+  -- the helmetless Zack (his simple mode): the same up close; his own strafe / idle times untouched
+  real = { IdlingTime = 0.5, MoveTime = 0.5, ChaIdlingT = 3.0, ActionDist1 = 5, ComboDist = 2,
+           Action1Rate = 50, Action2Rate = 40, Action3Rate = 30, Action4Rate = 70, Action5Rate = 60, Action6Rate = 60 }
+  M.script("b40he00")
+  local es = M.create("b40he00")
+  rawset(es, "AddBushinCnt", function() end)
+  check(es:GetIdlingTime() == 30 and es:GetMoveTime() == 30 and es:GetIdlingChangeTime() == 180, "helmetless Zack: his own 30 / 30 / 180")
+  local function decideS(rolls, dist)
+    M.num["Entity.CalcDistanceSq"] = dist
+    BBS_REVENGE.ents.b40he00.owe = nil
+    pcall(es.GotoState, es, "Idling")
+    es.stack:clear()
+    q = rolls                                                 -- (after the idle's own dice)
+    es:EnableActionSelect()
+    return es:GetState()
+  end
+  check(decideS({ 0.9, 0.1, 0.2 }, 9) == "Approache", "helmetless, close, back-up and Hakougeki, our roll 0.2: the combo instead (" .. es:GetState() .. ")")
+  check(decideS({ 0.9, 0.1, 0.8 }, 9) == "BackJump", "... our roll 0.8: his own back-up and Hakougeki (" .. es:GetState() .. ")")
+  check(decideS({ 0.9, 0.9 }, 9) == "BackJump", "... his back-up and Climbhazard: as it was (" .. es:GetState() .. ")")
+  pcall(es.GotoState, es, "Hakougeki")
+  BBS_REVENGE.ents.b40he00.cdUntil = {}
+  q = { 0.1, 0.7 }; M.num["Entity.CalcDistanceSq"] = 1
+  pcall(es.GotoState, es, "Move")
+  check(es:GetState() == "ComboAttack", "helmetless, after a Hakougeki, player near, 0.1 / 0.7: the combo (" .. es:GetState() .. ")")
   M.rand = mr
   M.num["Entity.CalcDistanceSq"] = 4
   -- his strongest mode on the same entry: none of this
