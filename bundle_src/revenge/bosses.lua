@@ -832,7 +832,10 @@ local zackPace = { GetIdlingTime = { 60, 30 }, GetMoveTime = { 60, 30 }, GetIdli
 -- his first mode up close (2026-10-28, asked for: he felt ranged-only):
 --   closeSwing: when he is near (ActionDist1) and does not pick the combo, his script always backs up and throws
 --     Hakougeki - this share of those goes into the combo instead (walking in first beyond combo range)
+--   followUp: after a Hakougeki, with the player still near, this share follows up with the combo or Climbhazard
+--     (Climbhazard only while it is off cooldown), instead of the strafe / idle that would come next
 zackHelmet.closeSwing = 0.5
+zackHelmet.followUp = 0.4
 local function zackRand() return Script.Random() end
 local function zackNear(self, d2)
   local d = Entity.CalcDistanceSq(self.myHandle, self.targetHandle)
@@ -872,6 +875,26 @@ zackHelmet.setup = function(ent)
       rawset(self, "GotoState", nil)
       if not ok then error(r, 0) end
       return r
+    end)
+  end
+  -- followUp: the state after a Hakougeki
+  local gss = ent.GotoStateSub
+  if type(gss) == "function" then
+    rawset(ent, "GotoStateSub", function(self, s, a, b)
+      if (s == "Move" or s == "Idling") and type(self.GetState) == "function" and self:GetState() == "Hakougeki"
+         and firstMode(self) and type(self.stack) == "table" then
+        local near, d = zackNear(self, self:GetActionDist1())
+        if near and zackRand() < zackHelmet.followUp then
+          local st = RV.ents.b30he00
+          local climbReady = st == nil or st.cdUntil == nil or (st.cdUntil.Climbhazard or -1e9) <= (st.t or 0)
+          if climbReady and zackRand() < 0.5 then
+            self.stack:clear(); self.stack:push("Move")
+            return gss(self, "Climbhazard", a, b)
+          end
+          return gss(self, zackComboStack(self, d), a, b)
+        end
+      end
+      return gss(self, s, a, b)
     end)
   end
   for fname, map in pairs(zackPace) do
