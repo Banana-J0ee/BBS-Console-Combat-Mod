@@ -772,8 +772,16 @@ cfg.b52ex00 = {
 local function zackCounter(self)
   if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
   local s = self:GetState()
-  if s == "Bushinhazan" or s == "Climbhazard" or s == "BackJump_Short" or s == "Hakougeki"
-     or s == "BackJump_Short_Cancel" or s == "Dead" or s == "Appear" then return 0 end
+  -- his get-away jump (from his own counter, or his AI after a combo) has no armour: a hit stops it in hit-stun,
+  -- where his update - and so the jump - never moves on, and neither his counter nor this one answers in it.
+  -- At the limit it starts again, with the break-out's armour, so he gets away (2026-10-28, Terra's fight)
+  if s == "BackJump_Short" or s == "BackJump_Short_Cancel" then
+    self:GotoState(s)
+    if type(self.damageCnt) == "number" then self.damageCnt = 0 end
+    return 1
+  end
+  if s == "Bushinhazan" or s == "Climbhazard" or s == "Hakougeki"
+     or s == "Dead" or s == "Appear" then return 0 end
   if self.stack == nil then return 0 end
   self.stack:clear()
   self.stack:push("Move")

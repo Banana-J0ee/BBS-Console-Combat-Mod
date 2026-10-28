@@ -93,6 +93,16 @@ do
   check(st.rv == 4 and st.idle >= BBS_REVENGE.grace, "recovering from hit-stun does not clear the value, it starts the drain")
   e:OnUpdate()
   check(st.rv < 4 and st.rv > 3.8, "... at once (" .. st.rv .. ")")
+  -- hit in his get-away jump, hit-stun after hit-stun (no update in between): it used to never end
+  st.rv = 0; st.firing = false; st.armor = 0
+  e.stack:clear(); e.stack:push("Move")
+  pcall(e.GotoState, e, "BackJump_Short")
+  e.step = 2
+  local out
+  for i = 1, 20 do out = hit(h) if out ~= nil then break end end
+  check(out == "before" and e:GetState() == "BackJump_Short" and e.step == 0 and st.armor > 0,
+        "hit through his back-jump: at the limit it starts again with the break-out's armour (" .. tostring(out) .. ", step " .. tostring(e.step) .. ")")
+  check(e.stack:pop(1) == "Move", "... and what follows it is kept")
 end
 -- Hades
 M.script("b01he00")
