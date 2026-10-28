@@ -834,14 +834,8 @@ local zackPace = { GetIdlingTime = { 60, 30 }, GetMoveTime = { 60, 30 }, GetIdli
 --     Hakougeki - this share of those goes into the combo instead (walking in first beyond combo range)
 --   followUp: after a Hakougeki, with the player still near, this share follows up with the combo or Climbhazard
 --     (Climbhazard only while it is off cooldown), instead of the strafe / idle that would come next
---   doubleHak: a Hakougeki he goes into (not one of a volley of his, not a revenge answer) is, this share of the
---     time, thrown twice at 1.25 speed: the first fully armoured, the second open after its hits as usual
---   climbAgain: after a Climbhazard, this share does it once more at once (its cooldown does not stop that)
 zackHelmet.closeSwing = 0.5
 zackHelmet.followUp = 0.4
-zackHelmet.doubleHak = 0.4
-zackHelmet.doubleHakSpeed = 1.25
-zackHelmet.climbAgain = 0.35
 local function zackRand() return Script.Random() end
 local function zackNear(self, d2)
   local d = Entity.CalcDistanceSq(self.myHandle, self.targetHandle)
@@ -883,48 +877,15 @@ zackHelmet.setup = function(ent)
       return r
     end)
   end
-  -- doubleHak / climbAgain / followUp: the state he goes into next
+  -- followUp: the state after a Hakougeki
   local gss = ent.GotoStateSub
-  local function breakOut(s) return s == "BackJump_Short" or s == "BackJump_Short_Cancel" or s == "Dead" end
-  local function speed(self, v) if type(Entity.SetMotionSpeed) == "function" then pcall(Entity.SetMotionSpeed, self.myHandle, v) end end
-  local function stackHas(self, name)
-    local stk, held, found = self.stack, {}, false
-    while stk:getn() > 0 do local v = stk:pop(1); held[#held + 1] = v; if v == name then found = true end end
-    for i = #held, 1, -1 do stk:push(held[i]) end
-    return found
-  end
   if type(gss) == "function" then
     rawset(ent, "GotoStateSub", function(self, s, a, b)
-      local cur = type(self.GetState) == "function" and self:GetState() or nil
-      if not firstMode(self) or type(self.stack) ~= "table" or type(s) ~= "string" then return gss(self, s, a, b) end
-      local st = RV.ents.b30he00
-      -- the double Hakougeki: the first one ends - the second, at the same speed, armoured as usual
-      if cur == "Hakougeki" and self.__zHak == 1 and s ~= "Hakougeki" then
-        if breakOut(s) then self.__zHak = nil; speed(self, 1); return gss(self, s, a, b) end
-        self.stack:push(s)
-        self.__zHak = 2
-        local r = gss(self, "Hakougeki", a, b)
-        if self:GetState() == "Hakougeki" then speed(self, zackHelmet.doubleHakSpeed) else self.__zHak = nil; speed(self, 1) end
-        return r
-      end
-      if cur == "Hakougeki" and self.__zHak == 2 and s ~= "Hakougeki" then self.__zHak = nil; speed(self, 1) end
-      -- Climbhazard once more
-      if cur == "Climbhazard" and s ~= "Climbhazard" then
-        local again = not self.__zClimb and not breakOut(s) and zackRand() < zackHelmet.climbAgain
-        self.__zClimb = nil
-        if again then
-          self.stack:push(s)
-          self.__zClimb = true
-          if st ~= nil and type(st.cdUntil) == "table" then st.cdUntil.Climbhazard = nil end
-          local r = gss(self, "Climbhazard", a, b)
-          if self:GetState() ~= "Climbhazard" then self.__zClimb = nil else rlog("b30he00", st and st.t or 0, "Climbhazard again") end
-          return r
-        end
-      end
-      -- followUp: after a Hakougeki (the second of a double too), the player near
-      if (s == "Move" or s == "Idling") and cur == "Hakougeki" then
+      if (s == "Move" or s == "Idling") and type(self.GetState) == "function" and self:GetState() == "Hakougeki"
+         and firstMode(self) and type(self.stack) == "table" then
         local near, d = zackNear(self, self:GetActionDist1())
         if near and zackRand() < zackHelmet.followUp then
+          local st = RV.ents.b30he00
           local climbReady = st == nil or st.cdUntil == nil or (st.cdUntil.Climbhazard or -1e9) <= (st.t or 0)
           if climbReady and zackRand() < 0.5 then
             self.stack:clear(); self.stack:push("Move")
@@ -932,21 +893,6 @@ zackHelmet.setup = function(ent)
           end
           return gss(self, zackComboStack(self, d), a, b)
         end
-      end
-      -- a new Hakougeki (not part of a volley): sometimes the double, the first fully armoured
-      if s == "Hakougeki" and cur ~= "Hakougeki" and self.__zHak == nil and not stackHas(self, "Hakougeki")
-         and zackRand() < zackHelmet.doubleHak then
-        self.__zHak = 1
-        local r = gss(self, s, a, b)
-        if self:GetState() == "Hakougeki" then
-          speed(self, zackHelmet.doubleHakSpeed)
-          if st ~= nil then st.mArmor, st.hitWin, st.winOff = 1e9, nil, false end
-          if type(Enemy.EnableNoDamageReaction) == "function" then Enemy.EnableNoDamageReaction(self.myHandle, 1) end
-          rlog("b30he00", st and st.t or 0, "double Hakougeki: the first armoured")
-        else
-          self.__zHak = nil
-        end
-        return r
       end
       return gss(self, s, a, b)
     end)

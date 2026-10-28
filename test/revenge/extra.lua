@@ -1043,7 +1043,6 @@ do
   check(decide({ 0.9, 0.2 }, 1) == "ComboAttack", "within combo range: straight into the combo (" .. e:GetState() .. ")")
   -- after a Hakougeki, player near: follow-up
   local function after(rolls, dist)
-    q = { 0.99 }                                              -- (a single Hakougeki)
     pcall(e.GotoState, e, "Hakougeki")
     q = rolls
     M.num["Entity.CalcDistanceSq"] = dist
@@ -1058,58 +1057,6 @@ do
   BBS_REVENGE.ents.b30he00.cdUntil = {}
   check(after({ 0.6 }, 9) == "Move", "... roll 0.6: no follow-up (" .. e:GetState() .. ")")
   check(after({ 0.1, 0.2 }, 36) == "Move", "... player far: no follow-up (" .. e:GetState() .. ")")
-  -- the double Hakougeki: armoured first one at 1.25, then a second one, armoured as usual
-  local sp = nil
-  M.num["Entity.SetMotionSpeed"] = function(hh, v) if hh == h then sp = v end end
-  local lock
-  M.num["Enemy.EnableNoDamageReaction"] = function(hh, on) if hh == h then lock = on end end
-  local stz = BBS_REVENGE.ents.b30he00
-  pcall(e.GotoState, e, "Move")
-  e.stack:clear(); e.stack:push("Move")
-  q = { 0.1 }
-  M.num["Entity.CalcDistanceSq"] = 36
-  pcall(e.GotoState, e, "Hakougeki")
-  check(e:GetState() == "Hakougeki" and e.__zHak == 1 and sp == 1.25 and lock == 1 and stz.mArmor > 1e8 and stz.hitWin == nil,
-        "double Hakougeki: the first at 1.25, armoured for all of it (speed " .. tostring(sp) .. ", lock " .. tostring(lock) .. ")")
-  q = {}
-  pcall(e.GotoState, e, "Move")                               -- the first one ends (his own pop)
-  check(e:GetState() == "Hakougeki" and e.__zHak == 2 and sp == 1.25 and stz.hitWin ~= nil,
-        "... the second one at 1.25, armoured as usual (until its hits are over)")
-  q = { 0.9 }                                                 -- (no follow-up)
-  pcall(e.GotoState, e, "Move")
-  check(e:GetState() == "Move" and e.__zHak == nil and sp == 1 and e.stack:getn() == 0, "... then on as before, speed back to 1")
-  q = { 0.9 }
-  pcall(e.GotoState, e, "Hakougeki")
-  check(e.__zHak == nil and sp == 1, "roll 0.9: a single Hakougeki")
-  pcall(e.GotoState, e, "Move")
-  e.stack:clear(); e.stack:push("Move"); e.stack:push("Hakougeki")
-  q = { 0.1 }
-  pcall(e.GotoState, e, "Hakougeki")
-  check(e.__zHak == nil, "a volley of his (more Hakougeki on his stack): not doubled")
-  e.stack:clear()
-  pcall(e.GotoState, e, "Move")
-  -- broken out of the double's first one: nothing is held over (its armour makes that the watchdog's case only)
-  q = { 0.1 }
-  pcall(e.GotoState, e, "Hakougeki")
-  pcall(e.GotoState, e, "BackJump_Short")
-  check(e:GetState() == "BackJump_Short" and e.__zHak == nil and sp == 1, "a break-out from the first one: the double is off")
-  -- Climbhazard once more
-  stz.cdUntil = {}
-  pcall(e.GotoState, e, "Move")
-  e.stack:clear(); e.stack:push("Move")
-  pcall(e.GotoState, e, "Climbhazard")
-  q = { 0.2 }
-  pcall(e.GotoState, e, "Move")
-  check(e:GetState() == "Climbhazard" and e.__zClimb == true, "Climbhazard, roll 0.2: once more at once, its cooldown aside (" .. e:GetState() .. ")")
-  q = { 0.1 }
-  pcall(e.GotoState, e, "Move")
-  check(e:GetState() == "Move" and e.__zClimb == nil, "... only once (" .. e:GetState() .. ")")
-  pcall(e.GotoState, e, "Climbhazard")
-  q = { 0.5 }
-  pcall(e.GotoState, e, "Move")
-  check(e:GetState() == "Move", "roll 0.5: no repeat")
-  M.num["Entity.SetMotionSpeed"] = nil
-  M.num["Enemy.EnableNoDamageReaction"] = nil
   M.rand = mr
   M.num["Entity.CalcDistanceSq"] = 4
   -- his strongest mode on the same entry: none of this
