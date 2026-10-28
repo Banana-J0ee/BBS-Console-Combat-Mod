@@ -819,7 +819,8 @@ local zack = {
 local zackStory = {}
 for k, v in pairs(zack) do zackStory[k] = v end
 zackStory.limit = 8
-zackStory.armorStates = { ComboAttack = true, Hakougeki = true }
+zackStory.armorStates = { ComboAttack = true, Hakougeki = true,
+  BackJump = true, BackJump_Short = true, BackJump_Short_Cancel = true }      -- his jumps: never staggered
 zackStory.answer = { close = { "ComboAttack", "Hakougeki", "Climbhazard" }, far = { "Climbhazard", "Hakougeki" } }
 zackStory.tempo = { idle = { Idling = "timer" }, pop = { BackJump_Short = true } }
 cfg.b30he00 = zackStory

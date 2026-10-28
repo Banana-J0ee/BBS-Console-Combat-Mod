@@ -995,5 +995,21 @@ do
   end)
   check(okM, "mob pace checks ran (" .. tostring(errM) .. ")")
 end
+-- Zack's jumps: armoured from start to landing (last: its state changes roll dice, which would shift the counts above)
+M.script("b40he00")
+do
+  local e, h = M.create("b30he00")
+  local lock
+  M.num["Enemy.EnableNoDamageReaction"] = function(hh, on) if hh == h then lock = on end end
+  for _, s in ipairs({ "BackJump", "BackJump_Short", "BackJump_Short_Cancel" }) do
+    lock = nil
+    e.stack:clear(); e.stack:push("Move")
+    pcall(e.GotoState, e, s)
+    check(e:GetState() == s and lock == 1, "Zack " .. s .. ": armoured (lock " .. tostring(lock) .. ", " .. e:GetState() .. ")")
+  end
+  pcall(e.GotoState, e, "Move")
+  check(lock == 0, "... and open again once he walks (lock " .. tostring(lock) .. ")")
+  M.num["Enemy.EnableNoDamageReaction"] = nil
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
