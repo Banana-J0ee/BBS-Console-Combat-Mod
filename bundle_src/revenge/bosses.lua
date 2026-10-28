@@ -823,7 +823,25 @@ zackStory.armorStates = { ComboAttack = true, Hakougeki = true,
   BackJump = true, BackJump_Short = true, BackJump_Short_Cancel = true }      -- his jumps: never staggered
 zackStory.answer = { close = { "ComboAttack", "Hakougeki", "Climbhazard" }, far = { "Climbhazard", "Hakougeki" } }
 zackStory.tempo = { idle = { Idling = "timer" }, pop = { BackJump_Short = true } }
-cfg.b30he00 = zackStory
+-- helmet Zack (b30he00, his first mode): strafe and idle as short as the helmetless Zack's (2026-10-28, asked for).
+-- His own data gives that mode idle 1.0 s, strafe 1.0 s, 2.0 s of moving before an idle; b40he00 has 0.5 / 0.5 /
+-- 3.0.  Only those exact values are changed (his strongest mode, on the same entry, has 0.5 / 0.5 / 3.0 already).
+local zackHelmet = {}
+for k, v in pairs(zackStory) do zackHelmet[k] = v end
+local zackPace = { GetIdlingTime = { 60, 30 }, GetMoveTime = { 60, 30 }, GetIdlingChangeTime = { 120, 180 } }
+zackHelmet.setup = function(ent)
+  for fname, map in pairs(zackPace) do
+    local fn = ent[fname]
+    if type(fn) == "function" then
+      rawset(ent, fname, function(self, a, b)
+        local v = fn(self, a, b)
+        if v == map[1] then return map[2] end
+        return v
+      end)
+    end
+  end
+end
+cfg.b30he00 = zackHelmet
 cfg.b40he00 = zackStory
 -- Mirage Arena (2026-10-19, asked for: as his story fights); his limit stays the Arena's
 local zackArena = {}

@@ -1011,5 +1011,24 @@ do
   check(lock == 0, "... and open again once he walks (lock " .. tostring(lock) .. ")")
   M.num["Enemy.EnableNoDamageReaction"] = nil
 end
+-- helmet Zack: idle 1.0 s / strafe 1.0 s / 2.0 s of moving (his data for the story fight) brought down to the
+-- helmetless Zack's 0.5 / 0.5 / 3.0; any other values are left alone.  (The stand-in engine can only enter the mode
+-- that reads the short parameter names, so those carry the values here.)
+do
+  local real = { IdlingTim = 1.0, MoveTim = 1.0, ChaIdlinT = 2.0 }
+  M.num["Enemy.GetExtraParam"] = function(h, n) return real[n] or 8 end
+  M.num["Entity.GetLayoutParam"] = 1
+  M.script("b40he00")
+  local e = M.create("b30he00")
+  check(e:GetIdlingTime() == 30 and e:GetMoveTime() == 30 and e:GetIdlingChangeTime() == 180,
+        "helmet Zack: idle " .. tostring(e:GetIdlingTime()) .. ", strafe " .. tostring(e:GetMoveTime()) .. ", moving " .. tostring(e:GetIdlingChangeTime()) .. " frames (30 / 30 / 180)")
+  real = { IdlingTim = 0.75, MoveTim = 0.5, ChaIdlinT = 3.0 }
+  M.script("b40he00")
+  local e3 = M.create("b30he00")
+  check(e3:GetIdlingTime() == 45 and e3:GetMoveTime() == 30 and e3:GetIdlingChangeTime() == 180, "other values: as his data has them")
+  check(BBS_REVENGE.cfg.b40he00.setup == nil and BBS_REVENGE.cfg.b60vs00.setup == nil, "helmetless and Mirage Arena Zack: no change")
+  M.num["Entity.GetLayoutParam"] = nil
+  M.num["Enemy.GetExtraParam"] = 8
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
