@@ -103,6 +103,15 @@ do
   check(out == "before" and e:GetState() == "BackJump_Short" and e.step == 0 and st.armor > 0,
         "hit through his back-jump: at the limit it starts again with the break-out's armour (" .. tostring(out) .. ", step " .. tostring(e.step) .. ")")
   check(e.stack:pop(1) == "Move", "... and what follows it is kept")
+  -- hit in the end of his Hakougeki (open past its armour window), hit-stun after hit-stun
+  st.rv = 0; st.firing = false; st.armor = 0
+  pcall(e.GotoState, e, "Hakougeki")
+  st.mArmor = 0; st.winOff = true
+  pcall(Enemy.EnableNoDamageReaction, h, 0)
+  out = nil
+  for i = 1, 20 do out = hit(h) if out ~= nil then break end end
+  check(out == "before" and e:GetState():find("BackJump", 1, true) ~= nil and st.armor > 0,
+        "hit through the end of his Hakougeki: he breaks out (" .. tostring(out) .. ", into " .. e:GetState() .. ")")
 end
 -- Hades
 M.script("b01he00")
