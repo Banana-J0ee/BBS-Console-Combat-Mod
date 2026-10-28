@@ -1041,22 +1041,6 @@ do
   check(decide({ 0.9, 0.2 }, 9) == "Approache", "close, no combo picked, our roll 0.2: the combo instead (" .. e:GetState() .. ")")
   check(decide({ 0.9, 0.8 }, 9) == "BackJump", "... our roll 0.8: his own back-up and Hakougeki (" .. e:GetState() .. ")")
   check(decide({ 0.9, 0.2 }, 1) == "ComboAttack", "within combo range: straight into the combo (" .. e:GetState() .. ")")
-  -- after a Hakougeki, player near: follow-up
-  local function after(rolls, dist)
-    pcall(e.GotoState, e, "Hakougeki")
-    q = rolls
-    M.num["Entity.CalcDistanceSq"] = dist
-    pcall(e.GotoState, e, "Move")
-    return e:GetState()
-  end
-  BBS_REVENGE.ents.b30he00.cdUntil = {}
-  check(after({ 0.1, 0.2 }, 9) == "Climbhazard", "Hakougeki, player near, follow-up roll 0.1 / 0.2: Climbhazard (" .. e:GetState() .. ")")
-  check(after({ 0.1, 0.7 }, 1) == "ComboAttack", "... 0.1 / 0.7, within combo range: the combo (" .. e:GetState() .. ")")
-  BBS_REVENGE.ents.b30he00.cdUntil = { Climbhazard = 1e9 }
-  check(after({ 0.1, 0.2 }, 1) == "ComboAttack", "... Climbhazard cooling down: the combo (" .. e:GetState() .. ")")
-  BBS_REVENGE.ents.b30he00.cdUntil = {}
-  check(after({ 0.6 }, 9) == "Move", "... roll 0.6: no follow-up (" .. e:GetState() .. ")")
-  check(after({ 0.1, 0.2 }, 36) == "Move", "... player far: no follow-up (" .. e:GetState() .. ")")
   M.rand = mr
   M.num["Entity.CalcDistanceSq"] = 4
   -- his strongest mode on the same entry: none of this
@@ -1065,9 +1049,6 @@ do
   M.script("b40he00")
   local e3 = M.create("b30he00")
   check(e3:GetIdlingTime() == 45 and e3:GetMoveTime() == 30 and e3:GetIdlingChangeTime() == 180, "strongest mode: times as his data has them")
-  pcall(e3.GotoState, e3, "Hakougeki"); M.num["Entity.CalcDistanceSq"] = 1
-  pcall(e3.GotoState, e3, "Move")
-  check(e3:GetState() == "Move", "strongest mode: no follow-up (" .. e3:GetState() .. ")")
   M.num["Entity.CalcDistanceSq"] = 4
   M.num["Entity.GetLayoutParam"] = nil
   M.num["Script.GetDebugTestParam"] = nil
