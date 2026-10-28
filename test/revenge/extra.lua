@@ -105,13 +105,32 @@ do
   check(e.stack:pop(1) == "Move", "... and what follows it is kept")
   -- hit in the end of his Hakougeki (open past its armour window), hit-stun after hit-stun
   st.rv = 0; st.firing = false; st.armor = 0
+  rawset(e, "AddBushinCnt", function() end)                       -- (needs more of the engine than the stand-in has)
   pcall(e.GotoState, e, "Hakougeki")
+  check(e:GetState() == "Hakougeki", "(in Hakougeki: " .. e:GetState() .. ")")
   st.mArmor = 0; st.winOff = true
   pcall(Enemy.EnableNoDamageReaction, h, 0)
   out = nil
   for i = 1, 20 do out = hit(h) if out ~= nil then break end end
   check(out == "before" and e:GetState():find("BackJump", 1, true) ~= nil and st.armor > 0,
         "hit through the end of his Hakougeki: he breaks out (" .. tostring(out) .. ", into " .. e:GetState() .. ")")
+end
+-- Zack, Climbhazard: armoured in the air (no answer), open on the landing (answer) - a fresh Zack (no cooldowns)
+do
+  local e, h = M.create("b30he00")
+  local st = BBS_REVENGE.ents.b30he00
+  rawset(e, "AddBushinCnt", function() end)
+  e.stack:clear(); e.stack:push("Move")
+  pcall(e.GotoState, e, "Climbhazard")
+  check(e:GetState() == "Climbhazard", "(in Climbhazard: " .. e:GetState() .. ")")
+  M.num["Enemy.IsNoDamageReaction"] = true                       -- (the stand-in engine keeps no lock)
+  local armoured = BBS_REVENGE.cfg.b30he00.counter(e)
+  M.num["Enemy.IsNoDamageReaction"] = false
+  check(armoured == 0 and e:GetState() == "Climbhazard", "Climbhazard in the air (armoured): no answer")
+  local out
+  for i = 1, 20 do out = hit(h) if out ~= nil then break end end
+  check(out == "before" and e:GetState():find("BackJump", 1, true) ~= nil,
+        "hit through his Climbhazard landing: he breaks out (" .. tostring(out) .. ", into " .. e:GetState() .. ")")
 end
 -- Hades
 M.script("b01he00")

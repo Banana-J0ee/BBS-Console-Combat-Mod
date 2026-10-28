@@ -780,10 +780,12 @@ local function zackCounter(self)
     if type(self.damageCnt) == "number" then self.damageCnt = 0 end
     return 1
   end
-  -- (Hakougeki is no longer left out: past its armour window it is open, and a hit there freezes him the same
-  -- way - his own script armours Climbhazard and Bushinhazan to the end, so those never get here hit)
-  if s == "Bushinhazan" or s == "Climbhazard"
-     or s == "Dead" or s == "Appear" then return 0 end
+  -- Hakougeki (open past its armour window) and Climbhazard (his script takes the armour off when he lands) are
+  -- answered once they are open - a hit there freezes him the same way; while still armoured they are left alone.
+  -- Bushinhazan stays left out: his script armours it to the end.
+  if (s == "Hakougeki" or s == "Climbhazard") and type(Enemy.IsNoDamageReaction) == "function"
+     and Enemy.IsNoDamageReaction(self.myHandle) then return 0 end
+  if s == "Bushinhazan" or s == "Dead" or s == "Appear" then return 0 end
   if self.stack == nil then return 0 end
   self.stack:clear()
   self.stack:push("Move")
