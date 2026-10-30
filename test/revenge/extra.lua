@@ -93,6 +93,44 @@ do
   check(st.rv == 4 and st.idle >= BBS_REVENGE.grace, "recovering from hit-stun does not clear the value, it starts the drain")
   e:OnUpdate()
   check(st.rv < 4 and st.rv > 3.8, "... at once (" .. st.rv .. ")")
+  -- hit in his get-away jump, hit-stun after hit-stun (no update in between): it used to never end
+  st.rv = 0; st.firing = false; st.armor = 0
+  e.stack:clear(); e.stack:push("Move")
+  pcall(e.GotoState, e, "BackJump_Short")
+  e.step = 2
+  local out
+  for i = 1, 20 do out = hit(h) if out ~= nil then break end end
+  check(out == "before" and e:GetState() == "BackJump_Short" and e.step == 0 and st.armor > 0,
+        "hit through his back-jump: at the limit it starts again with the break-out's armour (" .. tostring(out) .. ", step " .. tostring(e.step) .. ")")
+  check(e.stack:pop(1) == "Move", "... and what follows it is kept")
+  -- hit in the end of his Hakougeki (open past its armour window), hit-stun after hit-stun
+  st.rv = 0; st.firing = false; st.armor = 0
+  rawset(e, "AddBushinCnt", function() end)                       -- (needs more of the engine than the stand-in has)
+  pcall(e.GotoState, e, "Hakougeki")
+  check(e:GetState() == "Hakougeki", "(in Hakougeki: " .. e:GetState() .. ")")
+  st.mArmor = 0; st.winOff = true
+  pcall(Enemy.EnableNoDamageReaction, h, 0)
+  out = nil
+  for i = 1, 20 do out = hit(h) if out ~= nil then break end end
+  check(out == "before" and e:GetState():find("BackJump", 1, true) ~= nil and st.armor > 0,
+        "hit through the end of his Hakougeki: he breaks out (" .. tostring(out) .. ", into " .. e:GetState() .. ")")
+end
+-- Zack, Climbhazard: armoured in the air (no answer), open on the landing (answer) - a fresh Zack (no cooldowns)
+do
+  local e, h = M.create("b30he00")
+  local st = BBS_REVENGE.ents.b30he00
+  rawset(e, "AddBushinCnt", function() end)
+  e.stack:clear(); e.stack:push("Move")
+  pcall(e.GotoState, e, "Climbhazard")
+  check(e:GetState() == "Climbhazard", "(in Climbhazard: " .. e:GetState() .. ")")
+  M.num["Enemy.IsNoDamageReaction"] = true                       -- (the stand-in engine keeps no lock)
+  local armoured = BBS_REVENGE.cfg.b30he00.counter(e)
+  M.num["Enemy.IsNoDamageReaction"] = false
+  check(armoured == 0 and e:GetState() == "Climbhazard", "Climbhazard in the air (armoured): no answer")
+  local out
+  for i = 1, 20 do out = hit(h) if out ~= nil then break end end
+  check(out == "before" and e:GetState():find("BackJump", 1, true) ~= nil,
+        "hit through his Climbhazard landing: he breaks out (" .. tostring(out) .. ", into " .. e:GetState() .. ")")
 end
 -- Hades
 M.script("b01he00")
@@ -956,6 +994,109 @@ do
     M.num["Entity.SetTimer"] = nil
   end)
   check(okM, "mob pace checks ran (" .. tostring(errM) .. ")")
+end
+-- Zack's jumps: armoured from start to landing (last: its state changes roll dice, which would shift the counts above)
+M.script("b40he00")
+do
+  local e, h = M.create("b30he00")
+  local lock
+  M.num["Enemy.EnableNoDamageReaction"] = function(hh, on) if hh == h then lock = on end end
+  for _, s in ipairs({ "BackJump", "BackJump_Short", "BackJump_Short_Cancel" }) do
+    lock = nil
+    e.stack:clear(); e.stack:push("Move")
+    pcall(e.GotoState, e, s)
+    check(e:GetState() == s and lock == 1, "Zack " .. s .. ": armoured (lock " .. tostring(lock) .. ", " .. e:GetState() .. ")")
+  end
+  pcall(e.GotoState, e, "Move")
+  check(lock == 0, "... and open again once he walks (lock " .. tostring(lock) .. ")")
+  M.num["Enemy.EnableNoDamageReaction"] = nil
+end
+-- helmet Zack (his story fight: layout parameter 0, the mode that reads the long parameter names)
+do
+  local real = { IdlingTime = 1.0, MoveTime = 1.0, ChaIdlingT = 2.0, ActionDist1 = 5, ComboDist = 2,
+                 Action1Rate = 50, Action2Rate = 40, Action3Rate = 30, Action4Rate = 70, Action5Rate = 60, Action6Rate = 60 }
+  M.num["Enemy.GetExtraParam"] = function(h, n) return real[n] or 8 end
+  M.num["Entity.GetLayoutParam"] = 0
+  M.num["Script.GetDebugTestParam"] = 0
+  M.script("b40he00")
+  local e, h = M.create("b30he00")
+  rawset(e, "AddBushinCnt", function() end)
+  -- strafe and idle as short as the helmetless Zack's
+  check(e:GetIdlingTime() == 30 and e:GetMoveTime() == 30 and e:GetIdlingChangeTime() == 180,
+        "helmet Zack: idle " .. tostring(e:GetIdlingTime()) .. ", strafe " .. tostring(e:GetMoveTime()) .. ", moving " .. tostring(e:GetIdlingChangeTime()) .. " frames (30 / 30 / 180)")
+  check(BBS_REVENGE.cfg.b60vs00.setup == nil, "Mirage Arena Zack: no change")
+  -- dice in order: the next values Script.Random gives
+  local q = {}
+  local mr = M.rand
+  M.rand = function() if #q > 0 then return table.remove(q, 1) end return mr() end
+  local function decide(rolls, dist)
+    M.num["Entity.CalcDistanceSq"] = dist
+    BBS_REVENGE.ents.b30he00.owe = nil
+    pcall(e.GotoState, e, "Idling")
+    e.stack:clear()
+    q = rolls                                                 -- (after the idle's own dice)
+    e:EnableActionSelect()
+    return e:GetState()
+  end
+  -- close (3 m), not the combo (0.9 > 50 %), then our roll
+  check(decide({ 0.9, 0.2 }, 9) == "Approache", "close, no combo picked, our roll 0.2: the combo instead (" .. e:GetState() .. ")")
+  check(decide({ 0.9, 0.8 }, 9) == "BackJump", "... our roll 0.8: his own back-up and Hakougeki (" .. e:GetState() .. ")")
+  check(decide({ 0.9, 0.2 }, 1) == "ComboAttack", "within combo range: straight into the combo (" .. e:GetState() .. ")")
+  -- after a Hakougeki, player near: follow-up
+  local function after(rolls, dist)
+    pcall(e.GotoState, e, "Hakougeki")
+    q = rolls
+    M.num["Entity.CalcDistanceSq"] = dist
+    pcall(e.GotoState, e, "Move")
+    return e:GetState()
+  end
+  BBS_REVENGE.ents.b30he00.cdUntil = {}
+  check(after({ 0.1, 0.2 }, 9) == "Climbhazard", "Hakougeki, player near, follow-up roll 0.1 / 0.2: Climbhazard (" .. e:GetState() .. ")")
+  check(after({ 0.1, 0.7 }, 1) == "ComboAttack", "... 0.1 / 0.7, within combo range: the combo (" .. e:GetState() .. ")")
+  BBS_REVENGE.ents.b30he00.cdUntil = { Climbhazard = 1e9 }
+  check(after({ 0.1, 0.2 }, 1) == "ComboAttack", "... Climbhazard cooling down: the combo (" .. e:GetState() .. ")")
+  BBS_REVENGE.ents.b30he00.cdUntil = {}
+  check(after({ 0.6 }, 9) == "Move", "... roll 0.6: no follow-up (" .. e:GetState() .. ")")
+  check(after({ 0.1, 0.2 }, 36) == "Move", "... player far: no follow-up (" .. e:GetState() .. ")")
+  -- the helmetless Zack (his simple mode): the same up close; his own strafe / idle times untouched
+  real = { IdlingTime = 0.5, MoveTime = 0.5, ChaIdlingT = 3.0, ActionDist1 = 5, ComboDist = 2,
+           Action1Rate = 50, Action2Rate = 40, Action3Rate = 30, Action4Rate = 70, Action5Rate = 60, Action6Rate = 60 }
+  M.script("b40he00")
+  local es = M.create("b40he00")
+  rawset(es, "AddBushinCnt", function() end)
+  check(es:GetIdlingTime() == 30 and es:GetMoveTime() == 30 and es:GetIdlingChangeTime() == 180, "helmetless Zack: his own 30 / 30 / 180")
+  local function decideS(rolls, dist)
+    M.num["Entity.CalcDistanceSq"] = dist
+    BBS_REVENGE.ents.b40he00.owe = nil
+    pcall(es.GotoState, es, "Idling")
+    es.stack:clear()
+    q = rolls                                                 -- (after the idle's own dice)
+    es:EnableActionSelect()
+    return es:GetState()
+  end
+  check(decideS({ 0.9, 0.1, 0.2 }, 9) == "Approache", "helmetless, close, back-up and Hakougeki, our roll 0.2: the combo instead (" .. es:GetState() .. ")")
+  check(decideS({ 0.9, 0.1, 0.8 }, 9) == "BackJump", "... our roll 0.8: his own back-up and Hakougeki (" .. es:GetState() .. ")")
+  check(decideS({ 0.9, 0.9 }, 9) == "BackJump", "... his back-up and Climbhazard: as it was (" .. es:GetState() .. ")")
+  pcall(es.GotoState, es, "Hakougeki")
+  BBS_REVENGE.ents.b40he00.cdUntil = {}
+  q = { 0.1, 0.7 }; M.num["Entity.CalcDistanceSq"] = 1
+  pcall(es.GotoState, es, "Move")
+  check(es:GetState() == "ComboAttack", "helmetless, after a Hakougeki, player near, 0.1 / 0.7: the combo (" .. es:GetState() .. ")")
+  M.rand = mr
+  M.num["Entity.CalcDistanceSq"] = 4
+  -- his strongest mode on the same entry: none of this
+  M.num["Entity.GetLayoutParam"] = 1
+  real = { IdlingTim = 0.75, MoveTim = 0.5, ChaIdlinT = 3.0 }
+  M.script("b40he00")
+  local e3 = M.create("b30he00")
+  check(e3:GetIdlingTime() == 45 and e3:GetMoveTime() == 30 and e3:GetIdlingChangeTime() == 180, "strongest mode: times as his data has them")
+  pcall(e3.GotoState, e3, "Hakougeki"); M.num["Entity.CalcDistanceSq"] = 1
+  pcall(e3.GotoState, e3, "Move")
+  check(e3:GetState() == "Move", "strongest mode: no follow-up (" .. e3:GetState() .. ")")
+  M.num["Entity.CalcDistanceSq"] = 4
+  M.num["Entity.GetLayoutParam"] = nil
+  M.num["Script.GetDebugTestParam"] = nil
+  M.num["Enemy.GetExtraParam"] = 8
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
