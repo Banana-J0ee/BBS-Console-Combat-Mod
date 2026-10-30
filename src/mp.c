@@ -67,6 +67,7 @@ static float c_link_keep = 100.0f;     /* percent of a full D-Link gauge that ca
 static int   c_link_in_burn = 1;       /* a D-Link can be started during MP charge (0 = not until the bar is back) */
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
+static int   c_retry_refill = 1;       /* Continue / Retry (any Game Over choice): the bar starts full again */
 /* MP bar: right end and top edge in the game's screen units (480 x 272), thickness, length of the bar itself at
    100 MP, and the share of any extra MP that lengthens it */
 /* The bar hangs under the Focus bar, whose outline ends at about y 253.9: 0.7 below that, 4.5 high, and 57.6 long at
@@ -138,7 +139,7 @@ static const BossHp k_boss_hp[] = {
     { "b03sb00", 110 }, { "b10ex00", 110 }, { "b10ex01", 110 }, { "b32ex00", 110 },
     { "b01rg00", 110 }, { "b04rg00", 110 }, { "b05rg00", 110 }, { "b06rg00", 110 }, { "b07rg00", 110 }, { "b08rg00", 110 },
     /* mid: x1.20 */
-    { "b30he00", 120 }, { "b40he00", 120 }, { "b01he00", 120 }, { "b10he00", 120 },
+    { "b30he00", 105 }, { "b40he00", 105 } /* Zack, helmet and not: 630 */, { "b01he00", 120 }, { "b10he00", 120 },
     { "b20ls00", 120 }, { "b01ls00", 120 }, { "b02ls00", 120 }, { "b10ls00", 120 },
     /* late worlds and the story finales: x1.30 */
     { "b01pp00", 130 }, { "b20pp00", 130 }, { "b10ex02", 130 }, { "b11ex00", 130 }, { "b20ex00", 130 },
@@ -244,6 +245,7 @@ static void load_ini(void) {
     c_cursor_advance = (int)ini_f("MP", "CursorAdvance", (float)c_cursor_advance);
     c_ether = (int)ini_f("MP", "EtherRestoresMP", (float)c_ether);
     c_save_seconds = ini_f("MP", "SavePointSeconds", c_save_seconds);
+    c_retry_refill = (int)ini_f("MP", "RetryRefillsMP", (float)c_retry_refill);
     c_tiered = (int)ini_f("MP", "TieredMagic", (float)c_tiered);
     c_dlink_cost = (int)ini_f("MP", "DLinkCostByClass", (float)c_dlink_cost);
     c_link_in_burn = (int)ini_f("MP", "DLinkDuringCharge", (float)c_link_in_burn);
@@ -524,6 +526,44 @@ static float burn_pct(void);
 float mp_burn_pct(void) { return burn_pct(); }
 static float burn_pct(void) { float c = g_charge; if (c > 99.0f) c = 99.0f; if (c < 0) c = 0; return c; }
 
+/* Charged when the command starts, not when it is pressed.  A press the game takes (deck or shortcut) is only noted
+   here; the cost (SP, or Focus with Focus Exchange) is taken when the player actually starts that command - the
+   game's "set the player's command" (21f9b0), which every action state's start calls with the command it runs.
+   Near the end of a command the game (and the command-cancel buffer) take a new press into the "next command" slot
+   (cmd+0x78) at once, and a later press replaces it there: only the last one comes out.  Charging at the press paid
+   for every press in that window, and a held button could be taken twice on two frames.  Now a later press replaces
+   the note as well, the same command taken again is one note, and a press that never starts (gone from the pending
+   slot cmd+0x80 and the next-command slot cmd+0x78) is dropped without a charge. */
+static struct { u16 id; u8 fx, gone; } g_owe;
+static void owe_clear(void) { g_owe.id = 0; g_owe.fx = 0; g_owe.gone = 0; }
+static void owe_set(u16 id, int fx) {
+    if (g_debug && g_owe.id && g_owe.id != id) LOG("mp: command %x replaced by %x before it started, not charged", g_owe.id, id);
+    if (g_debug && g_owe.id != id) LOG("mp: command %x pressed (charged when it starts)", id);
+    g_owe.id = id; g_owe.fx = (u8)fx; g_owe.gone = 0;
+}
+static void owe_pay(u16 id) {
+    if (!g_owe.id || id != g_owe.id) return;
+    int fx = g_owe.fx;
+    owe_clear();
+    if (fx) { if (mp_fx(id)) fx_spend(id); }
+    else if (!g_burn) mp_spend(id);
+}
+/* per frame: a noted press that is in neither slot any more (two frames running) was dropped */
+static void owe_frame(u8 *cmd) {
+    if (!g_owe.id) return;
+    if (cmd && (*(u16*)(cmd + 0x80) == g_owe.id || *(u16*)(cmd + 0x78) == g_owe.id)) { g_owe.gone = 0; return; }
+    if (++g_owe.gone < 2) return;
+    if (g_debug) LOG("mp: command %x never started, not charged", g_owe.id);
+    owe_clear();
+}
+static void (MSABI *o_cmd_start)(u8 *pl, u32 id);
+static void MSABI cmd_start_hook(u8 *pl, u32 id) {
+    if (g_owe.id && pl && pl == player()) owe_pay((u16)id);
+    o_cmd_start(pl, id);
+}
+void test_cmd_start(u8 *pl, u16 id) { if (g_owe.id && pl && pl == player()) owe_pay(id); }
+u16 test_owe(void) { return g_owe.id; }
+
 /* 233d40: the deck button was pressed on plate P; vanilla calls 2063c0(P), which returns the COMMAND or 0 */
 static u8 *MSABI use_hook(u8 *P) {
     int item = (*(u32*)(P + 0x60) & 0x800) != 0;
@@ -531,14 +571,14 @@ static u8 *MSABI use_hook(u8 *P) {
     if (!item && mp_fx(id)) {                      /* Focus Exchange: Focus, the whole cost, MP charge or not */
         if (!fx_ready(id)) return NULL;
         u8 *c = FN(u8*, 0x2063c0, u8*)(P);
-        if (c) { fx_spend(id); *(float*)(P + 0x64) = fx_progress(id); }
+        if (c) { owe_set(*(u16*)c, 1); *(float*)(P + 0x64) = 100.0f; }
         return c;
     }
     if (!item && g_burn) return NULL;
     u8 *c = FN(u8*, 0x2063c0, u8*)(P);
     if (c && !item) {
-        mp_spend(*(u16*)c);
-        *(float*)(P + 0x64) = g_burn ? 0.0f : 100.0f;
+        owe_set(*(u16*)c, 0);
+        *(float*)(P + 0x64) = 100.0f;
     }
     return c;
 }
@@ -672,9 +712,29 @@ static void MSABI item_effect_hook(u8 *pl) {
     o_item_effect(pl);
 }
 
+/* Game Over: the choice is carried out at 3eeb00 (CGameOver's window leaves it in 14081e149), one call per choice -
+   0 1dab70 and 2 1db1b0 restart the player in place (Continue / Retry), 1 1db060 and 3 1dad00 start a task (load /
+   title, which reset PlayerData anyway).  The mod's MP is its own, not the game's, so nothing there fills it: every
+   choice marks the bar for a fill at the next gauge update, as a new game does (2026-10-26, asked for). */
+#define GO_SITE_0 0x3eeb86
+#define GO_FN_0   0x1dab70
+#define GO_SITE_1 0x3eeb7f
+#define GO_FN_1   0x1db060
+#define GO_SITE_2 0x3eeb78
+#define GO_FN_2   0x1db1b0
+#define GO_SITE_3 0x3eeb71
+#define GO_FN_3   0x1dad00
+static void go_refill(void) { g_fresh = 1; g_burn = 0; g_charge = 0; owe_clear(); if (g_debug) LOG("mp: game over choice, the bar fills"); }
+static void MSABI go_hook_0(void) { go_refill(); FN(void, GO_FN_0, void)(); }
+static void MSABI go_hook_1(void) { go_refill(); FN(void, GO_FN_1, void)(); }
+static void MSABI go_hook_2(void) { go_refill(); FN(void, GO_FN_2, void)(); }
+static void MSABI go_hook_3(void) { go_refill(); FN(void, GO_FN_3, void)(); }
+void test_go_refill(void) { go_refill(); }
+int *test_retry_refill(void) { return &c_retry_refill; }
+
 /* 285780: PlayerData is reset (new game / load) */
 static void (MSABI *o_pd_init)(void);
-static void MSABI pd_init_hook(void) { o_pd_init(); g_fresh = 1; g_burn = 0; g_charge = 0; }
+static void MSABI pd_init_hook(void) { o_pd_init(); g_fresh = 1; g_burn = 0; g_charge = 0; owe_clear(); }
 
 /* ---------------- MP bar ----------------
    One instance of the Focus gauge's fill sequence (seq 0x12d of gauge_01), with private copies of two of its sprites:
@@ -1054,6 +1114,7 @@ static void tick(u8 *g) {
         if (g_burn) { g_charge += pct; if (g_charge >= 100.0f) burn_end(); }
         else if (g_mp < g_mpmax) { g_mp += g_mpmax * pct * 0.01f; if (g_mp > g_mpmax) g_mp = g_mpmax; }
     }
+    owe_frame(cmd);
     if (cmd) {
         if (!c_cursor_advance) *(u32*)(cmd + 0x60) |= 2;     /* stay on the command that was used */
         if (g_burn) plates_block(cmd);
@@ -1099,7 +1160,7 @@ static int call_ok(u32 rva, u32 target) {
 int mod_install(void) {
     load_ini();
     /* check every site before changing anything, so that an unknown game build is left untouched */
-    const Steal *all[] = { &S_gauge_update, &S_gauge_dtor, &S_dlink_open, &S_dlink_pick, &S_item_effect, &S_pd_init };
+    const Steal *all[] = { &S_gauge_update, &S_gauge_dtor, &S_dlink_open, &S_dlink_pick, &S_item_effect, &S_pd_init, &S_cmd_start };
     int bad = 0;
     for (unsigned i = 0; i < sizeof all / sizeof *all; i++) if (!site_ok(all[i])) { LOG("site %x does not match", all[i]->rva); bad++; }
     if (!call_ok(0x233d40, 0x2063c0)) { LOG("call site 233d40 does not match"); bad++; }
@@ -1115,6 +1176,9 @@ int mod_install(void) {
     if (G(u64, VT_CTD_READY) != (u64)(g_base + FN_CTD_READY)) { LOG("message file vtable does not match"); bad++; }
     if (c_berserk_pct > 0 && !call_ok(DMG_CALL, DMG_FN)) { LOG("damage site does not match"); bad++; }
     if (c_link_keep < 100.0f && (!call_ok(LINK_END_A, LINK_END) || !call_ok(LINK_END_B, LINK_END))) { LOG("D-Link end sites do not match"); bad++; }
+    if (c_retry_refill && (!call_ok(GO_SITE_0, GO_FN_0) || !call_ok(GO_SITE_1, GO_FN_1) || !call_ok(GO_SITE_2, GO_FN_2) || !call_ok(GO_SITE_3, GO_FN_3))) {
+        LOG("game over sites do not match"); bad++;
+    }
     if (!bundle_check()) bad++;
     if (!menu_check()) bad++;
     if (!tex_check()) bad++;
@@ -1170,8 +1234,15 @@ int mod_install(void) {
     o_dlink_pick   = hook_fn(&S_dlink_pick, dlink_pick_hook, "dlink_pick");
     o_item_effect  = hook_fn(&S_item_effect, item_effect_hook, "item_effect");
     o_pd_init      = hook_fn(&S_pd_init, pd_init_hook, "pd_init");
+    o_cmd_start    = hook_fn(&S_cmd_start, cmd_start_hook, "command start (SP charged)");
     hook_call(0x233d40, 0x2063c0, use_hook, "deck_use");
     hook_call(0x206a6e, 0x1ce550, reload_hook, "reload");
+    if (c_retry_refill) {
+        hook_call(GO_SITE_0, GO_FN_0, go_hook_0, "game over: continue");
+        hook_call(GO_SITE_1, GO_FN_1, go_hook_1, "game over: choice 1");
+        hook_call(GO_SITE_2, GO_FN_2, go_hook_2, "game over: retry");
+        hook_call(GO_SITE_3, GO_FN_3, go_hook_3, "game over: choice 3");
+    }
     return g_patch_errors == 0;
 }
 

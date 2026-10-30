@@ -37,15 +37,15 @@ P=json.load(open(os.path.join(R,'bundle_src','patches.json')))
 out.append('/* ---- data files patched in place when the game loads them: (offset, value) pairs ---- */')
 seen={}
 for f in P['files']:
-    key=(f['inner'],f['size'],f['crc_vanilla'],f['crc_new'])
+    key=(f['inner'],f['size'],f['crc_vanilla'],f['crc_new'],f.get('crc_alt',0))
     if key in seen: continue
     seen[key]=(f['mod'],f['diffs'])
 for k,(key,(mod,diffs)) in enumerate(seen.items()):
     out.append('static const u16 df_set%d[] = {%s};'%(k,','.join('%d,%d'%(o,v) for o,v in diffs)))
-out.append('static const struct { const char *name; u32 size, crc_old, crc_new; u8 group; u16 n; const u16 *set; } df_files[] = {')
+out.append('static const struct { const char *name; u32 size, crc_old, crc_new, crc_alt; u8 group; u16 n; const u16 *set; } df_files[] = {')
 for k,(key,(mod,diffs)) in enumerate(seen.items()):
     grp=0 if mod=='BBS-Combo-Flow' else 1
-    out.append('    { "%s", %d, 0x%08x, 0x%08x, %d, %d, df_set%d },'%(key[0],key[1],key[2],key[3],grp,len(diffs),k))
+    out.append('    { "%s", %d, 0x%08x, 0x%08x, 0x%08x, %d, %d, df_set%d },'%(key[0],key[1],key[2],key[3],key[4],grp,len(diffs),k))
 out.append('};')
 lub=open(os.path.join(R,'bundle_src','Factory_revenge.lub'),'rb').read()
 out.append('/* ---- Revenge Value: Factory.lub (replaces the 638-byte original, crc 0x%08x) ---- */'%0)

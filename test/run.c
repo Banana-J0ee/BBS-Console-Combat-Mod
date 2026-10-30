@@ -125,6 +125,11 @@ static void frame(void) {           /* one game frame: our tick, then every plat
     test_tick(gauge);
     for (int i = 0; i < *(u16*)(cmd + 0x220); i++) FN(void, 0x206930, u8*)(plate[i]);
 }
+/* a deck press the game takes, then the player starting that command (SP is charged at the start) */
+extern void test_cmd_start(u8 *pl, u16 id); extern u16 test_owe(void);
+/* the player takes the queued command and starts it */
+#define TAKE() do { u16 q_ = *(u16*)(cmd + 0x80); if (q_) test_cmd_start(pl, q_); } while (0)
+static u8 *use_go(u8 *P) { u8 *c = test_use(P); if (c) test_cmd_start(pl, *(u16*)c); return c; }
 static void t_use(void) {
     static const u16 ids[] = { 0x83 /*Fire rl10*/, 0x65 /*Strike Raid rl10*/, 0x92 /*Cure*/, 0xbc /*Potion*/, 0xac /*Mega Flare rl50*/ };
     world(5, ids);
@@ -132,26 +137,26 @@ static void t_use(void) {
     CHECK(*test_mp() == 100 && *test_mpmax() == 100, "start mp %.1f/%.1f", *test_mp(), *test_mpmax());
     CHECK(*(u32*)(cmd + 0x60) & 2, "cursor advance off");
     CHECK(mp_cost(0x83) == 10 && mp_cost(0xac) == 50, "costs %.0f %.0f", mp_cost(0x83), mp_cost(0xac));
-    u8 *c = test_use(plate[0]);
+    u8 *c = use_go(plate[0]);
     CHECK(c == (u8*)&deck[0] && *test_mp() == 90, "fire used: %p mp %.1f", c, *test_mp());
     CHECK(plate[0][0x31] == 3 && PCT(0) == 100, "plate in 'used' state, pct %.0f", PCT(0));
     frame();
     CHECK(plate[0][0x31] == 0 && !(FLG(0) & 2) && PCT(0) == 100, "fire ready again at once: state %d flags %x pct %.0f", plate[0][0x31], FLG(0), PCT(0));
-    c = test_use(plate[0]); frame(); c = test_use(plate[0]); frame();
+    c = use_go(plate[0]); frame(); c = use_go(plate[0]); frame();
     CHECK(*test_mp() == 70 && !*test_burn(), "three fires -> mp %.1f", *test_mp());
     /* item: no MP */
-    c = test_use(plate[3]); CHECK(c && *test_mp() == 70, "potion costs no MP");
+    c = use_go(plate[3]); CHECK(c && *test_mp() == 70, "potion costs no MP");
     frame();
     /* mega flare 50, then fire 10, fire 10 -> 0 -> burn */
-    c = test_use(plate[4]); frame(); CHECK(*test_mp() == 20, "mega flare -> %.1f", *test_mp());
-    c = test_use(plate[0]); frame(); c = test_use(plate[0]);
+    c = use_go(plate[4]); frame(); CHECK(*test_mp() == 20, "mega flare -> %.1f", *test_mp());
+    c = use_go(plate[0]); frame(); c = use_go(plate[0]);
     CHECK(c && *test_burn() == 1 && *test_mp() == 0, "burn at zero: burn %d mp %.1f", *test_burn(), *test_mp());
-    CHECK(PCT(0) == 0, "used plate shows empty");
+    /* (the used plate is blocked with the others on the next frame, below) */
     frame();
     for (int i = 0; i < 5; i++) if (i != 3) CHECK((FLG(i) & 2) && PCT(i) < 100, "plate %d blocked: flags %x pct %.1f", i, FLG(i), PCT(i));
     CHECK(!(FLG(3) & 2) && PCT(3) == 100, "item plate stays usable");
-    CHECK(test_use(plate[1]) == NULL && test_use(plate[2]) == NULL, "no commands in burn");
-    CHECK(test_use(plate[3]) != NULL, "items work in burn"); frame();
+    CHECK(use_go(plate[1]) == NULL && use_go(plate[2]) == NULL, "no commands in burn");
+    CHECK(use_go(plate[3]) != NULL, "items work in burn"); frame();
     /* a D-Link can be started during MP charge; with DLinkDuringCharge = 0 it is refused, as it was at first */
     { extern int mp_blocks_link(void); extern int *test_link_in_burn(void);
       CHECK(*test_link_in_burn() == 1 && mp_blocks_link() == 0, "MP charge does not stand in a D-Link's way");
@@ -171,8 +176,8 @@ static void t_use(void) {
     frame();
     for (int i = 0; i < 5; i++) CHECK(!(FLG(i) & 2) && PCT(i) == 100, "plate %d ready: flags %x pct %.1f", i, FLG(i), PCT(i));
     /* cure takes everything */
-    c = test_use(plate[0]); frame();
-    c = test_use(plate[2]);
+    c = use_go(plate[0]); frame();
+    c = use_go(plate[2]);
     CHECK(c && *test_burn() == 1 && *test_mp() == 0, "cure uses all MP");
     /* starting a D-Link fills the bar and ends the charge (the game's own confirm, 140205ee0, on a list entry) */
     { extern u8 *test_dlink_pick(u8 *P); extern int *test_link_refill(void);          /* our hook, then the game's function */
@@ -220,35 +225,35 @@ static void t_fx(void) {
     #define FOCUS (*(float*)(gauge + 0x68))
     FOCUS = 50;
     CHECK(!mp_fx(0x65), "off: Strike Raid costs SP");
-    u8 *c = test_use(plate[0]); frame();
+    u8 *c = use_go(plate[0]); frame();
     CHECK(c && *test_mp() == 90 && FOCUS == 50, "off: SP 100 -> %.0f, Focus kept (%.0f)", *test_mp(), FOCUS);
     test_fx_set(1);
     CHECK(mp_fx(0x65) && mp_fx(0x62) && !mp_fx(0x83) && !mp_fx(0xbc), "on: the two attack commands, not Fire, not the Potion");
     { const char *d = test_desc(0x65, "Strike Raid text."); CHECK(d && strstr(d, "FP 10") && !strstr(d, "SP"), "description: %s", d ? d : "-");
       d = test_desc(0x83, "Fire text."); CHECK(d && strstr(d, "SP 10"), "Fire's still says SP: %s", d ? d : "-"); }
-    c = test_use(plate[0]); frame();
+    c = use_go(plate[0]); frame();
     CHECK(c && *test_mp() == 90 && FOCUS == 40, "Strike Raid: Focus 50 -> %.0f, SP untouched (%.0f)", FOCUS, *test_mp());
     CHECK(!(FLG(0) & 2) && PCT(0) == 100, "still enough Focus: ready again at once (flags %x, %.0f)", FLG(0), PCT(0));
     CHECK(!mp_would_burn(0x65), "never marked yellow");
     /* not enough: unavailable, the fill shows how far the Focus is */
     FOCUS = 15; frame();
     CHECK(!(FLG(0) & 2) && (FLG(2) & 2) && PCT(2) > 74 && PCT(2) < 76, "Focus 15: Strike Raid (10) ready, Sonic Rave (20) unavailable at %.0f %%", PCT(2));
-    CHECK(test_use(plate[2]) == NULL && FOCUS == 15 && *test_mp() == 90, "Sonic Rave refused, nothing spent");
+    CHECK(use_go(plate[2]) == NULL && FOCUS == 15 && *test_mp() == 90, "Sonic Rave refused, nothing spent");
     FOCUS = 20; frame(); frame();
     CHECK(!(FLG(2) & 2) && PCT(2) == 100, "Focus 20: Sonic Rave ready (flags %x)", FLG(2));
-    c = test_use(plate[2]); frame();
+    c = use_go(plate[2]); frame();
     CHECK(c && FOCUS == 0 && (FLG(2) & 2) && (FLG(0) & 2), "Sonic Rave takes all 20: both attack commands unavailable now (Focus %.0f)", FOCUS);
     /* from a full gauge: the MAX look goes */
     *(u32*)(gauge + 0x84) |= 0x10000; FOCUS = 100; frame(); frame();
-    c = test_use(plate[0]); frame();
+    c = use_go(plate[0]); frame();
     CHECK(c && FOCUS == 90 && !(*(u32*)(gauge + 0x84) & 0x10000), "from MAX: 90 and no longer MAX (%08x)", *(u32*)(gauge + 0x84));
     /* an MP charge: magic waits, the attack commands do not */
-    *test_mp() = 5; c = test_use(plate[1]); frame(); frame();
+    *test_mp() = 5; c = use_go(plate[1]); frame(); frame();
     CHECK(*test_burn() == 1 && (FLG(1) & 2), "Fire emptied the SP: MP charge, Fire unavailable");
     CHECK(!(FLG(0) & 2) && mp_fx_any(cmd), "Strike Raid still available in the charge");
-    c = test_use(plate[0]); frame();
+    c = use_go(plate[0]); frame();
     CHECK(c && FOCUS == 80 && *test_burn() == 1, "used in the charge: Focus %.0f, still charging", FOCUS);
-    CHECK(test_use(plate[1]) == NULL, "Fire refused in the charge");
+    CHECK(use_go(plate[1]) == NULL, "Fire refused in the charge");
     /* the game's Focus gauge switched off: SP as usual */
     *(u32*)(gauge + 0x84) |= 0x100000;
     CHECK(!mp_fx(0x65) && !mp_fx_any(cmd), "Focus gauge off: no Focus Exchange");
@@ -256,9 +261,56 @@ static void t_fx(void) {
     /* switched off again: SP */
     test_fx_set(0); for (int i = 0; i < 1600; i++) frame();
     CHECK(*test_burn() == 0 && !(FLG(0) & 2) && !(FLG(2) & 2), "off, after the charge: every plate ready");
-    c = test_use(plate[0]); CHECK(c && FOCUS == 80 && *test_mp() == 90, "off: SP again (SP %.0f, Focus %.0f)", *test_mp(), FOCUS);
+    c = use_go(plate[0]); CHECK(c && FOCUS == 80 && *test_mp() == 90, "off: SP again (SP %.0f, Focus %.0f)", *test_mp(), FOCUS);
     #undef FOCUS
     printf("t_fx done\n");
+}
+/* SP is taken when the command starts: a press replaced before it starts, the same command taken twice, or a press
+   that never starts cost nothing; Focus Exchange the same */
+static void t_owe(void) {
+    extern void test_fx_set(int on);
+    static const u16 ids[] = { 0x83 /*Fire 10*/, 0x65 /*Strike Raid 10*/, 0xac /*Mega Flare 50*/, 0xbc /*Potion*/ };
+    world(4, ids);
+    *(u32*)RVA(0x10fa3d08 + 0x18cc + 5 * 4) = 0;
+    frame();
+    u8 *c = test_use(plate[0]);
+    CHECK(c && *test_mp() == 100 && test_owe() == 0x83, "Fire pressed: nothing taken yet (%.0f)", *test_mp());
+    *(u16*)(cmd + 0x80) = 0x83; frame();
+    c = test_use(plate[0]); frame();
+    CHECK(c && *test_mp() == 100, "the same command taken again: still nothing taken");
+    c = test_use(plate[2]); *(u16*)(cmd + 0x78) = 0xac; *(u16*)(cmd + 0x80) = 0; frame();
+    CHECK(c && *test_mp() == 100 && test_owe() == 0xac, "Mega Flare replaces Fire before it starts");
+    test_cmd_start(pl, 0x83);
+    CHECK(*test_mp() == 100, "Fire never charged");
+    test_cmd_start(pl, 0xac);
+    CHECK(*test_mp() == 50 && test_owe() == 0, "Mega Flare starts: 50 taken once (%.0f)", *test_mp());
+    test_cmd_start(pl, 0xac);
+    CHECK(*test_mp() == 50, "no second charge for the same start");
+    /* a press that is gone from both slots: dropped, never charged */
+    *(u16*)(cmd + 0x78) = 0;
+    c = test_use(plate[0]); frame(); frame(); frame();
+    CHECK(test_owe() == 0, "a press that never started is dropped");
+    test_cmd_start(pl, 0x83);
+    CHECK(*test_mp() == 50, "and costs nothing later (%.0f)", *test_mp());
+    /* items are not noted, and replace a noted command */
+    c = test_use(plate[3]);
+    CHECK(c && test_owe() == 0 && *test_mp() == 50, "Potion: nothing noted, nothing taken");
+    /* another player's start is not ours */
+    c = test_use(plate[0]); { u8 *other = calloc(1, 0x800); test_cmd_start(other, 0x83); free(other); }
+    CHECK(*test_mp() == 50 && test_owe() == 0x83, "someone else's command start charges nothing");
+    test_cmd_start(pl, 0x83);
+    CHECK(*test_mp() == 40, "ours: 10 (%.0f)", *test_mp());
+    /* Focus Exchange: Focus at the start too */
+    #define FOCUS (*(float*)(gauge + 0x68))
+    test_fx_set(1); FOCUS = 50; frame();
+    c = test_use(plate[1]);
+    CHECK(c && FOCUS == 50 && test_owe() == 0x65, "Strike Raid pressed: Focus untouched (%.0f)", FOCUS);
+    c = test_use(plate[1]);
+    test_cmd_start(pl, 0x65);
+    CHECK(FOCUS == 40 && *test_mp() == 40, "Strike Raid starts: Focus 50 -> %.0f once, SP untouched", FOCUS);
+    test_fx_set(0);
+    #undef FOCUS
+    printf("t_owe done\n");
 }
 /* SP orbs: a defeated regular enemy's D-Link prizes come with SP orbs; an orb picked up gives SP back */
 static int g_mk_kind[64], g_mk_n; static u8 *g_mk_obj[64];
@@ -470,7 +522,7 @@ static void t_ether(void) {
     FN(void, 0x2624e0, u8*)(pl);
     CHECK(*test_mp() == 80, "ether +50%%: mp %.1f", *test_mp());
     CHECK(*(float*)(gauge + 0x6c) == 50, "focus still restored: %.1f", *(float*)(gauge + 0x6c));
-    *test_mp() = 5; test_use(plate[0]); frame();
+    *test_mp() = 5; use_go(plate[0]); frame();
     CHECK(*test_burn() == 1, "burn");
     FN(void, 0x2624e0, u8*)(pl);
     CHECK(*test_burn() == 1 && *test_charge() >= 50, "ether in burn adds charge: %.1f", *test_charge());
@@ -537,11 +589,11 @@ static void t_ether(void) {
       CHECK(*test_mp() > 59 && *test_mp() < 61, "half a second on a save point: +50 MP (%.1f)", *test_mp());
       for (int i = 0; i < 30; i++) frame();
       CHECK(*test_mp() == 100, "a second: full (%.1f)", *test_mp());
-      *test_mp() = 5; test_use(plate[0]); frame();
+      *test_mp() = 5; use_go(plate[0]); frame();
       CHECK(*test_burn() == 1, "in MP charge on the save point");
       for (int i = 0; i < 62; i++) frame();
       CHECK(*test_burn() == 0 && *test_mp() == 100, "the charge ends within a second (%d, %.1f)", *test_burn(), *test_mp());
-      *test_mp() = 5; test_use(plate[0]); *(u32*)(cmd + 0x60) &= ~0x40000u;
+      *test_mp() = 5; use_go(plate[0]); *(u32*)(cmd + 0x60) &= ~0x40000u;
       for (int i = 0; i < 62; i++) frame();
       CHECK(*test_burn() == 1, "away from the save point the charge takes its normal time (%.1f)", *test_charge()); }
     printf("t_ether done\n");
@@ -662,6 +714,20 @@ static void t_link_end(void) {
     CHECK(g_set_n == 0, "... 10 left stays 10");
     *test_link_keep() = 100;
     printf("t_link_end done\n");
+}
+/* Game Over: every choice (Continue / Retry / the other two) refills the bar at the next gauge update */
+extern void test_go_refill(void); extern int *test_retry_refill(void); extern int *test_fresh(void); extern float *test_mp(void);
+static u8 *go_target(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
+static void t_retry(void) {
+    static const u32 site[4] = { 0x3eeb86, 0x3eeb7f, 0x3eeb78, 0x3eeb71 }, fn[4] = { 0x1dab70, 0x1db060, 0x1db1b0, 0x1dad00 };
+    CHECK(*test_retry_refill() == 1, "RetryRefillsMP on by default");
+    for (int i = 0; i < 4; i++)
+        CHECK(*(u8*)RVA(site[i]) == 0xe8 && go_target(site[i]) != RVA(fn[i]), "game over choice %d: the call is hooked", i);
+    *test_mp() = 12; *test_fresh() = 0;
+    test_go_refill();
+    CHECK(*test_fresh() == 1, "a game over choice marks the bar for a full fill at the next update");
+    *test_fresh() = 0;
+    printf("t_retry done\n");
 }
 /* MP Rage: Attack Haste renamed; HP lost gives lost / max HP x max MP x 25% x copies / 5, never during the MP charge */
 static void t_rage(void) {
@@ -1439,6 +1505,38 @@ static void t_cancel(void) {
     #undef PRESS
     printf("t_cancel done\n");
 }
+/* Terra's Air Slide lock: 0.60 s (36 ticks) from the start of one, only Air Slide and only Terra */
+extern void test_as_frame(u8 *pl); extern u64 test_as_dec(u8 *pl, u16 cmd, u64 rax); extern u64 test_as_hover(u8 *pl, u64 rax);
+extern float *test_as_lock(void); extern void test_as_reset(void);
+static void t_airslide(void) {
+    u8 *p = memalign(16, 0x800), *mgr = calloc(1, 0x200); memset(p, 0, 0x800);
+    u8 *keep = G(u8*, 0x10f9ee40); *(u8**)(mgr + 0x118) = p; G(u8*, 0x10f9ee40) = mgr;
+    *(u64*)p = (u64)RVA(0x649ec8); *(float*)(p + 0x20) = 1.0f; test_as_reset();
+    CHECK(*test_as_lock() == 0.6f, "AirSlideLock 0.6 s by default");
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b, "no Air Slide yet: available");
+    *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff;              /* it starts */
+    test_as_frame(p);
+    for (int i = 0; i < 12; i++) test_as_frame(p);                       /* the slide (6 frames = 12 ticks) */
+    *(u16*)(p + 0x304) = 5; *(u16*)(p + 0x312) = 0; test_as_frame(p);   /* falling */
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0, "13 ticks after the start: Air Slide not available");
+    CHECK(test_as_dec(p, 0xfb, 0x2a0) == 0x2a0 && test_as_dec(p, 0x10a, 0x2b0) == 0x2b0, "... other commands are");
+    CHECK(test_as_hover(p, 0x108) == 0 && test_as_hover(p, 0x4) == 0x4, "style hover: its Air Slide bits cleared, others kept");
+    for (int i = 0; i < 22; i++) test_as_frame(p);
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0, "35 ticks after the start: still not");
+    test_as_frame(p);
+    CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b && test_as_hover(p, 0x108) == 0x108, "36 ticks (0.60 s) after the start: available again");
+    /* Ventus: not Terra's class, never held back */
+    test_as_reset(); *(u64*)p = (u64)RVA(0x64a0d8);
+    *(u16*)(p + 0x304) = 0x15; *(u16*)(p + 0x312) = 0xff; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
+    CHECK(test_as_dec(p, 0xff, 0x5b) == 0x5b, "Ventus: no lock");
+    /* off */
+    test_as_reset(); *(u64*)p = (u64)RVA(0x649ec8);
+    *(u16*)(p + 0x304) = 0x15; test_as_frame(p); *(u16*)(p + 0x304) = 5; test_as_frame(p);
+    *test_as_lock() = 0; CHECK(test_as_dec(p, 0xff, 0x29b) == 0x29b, "AirSlideLock=0: no lock");
+    *test_as_lock() = 0.6f; test_as_reset();
+    G(u8*, 0x10f9ee40) = keep;
+    printf("t_airslide done\n");
+}
 static void t_speed(void) {
     u8 *p = memalign(16, 0x800), *mot = calloc(1, 0xb0), *phys = memalign(16, 0x200), *wp = calloc(1, 0x200);
     u8 *ctl = calloc(1, 0x60), *ent = calloc(2, 0x90), *desc = calloc(2, 0x34);
@@ -1899,13 +1997,13 @@ static void t_bundle(void) {
             for (u32 k = 0; k < rs; k++) if (g_base[va + k] != d[ro + k]) diff++;
         }
         printf("  code bytes differing from the original exe: %ld (our own hooks)\n", diff);
-        CHECK(diff > 0 && diff < 400, "only our hook sites differ");
+        CHECK(diff > 0 && diff < 450, "only our hook sites differ");
         CHECK(!memcmp(RVA(0x62f080), d + 0x400 + 0x62e080, 349), "the old Combo Flow routines are not installed (speed.c has the walk-out)");
         CHECK(*(u8*)RVA(0x2291bf) == 0xe9 && *(u8*)RVA(0x26825f) == 0xe9 && *(u8*)RVA(0x26828a) == 0xe9, "its three sites carry our hooks");
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
     /* data files through the patched vtable slot */
     static const struct { const char *env, *inner; u32 crc_new; } F[] = {
-        { "BBS_ARC_P00COMMON", "PAtkData.bin", 0x571a7c74 }, { "BBS_ARC_P01INIT", "PCamV000.bin", 0x3f85eb17 },
+        { "BBS_ARC_P00COMMON", "PAtkData.bin", 0x55ce8ab4 },     /* the old Combo Flow file + Terra's Air Slide end */ { "BBS_ARC_P01INIT", "PCamV000.bin", 0x3f85eb17 },
         { "BBS_ARC_P02INIT", "PCamA000.bin", 0xe8f3d034 } };
     test_cam_dist(1.0f);
     for (int i = 0; i < 3; i++) {
@@ -1918,7 +2016,14 @@ static void t_bundle(void) {
         slot(r);
         u32 after = test_crc(dd, len);
         printf("  %s: %u bytes, crc %08x -> %08x\n", F[i].inner, len, before, after);
-        CHECK(after == F[i].crc_new, "%s equals the old mod's file", F[i].inner);
+        CHECK(after == F[i].crc_new, "%s equals the expected file", F[i].inner);
+        if (i == 0) {
+            CHECK(*(s16*)(dd + 667 * 0x28) == 6 && dd[667 * 0x28 + 0x1f] == 6, "Terra's Air Slide (PAtk 667) ends at frame 6, when its movement does");
+            CHECK(*(s16*)(dd + 91 * 0x28) == 23 && *(s16*)(dd + 377 * 0x28) == 22, "Ventus' and Aqua's Air Slides unchanged");
+            /* a file the standalone Combo Flow mod already changed (crc 571a7c74): the Air Slide byte is set too */
+            *(s16*)(dd + 667 * 0x28) = 23; CHECK(test_crc(dd, len) == 0x571a7c74, "the Combo Flow-only file");
+            slot(r); CHECK(test_crc(dd, len) == F[i].crc_new, "... is brought to the same result");
+        }
         slot(r); CHECK(test_crc(dd, len) == F[i].crc_new, "%s: second pass changes nothing", F[i].inner);
         if (i > 0) {                                  /* camera files: the default distance pulls the eye in, once */
             u8 keep[112]; memcpy(keep, dd, 112);
@@ -2220,7 +2325,7 @@ static void t_shortcut(void) {
     CHECK(sc_held() && G(u32, 0x8f64930) == PAD_L1 && G(u32, 0x8f64934) == 0 && G(u32, 0x8f6493c) == 0, "triangle taken from the pad (%x %x)", G(u32, 0x8f64930), G(u32, 0x8f64934));
     CHECK(sc_want() == 1, "wanted row %d", sc_want());
     CHECK(test_confirm(mgr + 0x58, cmd) == 0, "the game's own confirm test sees nothing");
-    test_menu_step(cmd);
+    test_menu_step(cmd); TAKE();
     CHECK(*(u16*)(cmd + 0x80) == 0x65 && *(u8**)(cmd + 0x90) == plate[1] && *test_mp() == 90, "Strike Raid queued, MP %.0f", *test_mp());
     CHECK(sc_want() < 0, "press consumed");
     *(u64*)(cmd + 0x80) = 0;
@@ -2271,7 +2376,7 @@ static void t_shortcut(void) {
     test_menu_step(cmd); CHECK(*(u64*)(cmd + 0x80) == 0 && sc_want() == 0, "busy: nothing queued, press kept");
     for (int i = 0; i < 5; i++) { pad(PAD_L1 | PAD_CIR, 0); test_menu_step(cmd); }
     CHECK(sc_want() == 0, "still waiting after 5 frames");
-    *(u32*)(pl + 0x318) = 0x40; pad(PAD_L1, 0); test_menu_step(cmd);
+    *(u32*)(pl + 0x318) = 0x40; pad(PAD_L1, 0); test_menu_step(cmd); TAKE();
     CHECK(*(u16*)(cmd + 0x80) == 0x83 && *test_mp() == 80, "Fire goes off when free, MP %.0f", *test_mp());
     *(u64*)(cmd + 0x80) = 0;
     *(u32*)(pl + 0x318) = 0; pad(PAD_L1 | PAD_CIR, PAD_CIR);
@@ -2301,7 +2406,7 @@ static void t_shortcut(void) {
         CHECK(sc_slot(0) == 4 && sc_slot(1) == -1, "this save again: its own");
     }
     *test_mp() = 100;
-    pad(PAD_L1, 0); pad(PAD_L1 | PAD_CIR, PAD_CIR); test_menu_step(cmd);
+    pad(PAD_L1, 0); pad(PAD_L1 | PAD_CIR, PAD_CIR); test_menu_step(cmd); TAKE();
     CHECK(*(u16*)(cmd + 0x80) == 0xac && *test_mp() == 50, "Mega Flare from circle, MP %.0f", *test_mp());
     *(u64*)(cmd + 0x80) = 0;
     pad(PAD_L1, 0); pad(PAD_L1 | PAD_TRI, PAD_TRI); test_menu_step(cmd);
@@ -2851,7 +2956,7 @@ static void t_menu(void) {
     press(PAD_DOWN); press(PAD_DOWN); CHECK(sel[0] == 2, "cursor in list %d", sel[0]);
     press(PAD_UP); CHECK(sel[0] == 1, "up %d", sel[0]);                 /* entry 1 of the magic list = Strike Raid */
     press(PAD_X);
-    CHECK(*(u16*)(cmd + 0x80) == 0x65 && *(u8**)(cmd + 0x90) == plate[2], "Strike Raid queued: %x", *(u16*)(cmd + 0x80));
+    CHECK(*(u16*)(cmd + 0x80) == 0x65 && *(u8**)(cmd + 0x90) == plate[2], "Strike Raid queued: %x", *(u16*)(cmd + 0x80)); TAKE();
     CHECK(*st == 0 && *cur == 0 && *test_mp() == 90, "back on Attack after the cast, MP %.0f", *test_mp());
     *(u64*)(cmd + 0x80) = 0;                                              /* the player took it */
     /* list remembers its cursor; left backs out without casting */
@@ -2953,7 +3058,7 @@ static void t_menu(void) {
     }
     /* burn: Magic cannot be opened, an open list closes */
     press(PAD_DOWN); press(PAD_X); CHECK(*st == 1, "list open");
-    *test_mp() = 5; sel[0] = 0; press(PAD_X);                             /* Fire with 5 MP left -> burn */
+    *test_mp() = 5; sel[0] = 0; press(PAD_X); TAKE();                     /* Fire with 5 MP left -> burn */
     CHECK(*test_burn() == 1 && *(u16*)(cmd + 0x80) == 0x83, "last cast goes through, burn starts");
     *(u64*)(cmd + 0x80) = 0;
     press(PAD_DOWN); press(PAD_X); CHECK(*st == 0 && *cur == 1, "Magic stays shut in burn");
@@ -3370,6 +3475,7 @@ int main(int argc, char **argv) {
     int bad = 0;
     bad |= run("t_use", t_use);
     bad |= run("t_fx", t_fx);
+    bad |= run("t_owe", t_owe);
     bad |= run("t_linkdrain", t_linkdrain);
     bad |= run("t_sporb", t_sporb);
     bad |= run("t_orbse", t_orbse);
@@ -3378,6 +3484,8 @@ int main(int argc, char **argv) {
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);
+    bad |= run("t_retry", t_retry);
+    bad |= run("t_airslide", t_airslide);
     bad |= run("t_cancel", t_cancel);
     bad |= run("t_special", t_special);
     bad |= run("t_berserk", t_berserk);

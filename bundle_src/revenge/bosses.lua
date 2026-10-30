@@ -24,6 +24,8 @@
 --            back at you, several BBS scripts just stand up into idling
 --   clear    true: the gauge is cleared after a break-out and when the boss recovers (default:
 --            KH2's rule - it is kept and drains while the boss acts)
+--   scriptArmor function(self) -> true: where a move is held open past its window, this part keeps the
+--            boss's own "no damage reaction" (Braig's descent after Inverted Shoot)
 --   pace     false: the boss keeps its own pace (superbosses, Hades).  Otherwise [Bosses] in the ini
 --            shortens its idle waits and caps its walks (revenge.lua, "Boss pace")
 --   paceFields { State = "field" }: an idle the script counts down in a field of its own
@@ -396,7 +398,7 @@ cfg.b81vs00 = armor
 -- Shoot whole), gaps and cooldowns.  His Idling picks the next shot at once (0-1 frame): the beat is a hold of ours
 -- there; after Warp / Charge / Inverted Shoot his WaitIdling counts its own frames (self.timer) before a warp.
 local braig = {
-  limit = 9,                    -- b30ex00 (Keyblade Graveyard) gets his own copy below
+  limit = 7,                    -- b32ex00, Terra's fight in Radiant Garden (2026-10-26, asked for: 9 -> 7); b30ex00 (Keyblade Graveyard) gets his own copy below
   -- His shots are long shooting phases, and after Dash / Round Shoot his Idling picks the next one at once
   -- (0-1 frame in play).  armorStates: the whole move where bbskh2_boss.ini has no window for it.
   armorStates = { RoundShoot = true, DashShoot = true, WarpShoot = true, ChargeShoot = true, InvertedShoot = true,
@@ -430,7 +432,25 @@ local braig = {
   -- rounds (step 2 = the dash after the warp), Warp Shoot two volleys with a warp between (step 5 = the second).
   -- Each round gets the window of bbskh2_boss.ini again; before, only the first one had one.
   rearm = rounds({ InvertedShoot = { step = 3 }, DashShoot = { step = 2 }, WarpShoot = { step = 5 } }),
-  fire = 0.999,                 -- his own plain escape does not come out at the limit: the counter answers
+  -- his own plain escape does not come out at the limit: the counter answers.  Inverted Shoot is the exception
+  -- (2026-10-26, log: Terra juggled him in it to 26 / 7): the counter does not run there and his update stops
+  -- while he is kept in hit-stun in the air, so at the limit his own dodge of that move comes out instead
+  -- (OnDamageBefore, steps 3-7, Random < 0.3: no damage, step 7 = the warp into the next round)
+  fire = function(self)
+    if type(self.GetState) == "function" and self:GetState() == "InvertedShoot" then return 0 end
+    return 0.999
+  end,
+  -- that dodge only warps him into the next round of the move (2-5 rounds): a break-out there makes it the last
+  -- one, so after the warp he comes down and picks another move (asked for: he never changed moves after it)
+  post = function(self, fired)
+    if fired and type(self.GetState) == "function" and self:GetState() == "InvertedShoot" then self.InvertedCount = 1 end
+  end,
+  -- after his last round of Inverted Shoot he drops down and lands (steps 8-11); his script makes that whole
+  -- descent unstaggerable, and the mod's "open past the window" no longer overrides it there (2026-10-27, asked
+  -- for: he could be juggled as he came down, with no break-out - his dodge exists only in steps 3-7)
+  scriptArmor = function(self)
+    return type(self.GetState) == "function" and self:GetState() == "InvertedShoot" and type(self.step) == "number" and self.step >= 8
+  end,
   -- (no paceFields: his waits are bbskh2_boss.ini's beat)
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -689,7 +709,7 @@ local function wielderPost(self, fired)
 end
 -- (a wielder whose script has no dodge chance, e.g. in mid-air, still has none)
 -- fire 0.999: their own dodge roll does not come out by itself at the limit, the counter picks (mostly an attack)
-local wielder = { limit = 9, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter,
+local wielder = { limit = 3, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, counter = wielderCounter,
                   answer = wielderAnswer }
 local wielders = { "b60ex00", "b62ex00", "b68ex00", "b69ex00", "b70ex00", "b72ex00", "b73ex00",
                    "b78ex00", "b79ex00", "b80ex00", "b82ex00", "b83ex00", "b88ex00", "b89ex00" }
@@ -708,7 +728,7 @@ end
 -- bbskh2_boss.ini [Terra-Xehanort]: the wielder AI waits in BattleIdling (Entity.SetTimer), his own AI (b52ex00)
 -- counts AttackTimer down while he circles; the dodge roll and his side-step go straight back to his idle
 local xehanortTempo = { idle = { BattleIdling = "timer", Idling = { field = "AttackTimer" } } }
-local xehanort = { limit = 6, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter,
+local xehanort = { limit = 8, attack = 1, fire = 0.999, active = wielderActive, pre = wielderPre, post = wielderPost, fireSeq = { 0.999, "coin" }, counter = wielderCounter,
                    answer = wielderAnswer, tempo = xehanortTempo }
 cfg.b50ex00 = xehanort
 cfg.b51ex00 = xehanort
@@ -717,7 +737,7 @@ cfg.b51ex00 = xehanort
 -- wielder AI otherwise).  vanilla: counter-attacks after 2-5 hits.
 local function ownAI(self) return self.SetDmgCount ~= nil end
 cfg.b52ex00 = {
-  limit = 6,
+  limit = 8,
   attack = 1,
   tempo = xehanortTempo,
   active = wielderActive,
@@ -752,8 +772,20 @@ cfg.b52ex00 = {
 local function zackCounter(self)
   if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
   local s = self:GetState()
-  if s == "Bushinhazan" or s == "Climbhazard" or s == "BackJump_Short" or s == "Hakougeki"
-     or s == "BackJump_Short_Cancel" or s == "Dead" or s == "Appear" then return 0 end
+  -- his get-away jump (from his own counter, or his AI after a combo) has no armour: a hit stops it in hit-stun,
+  -- where his update - and so the jump - never moves on, and neither his counter nor this one answers in it.
+  -- At the limit it starts again, with the break-out's armour, so he gets away (2026-10-28, Terra's fight)
+  if s == "BackJump_Short" or s == "BackJump_Short_Cancel" then
+    self:GotoState(s)
+    if type(self.damageCnt) == "number" then self.damageCnt = 0 end
+    return 1
+  end
+  -- Hakougeki (open past its armour window) and Climbhazard (his script takes the armour off when he lands) are
+  -- answered once they are open - a hit there freezes him the same way; while still armoured they are left alone.
+  -- Bushinhazan stays left out: his script armours it to the end.
+  if (s == "Hakougeki" or s == "Climbhazard") and type(Enemy.IsNoDamageReaction) == "function"
+     and Enemy.IsNoDamageReaction(self.myHandle) then return 0 end
+  if s == "Bushinhazan" or s == "Dead" or s == "Appear" then return 0 end
   if self.stack == nil then return 0 end
   self.stack:clear()
   self.stack:push("Move")
@@ -787,11 +819,105 @@ local zack = {
 local zackStory = {}
 for k, v in pairs(zack) do zackStory[k] = v end
 zackStory.limit = 8
-zackStory.armorStates = { ComboAttack = true, Hakougeki = true }
+zackStory.armorStates = { ComboAttack = true, Hakougeki = true,
+  BackJump = true, BackJump_Short = true, BackJump_Short_Cancel = true }      -- his jumps: never staggered
 zackStory.answer = { close = { "ComboAttack", "Hakougeki", "Climbhazard" }, far = { "Climbhazard", "Hakougeki" } }
 zackStory.tempo = { idle = { Idling = "timer" }, pop = { BackJump_Short = true } }
-cfg.b30he00 = zackStory
-cfg.b40he00 = zackStory
+-- helmet Zack (b30he00, his first mode): strafe and idle as short as the helmetless Zack's (2026-10-28, asked for).
+-- His own data gives that mode idle 1.0 s, strafe 1.0 s, 2.0 s of moving before an idle; b40he00 has 0.5 / 0.5 /
+-- 3.0.  Only those exact values are changed (his strongest mode, on the same entry, has 0.5 / 0.5 / 3.0 already).
+local zackHelmet = {}
+for k, v in pairs(zackStory) do zackHelmet[k] = v end
+local zackPace = { GetIdlingTime = { 60, 30 }, GetMoveTime = { 60, 30 }, GetIdlingChangeTime = { 120, 180 } }
+-- up close (2026-10-28, asked for: he felt ranged-only) - helmet Zack's first mode, and the helmetless Zack:
+--   closeSwing: when he is near (ActionDist1) and does not pick the combo, his script always backs up and throws
+--     Hakougeki - this share of those goes into the combo instead (walking in first beyond combo range)
+--   followUp: after a Hakougeki, with the player still near, this share follows up with the combo or Climbhazard
+--     (Climbhazard only while it is off cooldown), instead of the strafe / idle that would come next
+local zackClose = { closeSwing = 0.5, followUp = 0.4 }
+local function zackRand() return Script.Random() end
+local function zackNear(self, d2)
+  local d = Entity.CalcDistanceSq(self.myHandle, self.targetHandle)
+  return type(d) == "number" and type(d2) == "number" and d < d2, d
+end
+-- the combo from where he stands: walk in first when beyond combo range
+local function zackComboStack(self, d)
+  self.stack:clear()
+  self.stack:push("Move")
+  self.stack:push("ComboAttack")
+  local cd = self:GetComboAttackDist()
+  if type(cd) == "number" and type(d) == "number" and d >= cd then self.stack:push("Approache") end
+  return self.stack:pop(1)
+end
+-- name: his entry (for his revenge state); on(self): the mode it is for
+local function zackCloseSetup(ent, name, on)
+  -- closeSwing: his decision is made in EnableActionSelect and ends with GotoState(stack:pop()); the close-range
+  -- "BackJump, then Hakougeki" is caught there
+  local eas = ent.EnableActionSelect
+  if type(eas) == "function" then
+    rawset(ent, "EnableActionSelect", function(self, a, b)
+      if not on(self) or type(self.stack) ~= "table" then return eas(self, a, b) end
+      rawset(self, "GotoState", function(me, st0, x, y)
+        rawset(me, "GotoState", nil)
+        if st0 == "BackJump" and me.stack:getn() > 0 then
+          local nxt = me.stack:pop(1)
+          me.stack:push(nxt)
+          local near, d = zackNear(me, me:GetActionDist1())
+          if nxt == "Hakougeki" and near and zackRand() < zackClose.closeSwing then
+            st0 = zackComboStack(me, d)
+          end
+        end
+        return me:GotoState(st0, x, y)
+      end)
+      local ok, r = pcall(eas, self, a, b)
+      rawset(self, "GotoState", nil)
+      if not ok then error(r, 0) end
+      return r
+    end)
+  end
+  -- followUp: the state after a Hakougeki
+  local gss = ent.GotoStateSub
+  if type(gss) == "function" then
+    rawset(ent, "GotoStateSub", function(self, s, a, b)
+      if (s == "Move" or s == "Idling") and type(self.GetState) == "function" and self:GetState() == "Hakougeki"
+         and on(self) and type(self.stack) == "table" then
+        local near, d = zackNear(self, self:GetActionDist1())
+        if near and zackRand() < zackClose.followUp then
+          local st = RV.ents[name]
+          local climbReady = st == nil or st.cdUntil == nil or (st.cdUntil.Climbhazard or -1e9) <= (st.t or 0)
+          if climbReady and zackRand() < 0.5 then
+            self.stack:clear(); self.stack:push("Move")
+            return gss(self, "Climbhazard", a, b)
+          end
+          return gss(self, zackComboStack(self, d), a, b)
+        end
+      end
+      return gss(self, s, a, b)
+    end)
+  end
+end
+zackHelmet.setup = function(ent)
+  local origMove = ent.GetMoveTime
+  local function firstMode(self) return type(origMove) == "function" and origMove(self) == 60 end
+  zackCloseSetup(ent, "b30he00", firstMode)
+  for fname, map in pairs(zackPace) do
+    local fn = ent[fname]
+    if type(fn) == "function" then
+      rawset(ent, fname, function(self, a, b)
+        local v = fn(self, a, b)
+        if v == map[1] then return map[2] end
+        return v
+      end)
+    end
+  end
+end
+cfg.b30he00 = zackHelmet
+-- the helmetless Zack (b40he00: always his simple mode): the same up close (2026-10-28, asked for); his strafe and
+-- idle are the short ones already
+local zackSimple = {}
+for k, v in pairs(zackStory) do zackSimple[k] = v end
+zackSimple.setup = function(ent) zackCloseSetup(ent, "b40he00", function() return true end) end
+cfg.b40he00 = zackSimple
 -- Mirage Arena (2026-10-19, asked for: as his story fights); his limit stays the Arena's
 local zackArena = {}
 for k, v in pairs(zackStory) do zackArena[k] = v end

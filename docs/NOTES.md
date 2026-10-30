@@ -701,7 +701,8 @@ field), cast_timing.md (KH2 vs BBS cast data; scripts in /home/claude/bbs/speed)
 
 ## Texture guard (src/guard.c, `[Safety] TextureGuard`)
 
-* **Off by default since the owner asked for it to be taken out** (the game felt slightly laggy; whether the guard
+* **Off by default again (2026-10-26, asked for: "remove the texture guard"; it had been switched back on by request in
+  between)**.  Before that: **off by default since the owner asked for it to be taken out** (the game felt slightly laggy; whether the guard
   is why is not measured - it is the only thing the crash fix added that runs for every 2D node every frame).  With
   it off the two draw vtable slots are not patched at all.  What stays is the fix itself (`menu_shutdown` from the
   gauge's destructor) and `l2d_live` in the modules' own "is it alive" tests.
@@ -1525,3 +1526,86 @@ inside the bubble.
 ## Final Braig's revenge limit back up (2026-10-24)
 * Asked for: Braig in the Keyblade Graveyard (Aqua's final episode, b30ex00 = braigLate) 6 -> 8 (re-rolled +-1 after
   each break-out as every boss).  His other fight (b32ex00) stays 9.
+
+## Terra-Xehanort's revenge limit up (2026-10-24)
+* Asked for: Terra-Xehanort 6 -> 8 in all three fights (b50ex00 / b51ex00 = xehanort, b52ex00 the final episode),
+  re-rolled +-1 after each break-out as every boss.  Test: extra.lua's b50ex00 break-out (8 +- 1).
+
+## Ventus / Terra / Aqua revenge limit down (2026-10-24)
+* Asked for: every Ventus / Terra / Aqua fight (the shared wielder entry: b60/b62, b70/b72/b73, b80/b82/b83, the
+  practice fights included) 9 -> 3, re-rolled +-1 after each break-out.  The allies (b68/b69, b78/b79, b88/b89) are
+  inactive as before.  Test: extra.lua's practice Terra break-outs land at 2-4.
+
+## Braig in Radiant Garden, and SP on Continue / Retry (2026-10-26)
+* Asked for: Braig's revenge limit 7 in Terra's Radiant Garden fight only (b32ex00 = braig, was 9); the Keyblade
+  Graveyard fight (b30ex00 = braigLate) stays 8.  Test: extra.lua checks both limits.
+* Asked for: Continue / Retry after a Game Over starts with a full SP bar.  The bar is the mod's own value (g_mp), so
+  the game's restart left it where it was.  CGameOver (vtable 672de8, update 3ef900) leaves the window's choice in
+  14081e149; 3eeb00 carries it out with one call per choice: 0 3eeb86 -> 1dab70 and 2 3eeb78 -> 1db1b0 (restart in
+  place, 1ec240 / 1ec250 -> 1eca40), 1 3eeb7f -> 1db060 and 3 3eeb71 -> 1dad00 (tasks: load / title).  All four are
+  hooked (mp.c go_hook_*): g_fresh, so the next gauge update fills the bar and ends an MP charge.  [MP]
+  RetryRefillsMP=1 (0 = off).  Test: t_retry (sites hooked, the refill mark).
+
+## Terra's Air Slide: no pause after the slide (2026-10-26)
+* Asked for ("no pause"): Terra's Air Slide (command 0xff, PAtk 667) ends when its movement does.  The MOVE state
+  (0x15, 242370; slides 2421b0) ends at frame >= frPlayEnd (PAtk +0, frames = ticks / 2): 23, while the slide moves
+  until mve (+0x1f) 6 and the rest of the action hangs at 16 % gravity (0.57 s).  frPlayEnd 23 -> 6: one more byte
+  (26680 = 6) in the PAtkData.bin set of patches.json, so it follows [Bundle] ComboFlow like the rest of that set.
+  Ventus (PAtk 91: mve 8, end 23) and Aqua (377: mve 7, end 22) are unchanged.  crc_alt (bundle.c): a file the
+  standalone Combo Flow mod already changed is accepted and given the same values.  Test: t_bundle.
+* Then (asked for: "a bit of a pause"): frPlayEnd 10 - 4 frames (0.13 s) after the slide's movement, against the
+  original 17 (0.57 s).
+* Then (asked for: "a little more"): frPlayEnd 12 - 6 frames (0.20 s) after the slide's movement.
+* Then (asked for: "remove the pause", and "a hidden timer for slide 0.40 s ... starts when the slide animation
+  starts, you cannot slide again until this timer is done, I don't want the button disabled, just the slide"): end
+  frame 6 again, and `[Speed] AirSlideLock` (0.4 s, 0 = off), speed.c.  (A first try that refused the start in
+  2430c0 itself, a cooldown after the end, was undone on request.)  Now the press is turned away before any of it:
+  the command decoder 2172f0 asks vtable slot 0x198 (CPlayerTerra 28ea70: command -> PAtk record, 0 = none) whether
+  the character has the movement command; ctx hook 217393 (eax = answer, edi = command) makes it 0 for 0xff while
+  the timer runs, so the game takes its own "no such command" path (clears the command, no request bit 8).  State
+  8 (the style hover, 218c10) makes an Air Slide of its own from bits 0x108: ctx hook 218d9f clears them for it.
+  Timer: from the frame the player tick first sees state 0x15 / command 0xff, the player's dt.  Terra = the
+  CPlayerTerra vtable 649ec8 (Ventus 64a0d8, Aqua 646ff8).  Test: t_airslide.
+* Then (asked for): AirSlideLock 0.60 s.
+
+## Braig juggled in Inverted Shoot (2026-10-26, user's log)
+* Terra kept Braig (b32ex00) in hit-stun in the air during Inverted Shoot with rising attacks: gauge 7 / 7 up to
+  26 / 7, no break-out.  His counter skips InvertedShoot (and Sniper, ChargeShoot ...), his own escape is held off
+  at the limit (fire 0.999), and his OnUpdate - so the watchdog too - did not run while he was kept in hit-stun
+  (his clock stayed at 1268).  Fix: fire is a function - 0 in InvertedShoot, so at the limit his own dodge of that
+  move comes out (OnDamageBefore: steps 3-7, Random < 0.3 -> step 7, the warp into the next round, no damage);
+  0.999 elsewhere as before.  Both fights (braigLate copies it).  Test: extra.lua (20 of 20 at the limit, none early).
+* Then (asked for: "he never changed moves after I countered him"): that dodge only warps him into the next round
+  (InvertedCount 2-5, one less per warp; at 0 he comes down, steps 8-11, and goes to WaitIdling).  braig.post: a
+  break-out in InvertedShoot sets InvertedCount = 1, so the warp it starts is his last round.  Test: extra.lua.
+
+## PSP multiplayer leftovers in the HD exe (survey only, 2026-10-26; Steam addresses)
+Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mode) survive?  Nothing changed.
+* **No network layer.**  The exe imports no socket / HTTP library; of Steam it uses Apps, Input, RemoteStorage,
+  UserStats, Friends - no Networking / Matchmaking / P2P.  The PSP ad-hoc layer is gone, so nothing can connect.
+* **Game side, still compiled in** (RTTI name, vtable, code refs to the vtable):
+  - `NetGame::CMirageArena` 665f18 (ctor 34acd0) and `NetGame::CNetGameArena` 666138 (ctor 350090): **reached** -
+    the offline Mirage Arena runs on this framework (main flow 1ebb08 -> 26b8b0 -> 26a260 -> 34b950 / 350e60).
+  - `NetGame::CNetGameVSMode` 6667f0 (ctor 35a0c0) and `NetGame::CNetGameRace` 666688 (ctor 358e00), `CMgRrNetCar`
+    66fff8: **dead** - no code or data reference to the constructors.
+  - `NetGame::CGameCockpit` 666450, `NetGame::CNickNameGauge` 6663e0 (name over other players), `CGOnlineWait`
+    6365d8 (ctor f5eb0, called from the arena / race / VS net code).
+  - `CBdNetwork` 66c510 (Command Board; its creator 370540 sits in a function table at 81bd10 - may still be used
+    offline, for the CPU players; not traced).
+  - Versus menus: `CVSPrepTop` 67b870 (+ Frame / Help / Info / Team / TeamSel; its caller 4365e0 is unreferenced),
+    `CVSResultTop` 67be98 (+ Wnd / RankBtn), `CTermNewVSTop` 67a528, `CTermDLink*` 6798c0 (D-Link terminal).
+  - Versus arena gimmicks (namespace Gimmick): CVSBumper 65f010, CVSFlipper, CVSSwingShot, CVSWoolball,
+    CVSMonstJumpGimmick, CVsPanel; Enemy::CVsMimicCopyGauge.
+  - Lua constants `COMMAND_CATEGORY_NETWORK` and `COMMAND_CATEGORY_EMOTE` (the PSP emotes).
+* Not checked: whether the versus arenas' data (maps, gimmick models) still ships in the game's archives.
+* Reviving versus would need: re-attaching CNetGameVSMode (and its prep menu) to a reachable entry, plus a new
+  network layer - or a local two-controller mode on one PC.
+
+## Braig's descent after Inverted Shoot keeps his own armour (2026-10-27)
+* Asked for: Braig could be juggled as he came down after his last round of Inverted Shoot (steps 8-11: hang,
+  motion, drop, land); "not staggerable during this animation".  His script switches "no damage reaction" on for
+  that descent (step 7 -> 8) and off on landing (11), but the mod holds a move open past its armour window every
+  frame (st.winOff in the update) - also where the script armours it - and Inverted Shoot is one state, rounds and
+  descent; his break-out (the dodge) exists only in steps 3-7.  New cfg.scriptArmor(self): where it is true the
+  window rule leaves the script's own armour alone.  Braig: InvertedShoot and step >= 8.  The rounds stay open
+  past their 46 frames.  Test: extra.lua (open in its rounds, kept on the way down).
