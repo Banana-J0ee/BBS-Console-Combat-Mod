@@ -388,7 +388,8 @@ int mp_would_burn(int id) {
 #define DESC_CALL 0x1a805f
 #define MSG_FIND  0x1b3570
 #define DESC_MSG  0x320000u
-#define DESC_MAX_LINE 54                 /* longest line of the original descriptions */
+#define DESC_MAX_LINE 48   /* a line and its cost: the box holds about 50 characters ("Punish faraway enemies with a
+                              charging attack. SP 15", 52, ran out of it; 54 was the longest original line) */
 static char g_desc[768];
 static int costs_mp(int id) { return id >= 0x5b && id <= 0xe3 && CMD_CAT(id) != 3; }    /* deck commands, not items */
 /* ---------------- Focus Exchange (2026-10-23; the ability is combomaster.c's) ----------------
