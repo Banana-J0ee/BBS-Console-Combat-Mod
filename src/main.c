@@ -12,7 +12,6 @@
 extern char g_dir[MAX_PATH], g_ini[MAX_PATH + 32];
 void log_open(void);
 int mod_install(void);           /* mp.c */
-void diag_run(const char *why);  /* diag.c */
 void dbg_start(void);            /* debug.c */
 
 /* ---------------- system DLL proxy ---------------- */
@@ -180,13 +179,8 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD reason, LPVOID r) {
         char off[MAX_PATH + 32]; snprintf(off, sizeof off, "%sbbskh2_off.txt", g_dir);
         if (GetFileAttributesA(off) != INVALID_FILE_ATTRIBUTES) LOG("bbskh2_off.txt present: patches not applied");
         else {
-            /* diagnostics (diag.c): before anything is changed when asked for, and always on a refusal (then the
-               mod has changed nothing, so whatever differs from the exe file is someone else's) */
-            int diag = (int)GetPrivateProfileIntA("Debug", "Diagnose", 0, g_ini);
-            if (diag) diag_run("[Debug] Diagnose=1");
             int ok = mod_install();
             LOG("install %s (errors=%d)", ok ? "OK" : "FAILED", g_patch_errors);
-            if (!ok) diag_run("the mod refused this game");
         }
         dbg_start();
     }
