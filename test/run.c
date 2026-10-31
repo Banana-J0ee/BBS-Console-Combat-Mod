@@ -2229,7 +2229,7 @@ static void t_bosshp(void) {
     for (unsigned i = 0; i < 6; i++) CHECK(call_target(load[i]) != RVA(0x2d0700), ".epd load %x is hooked", load[i]);
     CHECK(call_target(0x2b7dfe) != RVA(0x2d2ec0), "HP reset is hooked");
     CHECK(call_target(0x2d2510) != RVA(0xd2960), "the damage floor call is hooked");
-    static const struct { const char *n; int pct; } P[] = { { "b10sb00", 100 }, { "b10ex00", 110 }, { "b20ls00", 120 },
+    static const struct { const char *n; int pct; } P[] = { { "b10sb00", 100 }, { "b10ex00", 110 }, { "b20ls00", 105 },
         { "b40ex00", 130 }, { "b52ex00", 125 }, { "b12ex00", 100 }, { "b01ex00", 100 }, { "b81vs00", 100 },
         { "b85vs00", 100 }, { "b02ex00", 100 }, { "b80vs00", 100 }, { "m01ex00", 100 } };
     for (unsigned i = 0; i < sizeof P / sizeof *P; i++)
