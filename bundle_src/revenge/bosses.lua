@@ -641,6 +641,34 @@ cfg.b20ls00 = {
     self:GotoState(self.stack:pop(1))
     return 1
   end,
+  -- Electric Ball (2026-10-31, asked for): armoured until the ball is thrown, then open for the rest of the move.
+  -- He makes the ball at frame 10 and throws it at 40 (step 1 -> 2); a hit in between (40 fixed frames of armour
+  -- could run out a frame early) left a ball that was never thrown, growing forever, while the next Electric Ball
+  -- made a new one.  The move's armour is "all" (bbskh2_boss.ini); here it ends at the throw.
+  setup = function(ent)
+    local states = ent.states
+    if type(states) ~= "table" or type(states.ElectricBall) ~= "table" then return end
+    local upd = states.ElectricBall.OnUpdate
+    if type(upd) ~= "function" then return end
+    local own = {}
+    for k, v in pairs(states) do own[k] = v end
+    local eb = {}
+    for k, v in pairs(states.ElectricBall) do eb[k] = v end
+    eb.OnUpdate = function(self, a, b)
+      local before = self.step
+      local r = upd(self, a, b)
+      if before ~= 2 and self.step == 2 then
+        local st = RV.ents.b20ls00
+        if st ~= nil and (st.mArmor or 0) > 0 then
+          st.mArmor, st.hitWin, st.winOff, st.winState = 0, nil, true, "ElectricBall"
+          rlog("b20ls00", st.t or 0, "armour of ElectricBall ends: the ball is thrown")
+        end
+      end
+      return r
+    end
+    own.ElectricBall = eb
+    rawset(ent, "states", own)
+  end,
 }
 
 -- Maleficent: vanilla teleports / staff-attacks after only 3 hits - but only

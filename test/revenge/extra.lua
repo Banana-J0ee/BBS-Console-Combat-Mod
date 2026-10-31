@@ -1098,5 +1098,26 @@ do
   M.num["Script.GetDebugTestParam"] = nil
   M.num["Enemy.GetExtraParam"] = 8
 end
+-- Experiment 221's Electric Ball: armoured until the ball is thrown (frame 40), then open
+do
+  M.script("b20ls00")
+  local e, h = M.create("b20ls00")
+  local st = BBS_REVENGE.ents.b20ls00
+  local lock
+  M.num["Enemy.EnableNoDamageReaction"] = function(hh, on) if hh == h then lock = on end end
+  M.num["Entity.GetMotionNowFrame"] = 0
+  pcall(e.GotoState, e, "ElectricBall")
+  check(e:GetState() == "ElectricBall" and lock == 1 and (st.mArmor or 0) > 1e8, "221 Electric Ball: armoured from its start")
+  M.num["Entity.GetMotionNowFrame"] = 12
+  for i = 1, 3 do e:OnUpdate() end
+  check(e.step == 1 and lock == 1 and st.mArmor > 1e8, "... the ball made (step " .. tostring(e.step) .. "): still armoured")
+  M.num["Entity.GetMotionNowFrame"] = 41
+  e:OnUpdate()
+  check(e.step == 2 and st.mArmor == 0 and st.winOff == true and lock == 0, "... thrown: open (step " .. tostring(e.step) .. ", lock " .. tostring(lock) .. ")")
+  e:OnUpdate()
+  check(lock == 0, "... and stays open")
+  M.num["Entity.GetMotionNowFrame"] = 0
+  M.num["Enemy.EnableNoDamageReaction"] = nil
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
