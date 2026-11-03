@@ -168,6 +168,15 @@ do
   check(st.armor == 0, "... and off once he is idle again (punishable)")
   EntityManager:CallFunctionNoArg("OnReturnDamage", h)
   check(e:GetState() == "BeforeAttackIdling", "after a combo he goes back on the offensive (" .. e:GetState() .. ")")
+  do
+    local tset
+    local old = M.num["Entity.SetTimer"]
+    M.num["Entity.SetTimer"] = function(h2, v) tset = v end
+    pcall(e.GotoState, e, "Idling")
+    EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+    M.num["Entity.SetTimer"] = old
+    check(e:GetState() == "BeforeAttackIdling" and tset == 24, "... dazed 24 frames first, not 2 (" .. tostring(tset) .. ")")
+  end
   -- a juggle the engine hides from the callbacks: the HP watch and the watchdog still break it
   local hp = 100
   M.num["Enemy.GetHp"] = function() return hp end

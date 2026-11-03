@@ -595,6 +595,9 @@ cfg.b20pp00 = {
     if s == "Dead" or s == "Appear" then return end
     self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
     self:GotoState("BeforeAttackIdling")
+    -- dazed a moment after the flinch: his script's own idling comes first, so the tempo counts this
+    -- wait as "idle after idle" (2 frames) and he attacked the instant he stood up
+    if self:GetState() == "BeforeAttackIdling" then pcall(Entity.SetTimer, self.myHandle, 24) end
   end,
 }
 
