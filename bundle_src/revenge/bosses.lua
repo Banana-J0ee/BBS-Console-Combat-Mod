@@ -667,23 +667,6 @@ cfg.b20ls00 = {
       return r
     end
     own.ElectricBall = eb
-    -- Lightning (2026-11-01, asked for): its wind-up (steps 0-1, a timer of several seconds) is armoured too; the
-    -- dashes (step 2 on, each one re-armed by `rearm`) keep their own windows.  "hit 30" gave the wind-up 30 frames.
-    local lup = type(states.Lightning) == "table" and states.Lightning.OnUpdate or nil
-    if type(lup) == "function" then
-      local lt = {}
-      for k, v in pairs(states.Lightning) do lt[k] = v end
-      lt.OnUpdate = function(self, a, b)
-        local r = lup(self, a, b)
-        local st = RV.ents.b20ls00
-        if st ~= nil and type(self.step) == "number" and self.step < 2 and self:GetState() == "Lightning" then
-          if not (st.mArmor and st.mArmor > 1e8) then rlog("b20ls00", st.t or 0, "armour of Lightning held through its wind-up") end
-          st.mArmor, st.hitWin, st.winOff, st.winState = 1e9, nil, false, nil
-        end
-        return r
-      end
-      own.Lightning = lt
-    end
     rawset(ent, "states", own)
   end,
 }

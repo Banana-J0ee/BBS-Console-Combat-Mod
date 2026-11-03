@@ -1117,16 +1117,6 @@ do
   e:OnUpdate()
   check(lock == 0, "... and stays open")
   M.num["Entity.GetMotionNowFrame"] = 0
-  -- Lightning: armoured through its wind-up (steps 0-1), each dash with its own window after that
-  M.num["Entity.IsTimeOver"] = false
-  rawset(e, "RestHpRate", function() return 1 end)            -- (a stand-in value the emulator lacks)
-  pcall(e.GotoState, e, "Lightning")
-  for i = 1, 120 do e:OnUpdate() end
-  check(e:GetState() == "Lightning" and e.step == 1 and lock == 1 and st.mArmor > 1e8, "221 Lightning wind-up, 2 s in: still armoured (step " .. tostring(e.step) .. ", lock " .. tostring(lock) .. ")")
-  M.num["Entity.IsTimeOver"] = true
-  e:OnUpdate(); e:OnUpdate()
-  check(e.step >= 2 and st.hitWin ~= nil, "... the first dash: its own window from here, until its hits are over (step " .. tostring(e.step) .. ")")
-  M.num["Entity.IsTimeOver"] = nil
   M.num["Enemy.EnableNoDamageReaction"] = nil
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
