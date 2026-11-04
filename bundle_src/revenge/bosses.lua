@@ -579,8 +579,6 @@ local PP = {
   loops = 3,          -- Attack3: his counter starts here; the finisher comes once it passes 3 (his own: 0 = 5 swings)
   warnAt = 2,         -- the trail lights up this far below the limit (and stays through the break-out)
   stun = 40,          -- frames he is staggered when you guard the charge (a guarded Attack1/2: ~15 recoil + 24)
-  guardReach = 4,     -- m: guarding while the charge is this close staggers him before his hit lands (the
-                      -- charge's hit is not stopped by a guard: the game lands it on a guarding player)
 }
 
 local function ppFinish(self)
@@ -658,13 +656,6 @@ local function ppSetup(ent)
     end,
     OnUpdate = function(self)
       local fr = Entity.GetFrameRate(self.myHandle)
-      -- your guard, in reach: staggered before his hit lands
-      local okP, ps = pcall(Player.GetPlayerState, self.targetHandle)
-      if okP and ps ~= nil and ps == PLAYER_STATE_GUARD
-         and Entity.CalcDistance(self.myHandle, self.targetHandle) < PP.guardReach then
-        ppGuarded(self, "guard in reach")
-        return
-      end
       if self.step == 0 then
         self.Wait = self.Wait - fr
         self.Angle = self.Angle + 0.05 * fr
