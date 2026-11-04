@@ -564,17 +564,153 @@ cfg.b01pp00 = {
   end,
 }
 
--- Peter Pan.  vanilla: no break-out of any kind - he can be comboed forever - and
--- he recovers from hit-stun into idling.  At the limit he answers with one of his
--- own attacks; after any combo he goes straight back on the offensive.
+-- Peter Pan (experimental, 2026-11-03): a quick duelist.  He charges in and strikes fast; a guard
+-- staggers him (the game's own recoil); a long combo is allowed (limit 12) and his hand trail lights up
+-- as the warning that his revenge is close.  His moves (b20pp00.lub):
+--   Attack1 motion 320 (overhead swing), Attack2 300 (stab), Attack3 310 x N then 311 (multi-hit),
+--   Attack4 an unused stub in his script (body collision on, no motion) - here: the charge, which his
+--   script otherwise runs inside Move (step 4: hand trail B014_KAZ_00_0, homing flight 032/033/034,
+--   the stab 300 within 4 m).
+local PP = {
+  fly = 1.5,          -- his flying speeds (Move, MoveEx, TargetHomingMove) x this
+  charge = 2.0,       -- the charge: his own 0.16 x this
+  chargeMax = 180,    -- frames of flight before a charge that cannot reach gives up (his own: 300)
+  chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
+  loops = 3,          -- Attack3: his counter starts here; the finisher comes once it passes 3 (his own: 0 = 5 swings)
+  warnAt = 2,         -- the trail lights up this far below the limit (and stays through the break-out)
+}
+
+local function ppFinish(self)
+  self.attackCnt = (self.attackCnt or 0) - 1
+  if 0 > self.attackCnt then self:GotoState("Idling") else self:GotoState("BeforeAttackIdling") end
+end
+
+-- the warning: his hand trail while the gauge is within PP.warnAt of the limit or a break-out runs.
+-- `dec` is his own DashEffectControler; the instance's one ignores "off" while the warning is on
+-- (his OnDamage switches the trail off on every hit).
+local function ppWarn(self)
+  local dec = rawget(self, "__ppDec")
+  local st = rawget(self, "__rv")
+  if dec == nil or type(st) ~= "table" then return end
+  local s = type(self.GetState) == "function" and self:GetState() or nil
+  local on = s ~= "Dead" and s ~= "Appear" and (st.rv >= st.limit - PP.warnAt or (st.armor or 0) > 0)
+  if on then
+    if not rawget(self, "__ppWarn") then
+      rawset(self, "__ppWarn", true)
+      rlog("b20pp00", st.t or 0, "warning on: gauge", st.rv, "/", st.limit)
+    end
+    pcall(dec, self, 1)
+  elseif rawget(self, "__ppWarn") then
+    rawset(self, "__ppWarn", false)
+    rlog("b20pp00", st.t or 0, "warning off: gauge", st.rv, "/", st.limit)
+    if not (s == "Attack4" and self.step == 0) then pcall(dec, self, 0) end
+  end
+end
+
+local function ppSetup(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.Attack3) ~= "table" or type(states.Move) ~= "table" then return end
+  local function copy(t) local n = {} for k, v in pairs(t) do n[k] = v end return n end
+  local own = copy(states)
+  -- the multi-hit: 2 swings and the finisher
+  local a3 = copy(states.Attack3)
+  local a3b = a3.OnBeginState
+  a3.OnBeginState = function(self, a, b)
+    local r = a3b(self, a, b)
+    self.attackLoopCnt = PP.loops
+    return r
+  end
+  own.Attack3 = a3
+  -- faster flight
+  local mv, mvx, thm = ent.Move, ent.MoveEx, ent.TargetHomingMove
+  if type(mv) == "function" then rawset(ent, "Move", function(self, sp, a) return mv(self, sp * PP.fly, a) end) end
+  if type(mvx) == "function" then rawset(ent, "MoveEx", function(self, sp, a) return mvx(self, sp * PP.fly, a) end) end
+  if type(thm) == "function" then rawset(ent, "TargetHomingMove", function(self, sp, a) return thm(self, sp * PP.fly, a) end) end
+  -- the charge as an attack of its own
+  own.Attack4 = {
+    OnBeginState = function(self)
+      self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
+      self.step, self.Angle, self.Wait, self.MotionFlag = 0, 0, PP.chargeMax, 1
+      Entity.SetMotionWithSameCheck(self.myHandle, "032")
+      Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
+      Entity.EnableAttackBodyColl(self.myHandle, 1)
+      self:DashEffectControler(1)
+    end,
+    OnEndState = function(self)
+      Entity.ClearSpeed(self.myHandle)
+      Entity.EnableAttackBodyColl(self.myHandle, 0)
+      self:DashEffectControler(0)
+    end,
+    OnUpdate = function(self)
+      local fr = Entity.GetFrameRate(self.myHandle)
+      if self.step == 0 then
+        self.Wait = self.Wait - fr
+        self.Angle = self.Angle + 0.05 * fr
+        if self.Angle > 5 then self.Angle = 5 end
+        Entity.TurnTargetDegree(self.myHandle, self.targetHandle, self.Angle)
+        mvx(self, 0.16 * PP.charge, 0.01)
+        local w = self:WhichRightandLeft()
+        Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
+        if Entity.CalcDistance(self.myHandle, self.targetHandle) < 4 then
+          Entity.SetMotionWithSameCheck(self.myHandle, "300", 1, 1)
+          Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
+          self.step = 1
+          Entity.EnableAttackBodyColl(self.myHandle, 0)
+          self:DashEffectControler(0)
+        elseif self.Wait < 0 then
+          ppFinish(self)
+        end
+      elseif self.step == 1 then
+        if Entity.IsMotionEnd(self.myHandle) then ppFinish(self) end
+      end
+    end,
+  }
+  -- flying around: the charge after PP.chargeAfter frames, and his own charge (step 4) goes to it
+  local m = copy(states.Move)
+  local mb, mu = m.OnBeginState, m.OnUpdate
+  m.OnBeginState = function(self, a, b)
+    local r = mb(self, a, b)
+    rawset(self, "__ppMoveT", 0)
+    return r
+  end
+  m.OnUpdate = function(self, a, b)
+    local r = mu(self, a, b)
+    if self:GetState() ~= "Move" then return r end
+    if self.step == 4 then self:GotoState("Attack4") return r end
+    local t = (rawget(self, "__ppMoveT") or 0) + Entity.GetFrameRate(self.myHandle)
+    rawset(self, "__ppMoveT", t)
+    if t >= PP.chargeAfter and (self.step == 1 or self.step == 3) then self:GotoState("Attack4") end
+    return r
+  end
+  own.Move = m
+  rawset(ent, "states", own)
+  -- the warning
+  local dec = ent.DashEffectControler
+  if type(dec) == "function" then
+    rawset(ent, "__ppDec", dec)
+    rawset(ent, "DashEffectControler", function(self, on)
+      if on == 0 and rawget(self, "__ppWarn") then return end
+      return dec(self, on)
+    end)
+  end
+  local upd = ent.Update
+  if type(upd) == "function" then
+    rawset(ent, "Update", function(self, a, b)
+      local r = upd(self, a, b)
+      ppWarn(self)
+      return r
+    end)
+  end
+end
+
 cfg.b20pp00 = {
-  limit = 8,
+  limit = 12,
+  setup = ppSetup,
   tempo = { idle = { Idling = "timer", BeforeAttackIdling = "timer" } },
   armorStates = { Attack1 = true, Attack2 = true, Attack3 = true, Attack4 = true },
   iframes = 48,
-  -- his three attacks are all picked at the same range in his script (BeforeAttackIdling); Attack4 is
-  -- never used by it, so it stays out
-  answer = { close = { "Attack1", "Attack2", "Attack3" }, far = { "Attack1", "Attack2", "Attack3" }, noRet = true },
+  -- close: his three attacks (picked at the same range in his script, BeforeAttackIdling); far: the charge
+  answer = { close = { "Attack1", "Attack2", "Attack3" }, far = { "Attack4" }, noRet = true },
   openAt = { BattleStartState = true },   -- his opening hover (up to 500 frames) is where his fight starts
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
@@ -585,6 +721,7 @@ cfg.b20pp00 = {
       pcall(function() self.stack:clear() self.stack:push("Idling") end)
     end
     pcall(self.ReSetRot, self)
+    ppWarn(self)
     if answers(self) and answerNow(self) then return 1 end
     self:GotoState("Attack3")
     return 1

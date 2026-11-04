@@ -155,11 +155,11 @@ do
   rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 7 do r = hit(h) end
-  check(r == nil and st.rv == 7, "Peter Pan: 7 hits land, no vanilla escape fires")
+  for i = 1, 11 do r = hit(h) end
+  check(r == nil and st.rv == 11, "Peter Pan: 11 hits land, no vanilla escape fires")
   r = hit(h)
   local s8 = e:GetState()
-  check(r == "before" and st.rv == 8 and (s8 == "Attack1" or s8 == "Attack2" or s8 == "Attack3"), "8th hit: one of his own attacks as the revenge (" .. tostring(s8) .. "), value kept")
+  check(r == "before" and st.rv == 12 and (s8 == "Attack1" or s8 == "Attack2" or s8 == "Attack3" or s8 == "Attack4"), "12th hit: one of his own attacks as the revenge (" .. tostring(s8) .. "), value kept")
   check(st.armor > 0, "the revenge has its armour window")
   for i = 1, 70 do e:OnUpdate() end
   check(st.armor > 0, "... held while his attack runs")
@@ -213,7 +213,7 @@ do
     if st.limit > hi then hi = st.limit end
   end
   BBS_REVENGE.vary = 0
-  check(lo >= 7 and hi <= 9 and hi > lo, string.format("the limit re-rolls in 8 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
+  check(lo >= 11 and hi <= 13 and hi > lo, string.format("the limit re-rolls in 12 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
 end
 -- boss pace: idle waits shortened, walks capped, attacks / superbosses / allies left alone
 do
@@ -1127,6 +1127,92 @@ do
   check(lock == 0, "... and stays open")
   M.num["Entity.GetMotionNowFrame"] = 0
   M.num["Enemy.EnableNoDamageReaction"] = nil
+end
+-- Peter Pan, experimental (2026-11-03): short multi-hit, faster flight, the charge as Attack4, the warning trail
+do
+  M.script("b20pp00")
+  local e, h = M.create("b20pp00")
+  local st = BBS_REVENGE.ents.b20pp00
+  rawset(e, "Debug", function() end)
+  check(st.limit >= 11 and st.limit <= 13, "Peter Pan: limit 12 (+- 1): " .. st.limit)
+  -- Attack3: 2 swings, then the finisher
+  pcall(e.GotoState, e, "Attack3")
+  check(e:GetState() == "Attack3" and e.attackLoopCnt == 3, "Attack3 starts its swing count at 3 (" .. tostring(e.attackLoopCnt) .. ")")
+  local swings, fin = 0, false
+  M.num["Entity.SetMotion"] = function(hh, m) if m == "311" then fin = true end end
+  e.step = 1
+  M.num["Entity.IsMotionEnd"] = true
+  for i = 1, 6 do if not fin then swings = swings + 1 end e:OnUpdate() end
+  M.num["Entity.IsMotionEnd"] = false
+  M.num["Entity.SetMotion"] = nil
+  check(fin and swings == 2, "... the finisher after 2 swings (" .. swings .. ")")
+  -- faster flight
+  local got
+  M.num["Entity.CalcVelocity"] = function(hh, v) got = v end
+  e.Speed = 1
+  e:MoveEx(0.16, 0.01)
+  check(got ~= nil and math.abs(got - 0.24) < 1e-4, "his flight speeds x1.5 (0.16 -> " .. tostring(got) .. ")")
+  M.num["Entity.CalcVelocity"] = nil
+  -- flying around: the charge after 30 frames
+  M.num["Entity.CalcDistance"] = 10
+  pcall(e.GotoState, e, "Move")
+  for i = 1, 20 do e:OnUpdate() end
+  check(e:GetState() == "Move", "Move: still flying around after 20 frames (" .. e:GetState() .. ")")
+  for i = 1, 15 do e:OnUpdate() end
+  check(e:GetState() == "Attack4" and e.step == 0, "... then the charge (" .. e:GetState() .. ")")
+  -- his own charge inside Move goes to the attack too
+  pcall(e.GotoState, e, "Move")
+  e:OnUpdate()
+  e.step, e.Wait = 4, 300            -- as his script starts it (Move step 1, the 40% roll)
+  e:OnUpdate()
+  check(e:GetState() == "Attack4", "his own charge (Move step 4) becomes Attack4 (" .. e:GetState() .. ")")
+  -- the charge: flies, stabs within 4 m, ends with the stab
+  local mot
+  M.num["Entity.SetMotionWithSameCheck"] = function(hh, m) mot = m end
+  pcall(e.GotoState, e, "Idling")
+  e.attackCnt = 3
+  pcall(e.GotoState, e, "Attack4")
+  check((st.mArmor or 0) > 1e8, "the charge is armoured (all)")
+  e:OnUpdate()
+  check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
+  M.num["Entity.CalcDistance"] = 3
+  e:OnUpdate()
+  check(e.step == 1 and mot == "300", "within 4 m: the stab (" .. tostring(mot) .. ")")
+  M.num["Entity.IsMotionEnd"] = true
+  e:OnUpdate()
+  M.num["Entity.IsMotionEnd"] = false
+  check(e:GetState() == "BeforeAttackIdling" and e.attackCnt == 2, "the stab done: next attack (" .. e:GetState() .. ")")
+  -- a charge that cannot reach gives up
+  M.num["Entity.CalcDistance"] = 30
+  pcall(e.GotoState, e, "Attack4")
+  for i = 1, 185 do e:OnUpdate() if e:GetState() ~= "Attack4" then break end end
+  check(e:GetState() ~= "Attack4", "a charge that cannot reach gives up (" .. e:GetState() .. ")")
+  M.num["Entity.SetMotionWithSameCheck"] = nil
+  -- the warning: trail on near the limit, kept through his OnDamage, off once the gauge drains
+  local made, ended = 0, 0
+  M.num["Effect.IsAlive"] = false
+  M.num["Entity.AttachEffect"] = function() made = made + 1 return 1 end
+  M.num["Effect.LoopEnd"] = function() ended = ended + 1 end
+  M.num["Entity.CalcDistance"] = 2
+  pcall(e.GotoState, e, "Idling")
+  st.rv, st.firing, st.armor = 0, false, 0
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") ~= true, "no warning on an empty gauge")
+  st.rv = st.limit - 2.5
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") ~= true, "... nor 2.5 short of the limit")
+  st.rv = st.limit - 1.5
+  made = 0
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") == true and made > 0, "2 or less short of the limit: the trail lights up (" .. made .. ")")
+  ended = 0
+  pcall(e.DashEffectControler, e, 0)
+  check(ended == 0, "... and his own 'trail off' (every OnDamage) leaves it on")
+  st.rv = 0
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") == false and ended > 0, "the gauge drained: the trail goes out")
+  M.num["Effect.IsAlive"] = nil; M.num["Entity.AttachEffect"] = nil; M.num["Effect.LoopEnd"] = nil
+  M.num["Entity.CalcDistance"] = 2
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
