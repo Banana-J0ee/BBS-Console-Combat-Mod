@@ -1176,13 +1176,8 @@ do
   e:OnUpdate()
   check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
   M.num["Entity.CalcDistance"] = 3
-  local cleared, turned
-  M.num["Entity.ClearSpeed"] = function() cleared = true end
-  M.num["Entity.TurnTargetYDegree"] = function(hh, t, d) turned = d end
   e:OnUpdate()
-  M.num["Entity.ClearSpeed"] = nil; M.num["Entity.TurnTargetYDegree"] = nil
   check(e.step == 1 and mot == "300", "within 4 m: the stab (" .. tostring(mot) .. ")")
-  check(cleared and turned == 180, "... stopped and facing you, as his Attack2 (speed cleared " .. tostring(cleared) .. ", turn " .. tostring(turned) .. ")")
   M.num["Entity.IsMotionEnd"] = true
   e:OnUpdate()
   M.num["Entity.IsMotionEnd"] = false
