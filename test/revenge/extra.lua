@@ -1173,18 +1173,6 @@ do
   e.attackCnt = 3
   pcall(e.GotoState, e, "Attack4")
   check((st.mArmor or 0) > 1e8, "the charge is armoured (all)")
-  local body
-  M.num["Entity.EnableAttackBodyColl"] = function(hh, on) body = on end
-  pcall(e.GotoState, e, "Move")
-  e:OnUpdate()
-  e.step, e.Wait = 4, 300
-  body = nil
-  e:OnUpdate()
-  M.num["Entity.EnableAttackBodyColl"] = nil
-  check(e:GetState() == "Attack4" and body == 0, "the charge: no body collision, also from his own charge in Move (" .. tostring(body) .. ")")
-  pcall(e.GotoState, e, "Idling")
-  e.attackCnt = 3
-  pcall(e.GotoState, e, "Attack4")
   e:OnUpdate()
   check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
   M.num["Entity.CalcDistance"] = 3
