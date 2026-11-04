@@ -652,15 +652,25 @@ local function ppSetup(ent)
         local w = self:WhichRightandLeft()
         Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
         if Entity.CalcDistance(self.myHandle, self.targetHandle) < 4 then
-          Entity.SetMotionWithSameCheck(self.myHandle, "300", 1, 1)
+          -- the stab as his Attack2 does it: stopped, level and facing you, so a guard in front of you
+          -- meets it (his own charge kept the flight's speed and tilt: at x2 he went past or came in
+          -- from above, and the guard missed it)
+          Entity.ClearSpeed(self.myHandle)
+          self.Speed = 0
+          Entity.TurnTargetYDegree(self.myHandle, self.targetHandle, 180)
+          pcall(self.ReSetRot, self)
+          Entity.SetMotionWithSameCheck(self.myHandle, "300")
           Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
           self.step = 1
           Entity.EnableAttackBodyColl(self.myHandle, 0)
           self:DashEffectControler(0)
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: the stab")
         elseif self.Wait < 0 then
           ppFinish(self)
         end
       elseif self.step == 1 then
+        Entity.TurnTargetYDegree(self.myHandle, self.targetHandle, 10)
         if Entity.IsMotionEnd(self.myHandle) then ppFinish(self) end
       end
     end,
