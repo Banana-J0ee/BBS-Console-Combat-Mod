@@ -646,7 +646,11 @@ local function ppSetup(ent)
       self.step, self.Angle, self.Wait, self.MotionFlag = 0, 0, PP.chargeMax, 1
       Entity.SetMotionWithSameCheck(self.myHandle, "032")
       Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
-      Entity.EnableAttackBodyColl(self.myHandle, 1)
+      -- no body collision (his own charge has it: touching him hurts).  That contact damage does not go
+      -- through the guard - every guarded charge landed on a guarding player, never reflected - so the
+      -- only hit here is the stab (his Attack2's motion, which a guard blocks).  Off also when his own
+      -- charge in Move switched it on on the way here.
+      Entity.EnableAttackBodyColl(self.myHandle, 0)
       self:DashEffectControler(1)
     end,
     OnEndState = function(self)
@@ -668,6 +672,8 @@ local function ppSetup(ent)
           Entity.SetMotionWithSameCheck(self.myHandle, "300", 1, 1)
           Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
           self.step = 1
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: the stab")
           Entity.EnableAttackBodyColl(self.myHandle, 0)
           self:DashEffectControler(0)
         elseif self.Wait < 0 then
@@ -717,7 +723,8 @@ local function ppSetup(ent)
     if type(self.GetState) == "function" and self:GetState() == "Attack4" then
       local ok, ps = pcall(Player.GetPlayerState, hit)
       local st = rawget(self, "__rv")
-      rlog("b20pp00", st and st.t or 0, "charge hit: player state", ok and ps or "?", "guard", PLAYER_STATE_GUARD)
+      rlog("b20pp00", st and st.t or 0, "charge hit:", self.step == 1 and "the stab" or "the flight", "kind", kind,
+           "player state", ok and ps or "?", "guard", PLAYER_STATE_GUARD)
       if ok and ps ~= nil and ps == PLAYER_STATE_GUARD then ppGuarded(self, "hit while guarding") end
     end
     return r
