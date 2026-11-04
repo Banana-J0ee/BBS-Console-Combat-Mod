@@ -1213,6 +1213,35 @@ do
   check(rawget(e, "__ppWarn") == false and ended > 0, "the gauge drained: the trail goes out")
   M.num["Effect.IsAlive"] = nil; M.num["Entity.AttachEffect"] = nil; M.num["Effect.LoopEnd"] = nil
   M.num["Entity.CalcDistance"] = 2
+  -- a guard against the charge staggers him (its armour would otherwise stop the game's recoil)
+  local lock
+  M.num["Enemy.EnableNoDamageReaction"] = function(hh, on) if hh == h then lock = on end end
+  M.num["Entity.CalcDistance"] = 30
+  pcall(e.GotoState, e, "Attack4")
+  check(lock == 1, "the charge: armoured (lock " .. tostring(lock) .. ")")
+  EntityManager:CallFunctionNoArg("OnReflect", h)
+  check(e:GetState() == "PPStagger" and lock == 0 and st.mArmor == 0, "guarded (OnReflect): staggered, armour off (" .. e:GetState() .. ", lock " .. tostring(lock) .. ")")
+  for i = 1, 30 do e:OnUpdate() end
+  check(e:GetState() == "PPStagger" and lock == 0, "... still staggered and open after 30 frames (" .. e:GetState() .. ")")
+  for i = 1, 15 do e:OnUpdate() end
+  check(e:GetState() == "BeforeAttackIdling", "... then back at you after 40 (" .. e:GetState() .. ")")
+  pcall(e.GotoState, e, "Attack4")
+  EntityManager:CallFunctionNoArg("OnGuard", h)
+  check(e:GetState() == "PPStagger", "guarded (OnGuard): staggered (" .. e:GetState() .. ")")
+  pcall(e.GotoState, e, "Attack4")
+  local pst = 0
+  M.num["Player.GetPlayerState"] = function() return pst end
+  e:OnHitAttack(77, 0, 1)
+  check(e:GetState() == "Attack4", "the charge hits you, not guarding: no stagger (" .. e:GetState() .. ")")
+  pst = PLAYER_STATE_GUARD
+  e:OnHitAttack(77, 0, 1)
+  check(PLAYER_STATE_GUARD ~= nil and e:GetState() == "PPStagger", "the charge hits you while you guard: staggered (" .. e:GetState() .. ")")
+  pcall(e.GotoState, e, "Attack1")
+  EntityManager:CallFunctionNoArg("OnReflect", h)
+  check(e:GetState() == "Attack1", "his other attacks: the game's own recoil, nothing of ours (" .. e:GetState() .. ")")
+  M.num["Player.GetPlayerState"] = nil
+  M.num["Enemy.EnableNoDamageReaction"] = nil
+  M.num["Entity.CalcDistance"] = 2
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
