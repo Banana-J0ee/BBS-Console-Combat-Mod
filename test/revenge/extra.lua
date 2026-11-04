@@ -1236,6 +1236,20 @@ do
   pst = PLAYER_STATE_GUARD
   e:OnHitAttack(77, 0, 1)
   check(PLAYER_STATE_GUARD ~= nil and e:GetState() == "PPStagger", "the charge hits you while you guard: staggered (" .. e:GetState() .. ")")
+  -- guarding while the charge is in reach: staggered before his hit lands
+  pst = PLAYER_STATE_GUARD
+  M.num["Entity.CalcDistance"] = 6
+  pcall(e.GotoState, e, "Attack4")
+  e:OnUpdate()
+  check(e:GetState() == "Attack4", "guarding with the charge still 6 m away: nothing yet (" .. e:GetState() .. ")")
+  M.num["Entity.CalcDistance"] = 3.5
+  e:OnUpdate()
+  check(e:GetState() == "PPStagger" and lock == 0, "... in reach (3.5 m): staggered, open (" .. e:GetState() .. ")")
+  pst = 0
+  pcall(e.GotoState, e, "Attack4")
+  e:OnUpdate()
+  check(e:GetState() == "Attack4" and e.step == 1, "not guarding, in reach: his stab (" .. e:GetState() .. ", step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistance"] = 30
   pcall(e.GotoState, e, "Attack1")
   EntityManager:CallFunctionNoArg("OnReflect", h)
   check(e:GetState() == "Attack1", "his other attacks: the game's own recoil, nothing of ours (" .. e:GetState() .. ")")
