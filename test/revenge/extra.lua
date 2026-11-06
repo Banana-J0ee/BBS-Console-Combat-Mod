@@ -1176,17 +1176,6 @@ do
   check((st.mArmor or 0) > 1e8 and st.hitWin ~= nil and st.hitWin.fallback == 180, "the charge: armoured until the stab's hits are over (hit 180)")
   e:OnUpdate()
   check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
-  do
-    local deg
-    M.num["Entity.TurnTargetDegree"] = function(hh, t, d) deg = d end
-    e.Angle = 0
-    e:OnUpdate()
-    local first = deg
-    for i = 1, 120 do e.Wait = 100 e:OnUpdate() end
-    M.num["Entity.TurnTargetDegree"] = nil
-    check(first ~= nil and math.abs(first - 0.1) < 1e-4 and math.abs(deg - 10) < 1e-4,
-          string.format("charge homing x2 with its speed: +0.1 deg/frame up to 10 (%s, %s)", tostring(first), tostring(deg)))
-  end
   M.num["Entity.CalcDistance"] = 3
   e:OnUpdate()
   check(e.step == 1 and mot == "300", "within 4 m: the stab (" .. tostring(mot) .. ")")

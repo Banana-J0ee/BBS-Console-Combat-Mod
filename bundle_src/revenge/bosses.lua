@@ -575,11 +575,6 @@ local PP = {
   fly = 1.5,          -- his flying speeds (Move, MoveEx, TargetHomingMove) x this
   charge = 2.0,       -- the charge: his own 0.16 x this
   chargeMax = 180,    -- frames of flight before a charge that cannot reach gives up (his own: 300)
-  -- the charge's homing is scaled with its speed (x charge), so his flight path keeps the shape of his
-  -- own charge's (a turn ramp of 0.05 deg/frame each frame, up to 5 deg/frame): at x2 with his own
-  -- turning the curve was twice as wide and he swung past you
-  turnRamp = 0.05,    -- his own; x PP.charge
-  turnMax = 5,        -- his own; x PP.charge
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
   loops = 3,          -- Attack3: his counter starts here; the finisher comes once it passes 3 (his own: 0 = 5 swings)
   warnAt = 2,         -- the trail lights up this far below the limit (and stays through the break-out)
@@ -650,8 +645,8 @@ local function ppSetup(ent)
       local fr = Entity.GetFrameRate(self.myHandle)
       if self.step == 0 then
         self.Wait = self.Wait - fr
-        self.Angle = self.Angle + PP.turnRamp * PP.charge * fr
-        if self.Angle > PP.turnMax * PP.charge then self.Angle = PP.turnMax * PP.charge end
+        self.Angle = self.Angle + 0.05 * fr
+        if self.Angle > 5 then self.Angle = 5 end
         Entity.TurnTargetDegree(self.myHandle, self.targetHandle, self.Angle)
         mvx(self, 0.16 * PP.charge, 0.01)
         local w = self:WhichRightandLeft()
