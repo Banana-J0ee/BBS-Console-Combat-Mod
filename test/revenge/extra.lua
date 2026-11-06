@@ -1168,16 +1168,18 @@ do
   check(e:GetState() == "Attack4", "his own charge (Move step 4) becomes Attack4 (" .. e:GetState() .. ")")
   -- the charge: flies, stabs within 4 m, ends with the stab
   local mot
-  M.num["Entity.SetMotionWithSameCheck"] = function(hh, m) mot = m end
+  local grp
+  M.num["Entity.SetMotionWithSameCheck"] = function(hh, m, a3, a4) mot = m if m == "300" then grp = a4 end end
   pcall(e.GotoState, e, "Idling")
   e.attackCnt = 3
   pcall(e.GotoState, e, "Attack4")
-  check((st.mArmor or 0) > 1e8, "the charge is armoured (all)")
+  check((st.mArmor or 0) > 1e8 and st.hitWin ~= nil and st.hitWin.fallback == 180, "the charge: armoured until the stab's hits are over (hit 180)")
   e:OnUpdate()
   check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
   M.num["Entity.CalcDistance"] = 3
   e:OnUpdate()
   check(e.step == 1 and mot == "300", "within 4 m: the stab (" .. tostring(mot) .. ")")
+  check(grp == 0, "... with attack group 0 = his Attack2's stab, which a guard blocks (" .. tostring(grp) .. ")")
   M.num["Entity.IsMotionEnd"] = true
   e:OnUpdate()
   M.num["Entity.IsMotionEnd"] = false
@@ -1212,35 +1214,6 @@ do
   e:OnUpdate()
   check(rawget(e, "__ppWarn") == false and ended > 0, "the gauge drained: the trail goes out")
   M.num["Effect.IsAlive"] = nil; M.num["Entity.AttachEffect"] = nil; M.num["Effect.LoopEnd"] = nil
-  M.num["Entity.CalcDistance"] = 2
-  -- a guard against the charge staggers him (its armour would otherwise stop the game's recoil)
-  local lock
-  M.num["Enemy.EnableNoDamageReaction"] = function(hh, on) if hh == h then lock = on end end
-  M.num["Entity.CalcDistance"] = 30
-  pcall(e.GotoState, e, "Attack4")
-  check(lock == 1, "the charge: armoured (lock " .. tostring(lock) .. ")")
-  EntityManager:CallFunctionNoArg("OnReflect", h)
-  check(e:GetState() == "PPStagger" and lock == 0 and st.mArmor == 0, "guarded (OnReflect): staggered, armour off (" .. e:GetState() .. ", lock " .. tostring(lock) .. ")")
-  for i = 1, 30 do e:OnUpdate() end
-  check(e:GetState() == "PPStagger" and lock == 0, "... still staggered and open after 30 frames (" .. e:GetState() .. ")")
-  for i = 1, 15 do e:OnUpdate() end
-  check(e:GetState() == "BeforeAttackIdling", "... then back at you after 40 (" .. e:GetState() .. ")")
-  pcall(e.GotoState, e, "Attack4")
-  EntityManager:CallFunctionNoArg("OnGuard", h)
-  check(e:GetState() == "PPStagger", "guarded (OnGuard): staggered (" .. e:GetState() .. ")")
-  pcall(e.GotoState, e, "Attack4")
-  local pst = 0
-  M.num["Player.GetPlayerState"] = function() return pst end
-  e:OnHitAttack(77, 0, 1)
-  check(e:GetState() == "Attack4", "the charge hits you, not guarding: no stagger (" .. e:GetState() .. ")")
-  pst = PLAYER_STATE_GUARD
-  e:OnHitAttack(77, 0, 1)
-  check(PLAYER_STATE_GUARD ~= nil and e:GetState() == "PPStagger", "the charge hits you while you guard: staggered (" .. e:GetState() .. ")")
-  pcall(e.GotoState, e, "Attack1")
-  EntityManager:CallFunctionNoArg("OnReflect", h)
-  check(e:GetState() == "Attack1", "his other attacks: the game's own recoil, nothing of ours (" .. e:GetState() .. ")")
-  M.num["Player.GetPlayerState"] = nil
-  M.num["Enemy.EnableNoDamageReaction"] = nil
   M.num["Entity.CalcDistance"] = 2
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))

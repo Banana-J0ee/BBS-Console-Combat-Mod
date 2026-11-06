@@ -570,7 +570,7 @@ cfg.b01pp00 = {
 --   Attack1 motion 320 (overhead swing), Attack2 300 (stab), Attack3 310 x N then 311 (multi-hit),
 --   Attack4 an unused stub in his script (body collision on, no motion) - here: the charge, which his
 --   script otherwise runs inside Move (step 4: hand trail B014_KAZ_00_0, homing flight 032/033/034,
---   the stab 300 within 4 m).
+--   the stab 300 within 4 m - with Attack2's attack data here, so a guard bounces him as from Attack2).
 local PP = {
   fly = 1.5,          -- his flying speeds (Move, MoveEx, TargetHomingMove) x this
   charge = 2.0,       -- the charge: his own 0.16 x this
@@ -578,7 +578,6 @@ local PP = {
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
   loops = 3,          -- Attack3: his counter starts here; the finisher comes once it passes 3 (his own: 0 = 5 swings)
   warnAt = 2,         -- the trail lights up this far below the limit (and stays through the break-out)
-  stun = 40,          -- frames he is staggered when you guard the charge (a guarded Attack1/2: ~15 recoil + 24)
 }
 
 local function ppFinish(self)
@@ -606,18 +605,6 @@ local function ppWarn(self)
     rlog("b20pp00", st.t or 0, "warning off: gauge", st.rv, "/", st.limit)
     if not (s == "Attack4" and self.step == 0) then pcall(dec, self, 0) end
   end
-end
-
--- a guard against the charge staggers him.  The charge is armoured for the whole move ("no damage reaction"),
--- and that also stops the game's guard recoil (Zack's own OnReflect switches it off for that reason); his
--- other attacks are armoured only until their hits are over, so a guard already bounced him out of those.
-local function ppGuarded(self, why)
-  if type(self.GetState) ~= "function" or self:GetState() ~= "Attack4" then return end
-  local st = rawget(self, "__rv")
-  if type(st) == "table" then st.mArmor, st.hitWin, st.winOff = 0, nil, true end
-  pcall(Enemy.EnableNoDamageReaction, self.myHandle, 0)
-  rlog("b20pp00", st and st.t or 0, "charge guarded (" .. why .. "): staggered")
-  self:GotoState("PPStagger")
 end
 
 local function ppSetup(ent)
@@ -665,7 +652,10 @@ local function ppSetup(ent)
         local w = self:WhichRightandLeft()
         Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
         if Entity.CalcDistance(self.myHandle, self.targetHandle) < 4 then
-          Entity.SetMotionWithSameCheck(self.myHandle, "300", 1, 1)
+          -- attack group 0 of motion 300 = attack #2, his Attack2's stab (a guard blocks it).  His own charge
+          -- plays group 1 = attack #3 (b20pp00.aac / .epd: power 2.5, knock-away, flags 0x86 - the guard
+          -- does not stop it); the 4th argument picks the group (-1 all, n only group n)
+          Entity.SetMotionWithSameCheck(self.myHandle, "300", 1, 0)
           Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
           self.step = 1
           Entity.EnableAttackBodyColl(self.myHandle, 0)
@@ -678,50 +668,6 @@ local function ppSetup(ent)
       end
     end,
   }
-  -- staggered by a guard: stopped, open to hits (a hit flinches him as usual), then back at you
-  own.PPStagger = {
-    OnBeginState = function(self)
-      Entity.ClearSpeed(self.myHandle)
-      self.Speed = 0
-      Entity.EnableAttackBodyColl(self.myHandle, 0)
-      self:DashEffectControler(0)
-      pcall(self.ReSetRot, self)
-      Entity.SetMotionWithSameCheck(self.myHandle, "010")
-      pcall(Enemy.EnableNoDamageReaction, self.myHandle, 0)
-      rawset(self, "__ppStun", PP.stun)
-    end,
-    OnEndState = function(self) end,
-    OnUpdate = function(self)
-      local t = (rawget(self, "__ppStun") or 0) - Entity.GetFrameRate(self.myHandle)
-      rawset(self, "__ppStun", t)
-      if t < 0 then self:GotoState("BeforeAttackIdling") end
-    end,
-  }
-  -- the guard: his attack reflected (OnReflect), guarded (OnGuard), or landing on you while you guard
-  local orf, ogd, oha = ent.OnReflect, ent.OnGuard, ent.OnHitAttack
-  rawset(ent, "OnReflect", function(self, a, b, c, d)
-    local r
-    if type(orf) == "function" then r = orf(self, a, b, c, d) end
-    ppGuarded(self, "reflected")
-    return r
-  end)
-  rawset(ent, "OnGuard", function(self, a, b, c, d)
-    local r
-    if type(ogd) == "function" then r = ogd(self, a, b, c, d) end
-    ppGuarded(self, "guarded")
-    return r
-  end)
-  rawset(ent, "OnHitAttack", function(self, hit, b, kind, d)
-    local r
-    if type(oha) == "function" then r = oha(self, hit, b, kind, d) end
-    if type(self.GetState) == "function" and self:GetState() == "Attack4" then
-      local ok, ps = pcall(Player.GetPlayerState, hit)
-      local st = rawget(self, "__rv")
-      rlog("b20pp00", st and st.t or 0, "charge hit: player state", ok and ps or "?", "guard", PLAYER_STATE_GUARD)
-      if ok and ps ~= nil and ps == PLAYER_STATE_GUARD then ppGuarded(self, "hit while guarding") end
-    end
-    return r
-  end)
   -- flying around: the charge after PP.chargeAfter frames, and his own charge (step 4) goes to it
   local m = copy(states.Move)
   local mb, mu = m.OnBeginState, m.OnUpdate
