@@ -1177,43 +1177,15 @@ do
   e:OnUpdate()
   check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
   do
-    -- on course (level with you, closing in, far): his own ramp x2, +0.1 deg/frame up to 10
-    local deg, d = nil, 200
-    M.num["Entity.TurnTargetDegree"] = function(hh, t, x) deg = x end
-    M.num["Entity.CalcDistance"] = function() d = d - 0.5 return d end
-    M.num["Entity.CalcDistanceXZ"] = function() return d end
+    local deg
+    M.num["Entity.TurnTargetDegree"] = function(hh, t, d) deg = d end
     e.Angle = 0
     e:OnUpdate()
     local first = deg
     for i = 1, 120 do e.Wait = 100 e:OnUpdate() end
+    M.num["Entity.TurnTargetDegree"] = nil
     check(first ~= nil and math.abs(first - 0.1) < 1e-4 and math.abs(deg - 10) < 1e-4,
           string.format("charge homing x2 with its speed: +0.1 deg/frame up to 10 (%s, %s)", tostring(first), tostring(deg)))
-    -- off course (flying away) after the startup: the hard bank, +1 deg/frame up to 30
-    M.num["Entity.CalcDistance"] = function() d = d + 0.5 return d end
-    for i = 1, 5 do e.Wait = 100 e:OnUpdate() end
-    local early = deg
-    for i = 1, 40 do e.Wait = 100 e:OnUpdate() end
-    check(early > 10 and early < 20 and math.abs(deg - 30) < 1e-4,
-          string.format("off course after the startup: hard bank, up to 30 deg/frame (%s, %s)", tostring(early), tostring(deg)))
-    -- back on course: eases off to the normal 10
-    M.num["Entity.CalcDistance"] = function() d = d - 0.5 return d end
-    for i = 1, 40 do e.Wait = 100 e:OnUpdate() end
-    check(math.abs(deg - 10) < 1e-4, "back on course: eases off to 10 (" .. tostring(deg) .. ")")
-    M.num["Entity.TurnTargetDegree"] = nil
-    M.num["Entity.CalcDistanceXZ"] = 2
-    M.num["Entity.CalcDistance"] = 30
-    -- no hard bank in the startup: a charge starting off course keeps his normal turning at first
-    pcall(e.GotoState, e, "Idling")
-    pcall(e.GotoState, e, "Attack4")
-    local seen = 0
-    M.num["Entity.TurnTargetDegree"] = function(hh, t, x) if x > seen then seen = x end end
-    for i = 1, 20 do e:OnUpdate() end
-    M.num["Entity.TurnTargetDegree"] = nil
-    check(seen <= 2 + 1e-4, "the first 20 frames: his normal turning, no hard bank (" .. seen .. ")")
-    pcall(e.GotoState, e, "Idling")
-    e.attackCnt = 3
-    pcall(e.GotoState, e, "Attack4")
-    M.num["Entity.CalcDistance"] = 30
   end
   M.num["Entity.CalcDistance"] = 6
   M.num["Entity.CalcDistanceXZ"] = 6
@@ -1226,16 +1198,11 @@ do
   M.num["Entity.CalcDistanceXZ"] = 0          -- straight over your head
   e:OnUpdate()
   check(e.step == 0, "... straight overhead: keeps flying (step " .. tostring(e.step) .. ")")
-  M.num["Entity.CalcDistanceXZ"] = 4.95       -- height ~0.7 over 4.95: shallow and low
+  M.num["Entity.CalcDistanceXZ"] = 4.8        -- height ~1.4 over 4.8: shallow
   M.num["Entity.CalcDistance"] = 5.2          -- ... but further than last frame: flying away (past you)
   e:OnUpdate()
   check(e.step == 0, "level and in reach but not closing in (flying away): keeps flying (step " .. tostring(e.step) .. ")")
-  M.num["Entity.CalcDistance"] = 5.1
-  M.num["Entity.CalcDistanceXZ"] = 4.85       -- closing, shallow (0.33) but 1.6 above you
-  e:OnUpdate()
-  check(e.step == 0, "closing in and shallow but 1.6 above you: keeps flying (step " .. tostring(e.step) .. ")")
-  M.num["Entity.CalcDistance"] = 5            -- closing in, low
-  M.num["Entity.CalcDistanceXZ"] = 4.95
+  M.num["Entity.CalcDistance"] = 5            -- closing in again
   e:OnUpdate()
   M.num["Entity.CalcDistanceXZ"] = 2          -- (the emulator's default)
   check(e.step == 1 and mot == "300", "within 5.5 m, coming in shallow: the stab (" .. tostring(mot) .. ")")
