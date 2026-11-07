@@ -1260,5 +1260,35 @@ do
   M.num["Effect.IsAlive"] = nil; M.num["Entity.AttachEffect"] = nil; M.num["Effect.LoopEnd"] = nil
   M.num["Entity.CalcDistance"] = 2
 end
+-- Master Eraqus: his stand-still in Wander lasts 30-60 frames (his own 60-120); his hold-back after fleeing 30-60
+do
+  M.script("b20ex00")
+  local e, h = M.create("b20ex00")
+  rawset(e, "Debug", function() end)
+  rawset(e, "RestHpRate", function() return 1 end)
+  local st = BBS_REVENGE.ents.b20ex00
+  check(st.pr ~= nil and st.pr.pause[1] == 25 and st.pr.pause[2] == 30 and st.pr.pause[3] == 60,
+        "Eraqus: hold-back after fleeing 25%, 30-60 frames (" .. tostring(st.pr and st.pr.pause[2]) .. "-" .. tostring(st.pr and st.pr.pause[3]) .. ")")
+  pcall(e.GotoState, e, "Wander")
+  M.num["Entity.IsTimeOver"] = false
+  M.num["Entity.IsWall"] = false
+  M.num["Entity.CalcDistanceXZSq"] = 36
+  local asked
+  M.num["Script.RandomInRange"] = function(a, b) asked = (asked or "") .. a .. "-" .. b .. " " return b end
+  local mr = M.rand
+  M.rand = function() return 0.1 end          -- under 0.25: he stands still
+  e.step, e.walkTimer, e.timer = 0, 0, 5
+  e:OnUpdate()
+  check(e.step == 1 and e.walkTimer == 60, "Wander: he stands still for 30-60 frames (" .. tostring(e.walkTimer) .. ", asked " .. tostring(asked) .. ")")
+  M.rand = function() return 0.9 end          -- a walk step: his own 60-120
+  e.step, e.walkTimer = 0, 0
+  e:OnUpdate()
+  check(e.step == 0 and e.walkTimer == 120, "Wander: his walk steps unchanged, 60-120 (" .. tostring(e.walkTimer) .. ")")
+  M.rand = mr
+  M.num["Script.RandomInRange"] = nil
+  M.num["Entity.IsTimeOver"] = nil
+  M.num["Entity.IsWall"] = nil
+  M.num["Entity.CalcDistanceXZSq"] = nil
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

@@ -335,8 +335,32 @@ cfg.b12ex00 = {
 }
 
 -- Master Eraqus: guard (+ counter) chance on every hit.
+-- His Wander (b20ex00.lub): every 1-2 s a step by your distance - back off under 5, strafe 5-7.5, walk in
+-- beyond - and after each a 25% chance to stand still, for 60-120 frames.  Here 30-60.  (His hold-back
+-- after fleeing: Pause in bbskh2_boss.ini.)
+local function eraqusSetup(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.Wander) ~= "table" then return end
+  local own = {}
+  for k, v in pairs(states) do own[k] = v end
+  local w = {}
+  for k, v in pairs(states.Wander) do w[k] = v end
+  local wu = w.OnUpdate
+  w.OnUpdate = function(self, a, b)
+    local was = self.step
+    local r = wu(self, a, b)
+    if was == 0 and self.step == 1 and self:GetState() == "Wander" then
+      self.walkTimer = Script.RandomInRange(30, 60)    -- he picked standing still: shorter
+    end
+    return r
+  end
+  own.Wander = w
+  rawset(ent, "states", own)
+end
+
 cfg.b20ex00 = {
   limit = 9,
+  setup = eraqusSetup,
   rearm = rounds({ RushAttack = { up = "count" } }),           -- his rush runs 3 times in one move
   tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
