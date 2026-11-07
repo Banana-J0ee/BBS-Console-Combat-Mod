@@ -582,6 +582,10 @@ local PP = {
                       -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
   stabSlope = 0.5,    -- ... and only when his height above you is under this x the ground distance (0.5 = ~27
                       -- degrees above level); steeper - he is above you - he keeps homing in
+  startup = 20,       -- frames of the charge before he checks his line: if he would miss then (above you,
+                      -- or not closing in), he breaks off into the multi-hit (Attack3), which chases you
+  chaseNear = 3,      -- ... that multi-hit drifts at x chaseBoost while you are further than this
+  chaseBoost = 2,     -- (his own drift: 0.16), so it reaches you; within chaseNear his own speed
   turnRamp = 0.05,    -- his own; x PP.charge
   turnMax = 5,        -- his own; x PP.charge
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
@@ -637,7 +641,23 @@ local function ppSetup(ent)
     self.attackLoopCnt = PP.loops
     return r
   end
+  local a3e = a3.OnEndState
+  a3.OnEndState = function(self, a, b)
+    rawset(self, "__ppChase", false)
+    if type(a3e) == "function" then return a3e(self, a, b) end
+  end
   own.Attack3 = a3
+  -- the multi-hit's drift toward you (his IdlingMove): faster while far, when it follows a charge
+  local idm = ent.IdlingMove
+  if type(idm) == "function" then
+    rawset(ent, "IdlingMove", function(self, sp, a)
+      if rawget(self, "__ppChase") then
+        local ok, d = pcall(Entity.CalcDistance, self.myHandle, self.targetHandle)
+        if ok and type(d) == "number" and d > PP.chaseNear then sp = sp * PP.chaseBoost end
+      end
+      return idm(self, sp, a)
+    end)
+  end
   -- (log only) his height above you when Attack2 - the same stab, which a guard catches - starts
   if type(states.Attack2) == "table" then
     local a2 = copy(states.Attack2)
@@ -668,6 +688,7 @@ local function ppSetup(ent)
       rawset(self, "__ppSteep", false)
       rawset(self, "__ppAway", false)
       rawset(self, "__ppPrevD", nil)
+      rawset(self, "__ppT", 0)
       Entity.SetMotionWithSameCheck(self.myHandle, "032")
       Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
       Entity.EnableAttackBodyColl(self.myHandle, 1)
@@ -706,6 +727,19 @@ local function ppSetup(ent)
           rlog("b20pp00", st and st.t or 0, "charge: level at", dist, "m but not closing in - keeps flying")
         end
         level = level and closing
+        -- after the startup: on a line that misses (above you, or not closing in) he breaks off into the
+        -- multi-hit, which turns to you and chases you
+        local t = (rawget(self, "__ppT") or 0) + fr
+        rawset(self, "__ppT", t)
+        if t > PP.startup and not level then
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: would miss at frame", t, "(", dist, "m: ground", xz, "height", ppSqrt(h2),
+               closing and "closing" or "not closing", ") - the multi-hit instead")
+          Entity.EnableAttackBodyColl(self.myHandle, 0)
+          self:GotoState("Attack3")
+          rawset(self, "__ppChase", true)
+          return
+        end
         if dist < PP.stabAt and not level and not rawget(self, "__ppSteep") then
           rawset(self, "__ppSteep", true)
           local st = rawget(self, "__rv")

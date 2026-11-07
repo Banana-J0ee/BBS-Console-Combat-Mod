@@ -1177,13 +1177,20 @@ do
   e:OnUpdate()
   check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
   do
-    local deg
+    local deg, dd = nil, 200                  -- a good line: level with you, closing in, still far
     M.num["Entity.TurnTargetDegree"] = function(hh, t, d) deg = d end
+    M.num["Entity.CalcDistance"] = function() dd = dd - 0.5 return dd end
+    M.num["Entity.CalcDistanceXZ"] = function() return dd end
     e.Angle = 0
     e:OnUpdate()
     local first = deg
     for i = 1, 120 do e.Wait = 100 e:OnUpdate() end
     M.num["Entity.TurnTargetDegree"] = nil
+    check(e:GetState() == "Attack4", "a charge on a good line stays a charge (" .. e:GetState() .. ")")
+    -- a fresh charge for the stab checks (inside its 20-frame startup)
+    pcall(e.GotoState, e, "Idling")
+    e.attackCnt = 3
+    pcall(e.GotoState, e, "Attack4")
     check(first ~= nil and math.abs(first - 0.1) < 1e-4 and math.abs(deg - 10) < 1e-4,
           string.format("charge homing x2 with its speed: +0.1 deg/frame up to 10 (%s, %s)", tostring(first), tostring(deg)))
   end
@@ -1211,11 +1218,18 @@ do
   e:OnUpdate()
   M.num["Entity.IsMotionEnd"] = false
   check(e:GetState() == "BeforeAttackIdling" and e.attackCnt == 2, "the stab done: next attack (" .. e:GetState() .. ")")
-  -- a charge that cannot reach gives up
-  M.num["Entity.CalcDistance"] = 30
-  pcall(e.GotoState, e, "Attack4")
-  for i = 1, 185 do e:OnUpdate() if e:GetState() ~= "Attack4" then break end end
-  check(e:GetState() ~= "Attack4", "a charge that cannot reach gives up (" .. e:GetState() .. ")")
+  -- a charge on a good line that cannot reach in time gives up
+  do
+    local dd = 400
+    M.num["Entity.CalcDistance"] = function() dd = dd - 0.5 return dd end
+    M.num["Entity.CalcDistanceXZ"] = function() return dd end
+    pcall(e.GotoState, e, "Attack4")
+    local n = 0
+    for i = 1, 185 do n = i e:OnUpdate() if e:GetState() ~= "Attack4" then break end end
+    check(e:GetState() ~= "Attack4" and e:GetState() ~= "Attack3" and n > 170, "a charge that cannot reach gives up (" .. e:GetState() .. " after " .. n .. ")")
+    M.num["Entity.CalcDistance"] = 30
+    M.num["Entity.CalcDistanceXZ"] = 2
+  end
   M.num["Entity.SetMotionWithSameCheck"] = nil
   -- the warning: trail on near the limit, kept through his OnDamage, off once the gauge drains
   local made, ended = 0, 0
@@ -1242,6 +1256,47 @@ do
   check(rawget(e, "__ppWarn") == false and ended > 0, "the gauge drained: the trail goes out")
   M.num["Effect.IsAlive"] = nil; M.num["Entity.AttachEffect"] = nil; M.num["Effect.LoopEnd"] = nil
   M.num["Entity.CalcDistance"] = 2
+end
+-- Peter Pan: a charge that would miss after its startup breaks off into the multi-hit, which chases you
+do
+  M.script("b20pp00")
+  local e2, h2 = M.create("b20pp00")
+  rawset(e2, "Debug", function() end)
+  local d = 40
+  M.num["Entity.CalcDistance"] = function() d = d - 0.5 return d end
+  M.num["Entity.CalcDistanceXZ"] = function() return d end
+  pcall(e2.GotoState, e2, "Idling")
+  e2.attackCnt = 3
+  pcall(e2.GotoState, e2, "Attack4")
+  for i = 1, 30 do e2:OnUpdate() end
+  check(e2:GetState() == "Attack4", "a charge on a good line (level, closing in) stays a charge (" .. e2:GetState() .. ")")
+  M.num["Entity.CalcDistance"] = function() d = d + 0.5 return d end     -- flying away: would miss
+  e2:OnUpdate() e2:OnUpdate()
+  check(e2:GetState() == "Attack3" and rawget(e2, "__ppChase") == true, "... would miss after the startup: the multi-hit, chasing (" .. e2:GetState() .. ")")
+  -- its drift toward you: x2 while further than 3, his own within 3 (the speed scales the velocity)
+  local scaled
+  local vmt = {}
+  M.num["Entity.SetVelocity"] = function(hh, vec) scaled = vec end
+  M.num["Entity.CalcDistance"] = 8
+  pcall(e2.IdlingMove, e2, 0.16)
+  local far = scaled
+  M.num["Entity.CalcDistance"] = 2
+  pcall(e2.IdlingMove, e2, 0.16)
+  local near = scaled
+  M.num["Entity.SetVelocity"] = nil
+  local function len(v) if type(v) ~= "table" or type(v.length) ~= "function" then return nil end return v:length() end
+  check(far ~= nil, "the chase drift sets his velocity")
+  M.num["Entity.CalcDistance"] = 2
+  M.num["Entity.CalcDistanceXZ"] = 2
+  pcall(e2.GotoState, e2, "Idling")
+  check(rawget(e2, "__ppChase") == false, "the multi-hit over: no more chase speed")
+  -- a charge starting off course: no break-off inside the startup
+  M.num["Entity.CalcDistance"] = function() d = d + 0.5 return d end
+  pcall(e2.GotoState, e2, "Attack4")
+  for i = 1, 19 do e2:OnUpdate() end
+  check(e2:GetState() == "Attack4", "inside the 20-frame startup: still the charge (" .. e2:GetState() .. ")")
+  M.num["Entity.CalcDistance"] = 2
+  M.num["Entity.CalcDistanceXZ"] = 2
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
