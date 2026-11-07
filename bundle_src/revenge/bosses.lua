@@ -580,12 +580,22 @@ local PP = {
   -- turning the curve was twice as wide and he swung past you
   stabAt = 5.5,       -- m: the charge's stab starts this close (his own: 4).  Its hit is on frames 7-13 of
                       -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
+  stabSlope = 0.5,    -- ... and only when his height above you is under this x the ground distance (0.5 = ~27
+                      -- degrees above level); steeper - he is above you - he keeps homing in
   turnRamp = 0.05,    -- his own; x PP.charge
   turnMax = 5,        -- his own; x PP.charge
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
   loops = 3,          -- Attack3: his counter starts here; the finisher comes once it passes 3 (his own: 0 = 5 swings)
   warnAt = 2,         -- the trail lights up this far below the limit (and stays through the break-out)
 }
+
+-- (the game's Lua has no math library) a square root for the log only
+local function ppSqrt(x)
+  if x <= 0 then return 0 end
+  local r = x > 1 and x or 1
+  for i = 1, 12 do r = 0.5 * (r + x / r) end
+  return r
+end
 
 local function ppFinish(self)
   self.attackCnt = (self.attackCnt or 0) - 1
@@ -638,6 +648,7 @@ local function ppSetup(ent)
     OnBeginState = function(self)
       self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
       self.step, self.Angle, self.Wait, self.MotionFlag = 0, 0, PP.chargeMax, 1
+      rawset(self, "__ppSteep", false)
       Entity.SetMotionWithSameCheck(self.myHandle, "032")
       Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
       Entity.EnableAttackBodyColl(self.myHandle, 1)
@@ -659,9 +670,21 @@ local function ppSetup(ent)
         local w = self:WhichRightandLeft()
         Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
         local dist = Entity.CalcDistance(self.myHandle, self.targetHandle)
-        if dist < PP.stabAt then
+        -- in reach and coming in shallow: his height above you (from the 3D and the ground distance, as
+        -- squares) under PP.stabSlope x the ground distance.  Steeper - over your head - he keeps flying
+        local xz = Entity.CalcDistanceXZ(self.myHandle, self.targetHandle)
+        local h2 = dist * dist - xz * xz
+        if h2 < 0 then h2 = 0 end
+        local level = h2 < PP.stabSlope * PP.stabSlope * xz * xz
+        if dist < PP.stabAt and not level and not rawget(self, "__ppSteep") then
+          rawset(self, "__ppSteep", true)
           local st = rawget(self, "__rv")
-          rlog("b20pp00", st and st.t or 0, "charge: the stab at", dist, "m")
+          rlog("b20pp00", st and st.t or 0, "charge: too steep at", dist, "m: ground", xz, "height", ppSqrt(h2), "- keeps flying")
+        end
+        if dist < PP.stabAt and level then
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: the stab at", dist, "m: ground", xz, "height", ppSqrt(h2),
+               "slope", xz > 0 and ppSqrt(h2) / xz or 99)
           -- attack group 0 of motion 300 = attack #2, his Attack2's stab (a guard blocks it).  His own charge
           -- plays group 1 = attack #3 (b20pp00.aac / .epd: power 2.5, knock-away, flags 0x86 - the guard
           -- does not stop it); the 4th argument picks the group (-1 all, n only group n)

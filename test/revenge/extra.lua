@@ -1188,11 +1188,20 @@ do
           string.format("charge homing x2 with its speed: +0.1 deg/frame up to 10 (%s, %s)", tostring(first), tostring(deg)))
   end
   M.num["Entity.CalcDistance"] = 6
+  M.num["Entity.CalcDistanceXZ"] = 6
   e:OnUpdate()
   check(e.step == 0, "6 m: still flying (step " .. tostring(e.step) .. ")")
   M.num["Entity.CalcDistance"] = 5
+  M.num["Entity.CalcDistanceXZ"] = 3          -- height 4 over 3 on the ground: above you
   e:OnUpdate()
-  check(e.step == 1 and mot == "300", "within 5.5 m: the stab (" .. tostring(mot) .. ")")
+  check(e.step == 0, "within 5.5 m but above you (height 4, ground 3): keeps flying (step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistanceXZ"] = 0          -- straight over your head
+  e:OnUpdate()
+  check(e.step == 0, "... straight overhead: keeps flying (step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistanceXZ"] = 4.8        -- height ~1.4 over 4.8: shallow
+  e:OnUpdate()
+  M.num["Entity.CalcDistanceXZ"] = 2          -- (the emulator's default)
+  check(e.step == 1 and mot == "300", "within 5.5 m, coming in shallow: the stab (" .. tostring(mot) .. ")")
   check(grp == 0, "... with attack group 0 = his Attack2's stab, which a guard blocks (" .. tostring(grp) .. ")")
   M.num["Entity.IsMotionEnd"] = true
   e:OnUpdate()
