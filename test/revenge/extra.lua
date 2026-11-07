@@ -1174,6 +1174,23 @@ do
   e.attackCnt = 3
   pcall(e.GotoState, e, "Attack4")
   check((st.mArmor or 0) > 1e8 and st.hitWin ~= nil and st.hitWin.fallback == 180, "the charge: armoured until the stab's hits are over (hit 180)")
+  do
+    local asked, set = {}, {}
+    for _, f in ipairs({ "Kind", "Attr", "Point", "PowerCorrection" }) do
+      M.num["Enemy.GetAttack" .. f] = function(hh, n) asked[f] = n return 100 + #f end
+    end
+    for _, f in ipairs({ "AttackKind", "AttackAttr", "AttackPoint", "TechniquePowerCorrection" }) do
+      M.num["Entity.Set" .. f .. "ForBodyColl"] = function(hh, v) set[f] = v end
+    end
+    pcall(e.GotoState, e, "Idling")
+    e.attackCnt = 3
+    pcall(e.GotoState, e, "Attack4")
+    for _, f in ipairs({ "Kind", "Attr", "Point", "PowerCorrection" }) do M.num["Enemy.GetAttack" .. f] = nil end
+    for _, f in ipairs({ "AttackKind", "AttackAttr", "AttackPoint", "TechniquePowerCorrection" }) do M.num["Entity.Set" .. f .. "ForBodyColl"] = nil end
+    check(asked.Kind == 2 and asked.Attr == 2 and asked.Point == 2 and asked.PowerCorrection == 2
+          and set.AttackKind == 104 and set.AttackAttr == 104 and set.AttackPoint == 105 and set.TechniquePowerCorrection == 115,
+          "the charge: his body collision takes attack #2 (Attack2's stab): kind, attr, point, correction")
+  end
   e:OnUpdate()
   check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
   do

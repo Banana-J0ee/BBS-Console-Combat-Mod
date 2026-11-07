@@ -582,6 +582,7 @@ local PP = {
                       -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
   stabSlope = 0.5,    -- ... and only when his height above you is under this x the ground distance (0.5 = ~27
                       -- degrees above level); steeper - he is above you - he keeps homing in
+  bodyAttack = 2,     -- his body collision during the charge takes this attack of his .epd (#2: Attack2's stab)
   turn = 3,           -- the charge's homing x this (his own ramp and cap; 2 matched the speed and was not enough)
   turnRamp = 0.05,    -- his own; x PP.turn
   turnMax = 5,        -- his own; x PP.turn
@@ -671,6 +672,24 @@ local function ppSetup(ent)
       rawset(self, "__ppPrevD", nil)
       Entity.SetMotionWithSameCheck(self.myHandle, "032")
       Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
+      -- his body collision (touching him during the charge) as his Attack2's stab, attack #2 of his
+      -- b20pp00.epd - so running into your guard is a guarded hit.  The game's own way of giving a body
+      -- collision an attack (b10vs00, b83vs00: SetAttack...ForBodyColl from Enemy.GetAttack...)
+      local n = PP.bodyAttack
+      local okK, kind = pcall(Enemy.GetAttackKind, self.myHandle, n)
+      local okA, attr = pcall(Enemy.GetAttackAttr, self.myHandle, n)
+      local okP, point = pcall(Enemy.GetAttackPoint, self.myHandle, n)
+      local okC, corr = pcall(Enemy.GetAttackPowerCorrection, self.myHandle, n)
+      if okK then pcall(Entity.SetAttackKindForBodyColl, self.myHandle, kind) end
+      if okP then pcall(Entity.SetAttackPointForBodyColl, self.myHandle, point) end
+      if okA then pcall(Entity.SetAttackAttrForBodyColl, self.myHandle, attr) end
+      if okC then pcall(Entity.SetTechniquePowerCorrectionForBodyColl, self.myHandle, corr) end
+      if not rawget(self, "__ppBodyLogged") then
+        rawset(self, "__ppBodyLogged", true)
+        local st = rawget(self, "__rv")
+        rlog("b20pp00", st and st.t or 0, "charge: body collision as attack #" .. n .. ": kind", okK and kind or "?",
+             "attr", okA and attr or "?", "point", okP and point or "?", "correction", okC and corr or "?")
+      end
       Entity.EnableAttackBodyColl(self.myHandle, 1)
       self:DashEffectControler(1)
     end,
