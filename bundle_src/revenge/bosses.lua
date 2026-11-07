@@ -582,6 +582,10 @@ local PP = {
                       -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
   stabSlope = 0.5,    -- ... and only when his height above you is under this x the ground distance (0.5 = ~27
                       -- degrees above level); steeper - he is above you - he keeps homing in
+  stabHeight = 1.0,   -- ... and only when he is under this high above you (Attack2 is thrown from 0: level)
+  startup = 20,       -- frames of the charge with his normal turning before the hard bank may start
+  bankRamp = 1,       -- after the startup, while he would miss (above you, or not closing in): his turning
+  bankMax = 30,       -- grows this much a frame (deg/frame) up to bankMax; back on course it eases off again
   turnRamp = 0.05,    -- his own; x PP.charge
   turnMax = 5,        -- his own; x PP.charge
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
@@ -667,7 +671,11 @@ local function ppSetup(ent)
       self.step, self.Angle, self.Wait, self.MotionFlag = 0, 0, PP.chargeMax, 1
       rawset(self, "__ppSteep", false)
       rawset(self, "__ppAway", false)
+      rawset(self, "__ppHigh", false)
       rawset(self, "__ppPrevD", nil)
+      rawset(self, "__ppT", 0)
+      rawset(self, "__ppOff", false)
+      rawset(self, "__ppBank", false)
       Entity.SetMotionWithSameCheck(self.myHandle, "032")
       Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
       Entity.EnableAttackBodyColl(self.myHandle, 1)
@@ -682,35 +690,66 @@ local function ppSetup(ent)
       local fr = Entity.GetFrameRate(self.myHandle)
       if self.step == 0 then
         self.Wait = self.Wait - fr
-        self.Angle = self.Angle + PP.turnRamp * PP.charge * fr
-        if self.Angle > PP.turnMax * PP.charge then self.Angle = PP.turnMax * PP.charge end
+        local t = (rawget(self, "__ppT") or 0) + fr
+        rawset(self, "__ppT", t)
+        -- turning: his own ramp (x PP.charge, capped); after the startup, while the last frame said he
+        -- would miss, the hard bank - the turn grows by PP.bankRamp a frame up to PP.bankMax
+        local cap = PP.turnMax * PP.charge
+        if t > PP.startup and rawget(self, "__ppOff") then
+          if not rawget(self, "__ppBank") then
+            rawset(self, "__ppBank", true)
+            local st = rawget(self, "__rv")
+            rlog("b20pp00", st and st.t or 0, "charge: hard bank from", self.Angle, "deg/frame at frame", t)
+          end
+          self.Angle = self.Angle + PP.bankRamp * fr
+          if self.Angle > PP.bankMax then self.Angle = PP.bankMax end
+        else
+          if rawget(self, "__ppBank") then
+            rawset(self, "__ppBank", false)
+            local st = rawget(self, "__rv")
+            rlog("b20pp00", st and st.t or 0, "charge: back on course at", self.Angle, "deg/frame")
+          end
+          if self.Angle > cap then
+            self.Angle = self.Angle - PP.bankRamp * fr
+            if self.Angle < cap then self.Angle = cap end
+          else
+            self.Angle = self.Angle + PP.turnRamp * PP.charge * fr
+            if self.Angle > cap then self.Angle = cap end
+          end
+        end
         Entity.TurnTargetDegree(self.myHandle, self.targetHandle, self.Angle)
         mvx(self, 0.16 * PP.charge, 0.01)
         local w = self:WhichRightandLeft()
         Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
         local dist = Entity.CalcDistance(self.myHandle, self.targetHandle)
-        -- in reach and coming in shallow: his height above you (from the 3D and the ground distance, as
-        -- squares) under PP.stabSlope x the ground distance.  Steeper - over your head - he keeps flying
+        -- coming in shallow: his height above you (from the 3D and the ground distance, as squares) under
+        -- PP.stabSlope x the ground distance; steeper - over your head - he keeps flying
         local xz = Entity.CalcDistanceXZ(self.myHandle, self.targetHandle)
         local h2 = dist * dist - xz * xz
         if h2 < 0 then h2 = 0 end
-        local level = h2 < PP.stabSlope * PP.stabSlope * xz * xz
-        -- and closing in: nearer than last frame (after flying over you he is level again 5.5 m behind
-        -- you, flying away - no stab then; his homing turns him back)
+        local shallow = h2 < PP.stabSlope * PP.stabSlope * xz * xz
+        -- closing in: nearer than last frame (after flying over you he is level again 5.5 m behind you,
+        -- flying away - no stab then; his homing turns him back)
         local prev = rawget(self, "__ppPrevD")
         rawset(self, "__ppPrevD", dist)
         local closing = prev ~= nil and dist < prev
-        if dist < PP.stabAt and level and not closing and not rawget(self, "__ppAway") then
-          rawset(self, "__ppAway", true)
+        -- low enough: Attack2's stab is thrown level with you
+        local low = h2 < PP.stabHeight * PP.stabHeight
+        rawset(self, "__ppOff", not shallow or not closing)
+        if dist < PP.stabAt then
           local st = rawget(self, "__rv")
-          rlog("b20pp00", st and st.t or 0, "charge: level at", dist, "m but not closing in - keeps flying")
+          if not shallow and not rawget(self, "__ppSteep") then
+            rawset(self, "__ppSteep", true)
+            rlog("b20pp00", st and st.t or 0, "charge: too steep at", dist, "m: ground", xz, "height", ppSqrt(h2), "- keeps flying")
+          elseif shallow and not closing and not rawget(self, "__ppAway") then
+            rawset(self, "__ppAway", true)
+            rlog("b20pp00", st and st.t or 0, "charge: level at", dist, "m but not closing in - keeps flying")
+          elseif shallow and closing and not low and not rawget(self, "__ppHigh") then
+            rawset(self, "__ppHigh", true)
+            rlog("b20pp00", st and st.t or 0, "charge: too high at", dist, "m: height", ppSqrt(h2), "- keeps flying")
+          end
         end
-        level = level and closing
-        if dist < PP.stabAt and not level and not rawget(self, "__ppSteep") then
-          rawset(self, "__ppSteep", true)
-          local st = rawget(self, "__rv")
-          rlog("b20pp00", st and st.t or 0, "charge: too steep at", dist, "m: ground", xz, "height", ppSqrt(h2), "- keeps flying")
-        end
+        local level = shallow and closing and low
         if dist < PP.stabAt and level then
           local st = rawget(self, "__rv")
           rlog("b20pp00", st and st.t or 0, "charge: the stab at", dist, "m: ground", xz, "height", ppSqrt(h2),
