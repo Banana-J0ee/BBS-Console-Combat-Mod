@@ -578,6 +578,8 @@ local PP = {
   -- the charge's homing is scaled with its speed (x charge), so his flight path keeps the shape of his
   -- own charge's (a turn ramp of 0.05 deg/frame each frame, up to 5 deg/frame): at x2 with his own
   -- turning the curve was twice as wide and he swung past you
+  stabAt = 5.5,       -- m: the charge's stab starts this close (his own: 4).  Its hit is on frames 7-13 of
+                      -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
   turnRamp = 0.05,    -- his own; x PP.charge
   turnMax = 5,        -- his own; x PP.charge
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
@@ -656,7 +658,10 @@ local function ppSetup(ent)
         mvx(self, 0.16 * PP.charge, 0.01)
         local w = self:WhichRightandLeft()
         Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
-        if Entity.CalcDistance(self.myHandle, self.targetHandle) < 4 then
+        local dist = Entity.CalcDistance(self.myHandle, self.targetHandle)
+        if dist < PP.stabAt then
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: the stab at", dist, "m")
           -- attack group 0 of motion 300 = attack #2, his Attack2's stab (a guard blocks it).  His own charge
           -- plays group 1 = attack #3 (b20pp00.aac / .epd: power 2.5, knock-away, flags 0x86 - the guard
           -- does not stop it); the 4th argument picks the group (-1 all, n only group n)
