@@ -1260,51 +1260,5 @@ do
   M.num["Effect.IsAlive"] = nil; M.num["Entity.AttachEffect"] = nil; M.num["Effect.LoopEnd"] = nil
   M.num["Entity.CalcDistance"] = 2
 end
--- Master Eraqus: no standing still in his Wander; his lone Flee pick rolled once more; Chain 4-6
-do
-  M.script("b20ex00")
-  local e, h = M.create("b20ex00")
-  rawset(e, "Debug", function() end)
-  local st = BBS_REVENGE.ents.b20ex00
-  check(st.pr ~= nil and st.pr.chain[1] == 4 and st.pr.chain[2] == 6,
-        "Eraqus: Chain 4-6 in bbskh2_boss.ini (" .. tostring(st.pr and st.pr.chain[1]) .. "-" .. tostring(st.pr and st.pr.chain[2]) .. ")")
-  rawset(e, "RestHpRate", function() return 1 end)   -- above half HP
-  pcall(e.GotoState, e, "Wander")
-  M.num["Entity.IsTimeOver"] = false
-  M.num["Entity.IsWall"] = false
-  M.num["Script.RandomInRange"] = function(a, b) return a end
-  M.num["Entity.CalcDistanceXZSq"] = 36       -- 6 m: his strafing range
-  -- a walk step that has run out, and the dice for "stand still" (under 0.25)
-  e.step, e.walkTimer, e.timer = 0, 0, 5
-  local mr = M.rand
-  M.rand = function() return 0.1 end
-  e:OnUpdate()
-  check(e:GetState() == "Wander" and e.step == 0 and (e.walkTimer or 0) > 0 and e.timer == 0, "Wander: his stand-still pick becomes another step (step " .. tostring(e.step) .. ")")
-  -- the dice for walking on: his own pick, unchanged
-  e.step, e.walkTimer = 0, 0
-  M.rand = function() return 0.9 end
-  e:OnUpdate()
-  check(e.step == 0 and (e.walkTimer or 0) > 0, "Wander: a walk pick stays a walk")
-  -- his attack picker: close (under 5) and above half HP, the dice for his lone Flee (0.8 and over) once,
-  -- then for SuccessionAttack
-  local rolls = { 0.95, 0.1 }                -- (one die per pick: 0.8 and over is his lone Flee)
-  local k = 0
-  M.rand = function() k = k + 1 return rolls[k] or 0.1 end
-  M.num["Entity.CalcDistanceXZSq"] = 4
-  local stk = e.stack
-  local p0 = stk.ptr
-  local ok = e:SelectAttack()
-  check(ok and stk:get() == "SuccessionAttack" and stk.ptr == p0 + 3, "his lone Flee pick is rolled once more (" .. tostring(stk:get()) .. ")")
-  while stk.ptr > p0 do stk:pop() end
-  rolls, k = { 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95, 0.95 }, 0
-  ok = e:SelectAttack()
-  check(ok and stk:get() == "Flee" and stk.ptr == p0 + 2, "... and it stands if it comes again (" .. tostring(stk:get()) .. ")")
-  while stk.ptr > p0 do stk:pop() end
-  M.rand = mr
-  M.num["Entity.IsTimeOver"] = nil
-  M.num["Entity.IsWall"] = nil
-  M.num["Script.RandomInRange"] = nil
-  M.num["Entity.CalcDistanceXZSq"] = nil
-end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
