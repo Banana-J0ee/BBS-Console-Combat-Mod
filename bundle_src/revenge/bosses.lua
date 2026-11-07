@@ -335,8 +335,52 @@ cfg.b12ex00 = {
 }
 
 -- Master Eraqus: guard (+ counter) chance on every hit.
+-- His Wander (b20ex00.lub): every 1-2 s a step by your distance - back off under 5, strafe 5-7.5, walk in
+-- beyond - and after each a 25% chance to stand still for 1-2 s.  No standing still here: that pick becomes
+-- another step.  His own attack picker sends him off alone (Wander + Flee) 20% of the time up close (10%
+-- below half HP): that pick is rolled once more, so ~4% (~1%).  (The fleeing after a chain: Chain in
+-- bbskh2_boss.ini.)
+local function eraqusSetup(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.Wander) ~= "table" then return end
+  local own = {}
+  for k, v in pairs(states) do own[k] = v end
+  local w = {}
+  for k, v in pairs(states.Wander) do w[k] = v end
+  local wu = w.OnUpdate
+  w.OnUpdate = function(self, a, b)
+    local was = self.step
+    local r = wu(self, a, b)
+    if was == 0 and self.step == 1 and self:GetState() == "Wander" then
+      -- he picked standing still: another step instead (his step picker runs next frame)
+      self.step = 0
+      self.walkTimer = Script.RandomInRange(60, 120)
+      self.timer = 0
+    end
+    return r
+  end
+  own.Wander = w
+  rawset(ent, "states", own)
+  local sel = ent.SelectAttack
+  if type(sel) == "function" then
+    rawset(ent, "SelectAttack", function(self, a, b)
+      local stk = self.stack
+      local p0 = stk and stk.ptr
+      local r = sel(self, a, b)
+      if r and stk ~= nil and p0 ~= nil and stk.ptr == p0 + 2 and stk:get() == "Flee" and stk:get(2) == "Wander" then
+        stk:pop() stk:pop()
+        local st = rawget(self, "__rv")
+        rlog("b20ex00", st and st.t or 0, "his lone Flee pick: rolled again")
+        r = sel(self, a, b)
+      end
+      return r
+    end)
+  end
+end
+
 cfg.b20ex00 = {
   limit = 9,
+  setup = eraqusSetup,
   rearm = rounds({ RushAttack = { up = "count" } }),           -- his rush runs 3 times in one move
   tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
