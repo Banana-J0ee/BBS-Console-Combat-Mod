@@ -1184,8 +1184,8 @@ do
     local first = deg
     for i = 1, 120 do e.Wait = 100 e:OnUpdate() end
     M.num["Entity.TurnTargetDegree"] = nil
-    check(first ~= nil and math.abs(first - 0.1) < 1e-4 and math.abs(deg - 10) < 1e-4,
-          string.format("charge homing x2 with its speed: +0.1 deg/frame up to 10 (%s, %s)", tostring(first), tostring(deg)))
+    check(first ~= nil and math.abs(first - 0.15) < 1e-4 and math.abs(deg - 15) < 1e-4,
+          string.format("charge homing x3: +0.15 deg/frame up to 15 (%s, %s)", tostring(first), tostring(deg)))
   end
   M.num["Entity.CalcDistance"] = 6
   M.num["Entity.CalcDistanceXZ"] = 6

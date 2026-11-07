@@ -582,8 +582,9 @@ local PP = {
                       -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
   stabSlope = 0.5,    -- ... and only when his height above you is under this x the ground distance (0.5 = ~27
                       -- degrees above level); steeper - he is above you - he keeps homing in
-  turnRamp = 0.05,    -- his own; x PP.charge
-  turnMax = 5,        -- his own; x PP.charge
+  turn = 3,           -- the charge's homing x this (his own ramp and cap; 2 matched the speed and was not enough)
+  turnRamp = 0.05,    -- his own; x PP.turn
+  turnMax = 5,        -- his own; x PP.turn
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
   loops = 3,          -- Attack3: his counter starts here; the finisher comes once it passes 3 (his own: 0 = 5 swings)
   warnAt = 2,         -- the trail lights up this far below the limit (and stays through the break-out)
@@ -682,8 +683,8 @@ local function ppSetup(ent)
       local fr = Entity.GetFrameRate(self.myHandle)
       if self.step == 0 then
         self.Wait = self.Wait - fr
-        self.Angle = self.Angle + PP.turnRamp * PP.charge * fr
-        if self.Angle > PP.turnMax * PP.charge then self.Angle = PP.turnMax * PP.charge end
+        self.Angle = self.Angle + PP.turnRamp * PP.turn * fr
+        if self.Angle > PP.turnMax * PP.turn then self.Angle = PP.turnMax * PP.turn end
         Entity.TurnTargetDegree(self.myHandle, self.targetHandle, self.Angle)
         mvx(self, 0.16 * PP.charge, 0.01)
         local w = self:WhichRightandLeft()
