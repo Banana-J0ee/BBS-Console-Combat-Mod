@@ -582,9 +582,6 @@ local PP = {
                       -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
   stabSlope = 0.5,    -- ... and only when his height above you is under this x the ground distance (0.5 = ~27
                       -- degrees above level); steeper - he is above you - he keeps homing in
-  pastNear = 7.5,     -- he has "gone past" you when he flies away after having been this near
-  chaseNear = 3,      -- ... that multi-hit drifts at x chaseBoost while you are further than this
-  chaseBoost = 2,     -- (his own drift: 0.16), so it reaches you; within chaseNear his own speed
   turnRamp = 0.05,    -- his own; x PP.charge
   turnMax = 5,        -- his own; x PP.charge
   chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
@@ -640,23 +637,7 @@ local function ppSetup(ent)
     self.attackLoopCnt = PP.loops
     return r
   end
-  local a3e = a3.OnEndState
-  a3.OnEndState = function(self, a, b)
-    rawset(self, "__ppChase", false)
-    if type(a3e) == "function" then return a3e(self, a, b) end
-  end
   own.Attack3 = a3
-  -- the multi-hit's drift toward you (his IdlingMove): faster while far, when it follows a charge
-  local idm = ent.IdlingMove
-  if type(idm) == "function" then
-    rawset(ent, "IdlingMove", function(self, sp, a)
-      if rawget(self, "__ppChase") then
-        local ok, d = pcall(Entity.CalcDistance, self.myHandle, self.targetHandle)
-        if ok and type(d) == "number" and d > PP.chaseNear then sp = sp * PP.chaseBoost end
-      end
-      return idm(self, sp, a)
-    end)
-  end
   -- (log only) his height above you when Attack2 - the same stab, which a guard catches - starts
   if type(states.Attack2) == "table" then
     local a2 = copy(states.Attack2)
@@ -684,8 +665,9 @@ local function ppSetup(ent)
     OnBeginState = function(self)
       self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
       self.step, self.Angle, self.Wait, self.MotionFlag = 0, 0, PP.chargeMax, 1
+      rawset(self, "__ppSteep", false)
+      rawset(self, "__ppAway", false)
       rawset(self, "__ppPrevD", nil)
-      rawset(self, "__ppMinD", nil)
       Entity.SetMotionWithSameCheck(self.myHandle, "032")
       Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
       Entity.EnableAttackBodyColl(self.myHandle, 1)
@@ -707,35 +689,28 @@ local function ppSetup(ent)
         local w = self:WhichRightandLeft()
         Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
         local dist = Entity.CalcDistance(self.myHandle, self.targetHandle)
-        -- coming in shallow: his height above you (from the 3D and the ground distance, as squares) under
-        -- PP.stabSlope x the ground distance; steeper, in stab range, is over your head
+        -- in reach and coming in shallow: his height above you (from the 3D and the ground distance, as
+        -- squares) under PP.stabSlope x the ground distance.  Steeper - over your head - he keeps flying
         local xz = Entity.CalcDistanceXZ(self.myHandle, self.targetHandle)
         local h2 = dist * dist - xz * xz
         if h2 < 0 then h2 = 0 end
-        local shallow = h2 < PP.stabSlope * PP.stabSlope * xz * xz
-        -- closing in: nearer than last frame; flying away: not nearer (needs a last frame to compare)
+        local level = h2 < PP.stabSlope * PP.stabSlope * xz * xz
+        -- and closing in: nearer than last frame (after flying over you he is level again 5.5 m behind
+        -- you, flying away - no stab then; his homing turns him back)
         local prev = rawget(self, "__ppPrevD")
         rawset(self, "__ppPrevD", dist)
         local closing = prev ~= nil and dist < prev
-        local away = prev ~= nil and dist >= prev
-        local minD = rawget(self, "__ppMinD")
-        if minD == nil or dist < minD then minD = dist rawset(self, "__ppMinD", dist) end
-        -- he breaks off into the multi-hit (which turns to you and chases you) only once a miss is sure:
-        -- in stab range but over you, or flying away after having been near you (gone past).  Far off and
-        -- high while closing in he keeps charging - he dives as he comes in
-        local why = nil
-        if dist < PP.stabAt and not shallow then why = "over you"
-        elseif away and minD < PP.pastNear then why = "flew past" end
-        if why ~= nil then
+        if dist < PP.stabAt and level and not closing and not rawget(self, "__ppAway") then
+          rawset(self, "__ppAway", true)
           local st = rawget(self, "__rv")
-          rlog("b20pp00", st and st.t or 0, "charge: would miss (" .. why .. ") at", dist, "m: ground", xz, "height", ppSqrt(h2),
-               "nearest", minD, "- the multi-hit instead")
-          Entity.EnableAttackBodyColl(self.myHandle, 0)
-          self:GotoState("Attack3")
-          rawset(self, "__ppChase", true)
-          return
+          rlog("b20pp00", st and st.t or 0, "charge: level at", dist, "m but not closing in - keeps flying")
         end
-        local level = shallow and closing
+        level = level and closing
+        if dist < PP.stabAt and not level and not rawget(self, "__ppSteep") then
+          rawset(self, "__ppSteep", true)
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: too steep at", dist, "m: ground", xz, "height", ppSqrt(h2), "- keeps flying")
+        end
         if dist < PP.stabAt and level then
           local st = rawget(self, "__rv")
           rlog("b20pp00", st and st.t or 0, "charge: the stab at", dist, "m: ground", xz, "height", ppSqrt(h2),
