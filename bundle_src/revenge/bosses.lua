@@ -638,6 +638,23 @@ local function ppSetup(ent)
     return r
   end
   own.Attack3 = a3
+  -- (log only) his height above you when Attack2 - the same stab, which a guard catches - starts
+  if type(states.Attack2) == "table" then
+    local a2 = copy(states.Attack2)
+    local a2b = a2.OnBeginState
+    a2.OnBeginState = function(self, a, b)
+      local r = a2b(self, a, b)
+      local ok, d = pcall(Entity.CalcDistance, self.myHandle, self.targetHandle)
+      local ok2, xz = pcall(Entity.CalcDistanceXZ, self.myHandle, self.targetHandle)
+      if ok and ok2 and type(d) == "number" and type(xz) == "number" then
+        local h2 = d * d - xz * xz
+        local st = rawget(self, "__rv")
+        rlog("b20pp00", st and st.t or 0, "Attack2 starts at", d, "m: ground", xz, "height", ppSqrt(h2))
+      end
+      return r
+    end
+    own.Attack2 = a2
+  end
   -- faster flight
   local mv, mvx, thm = ent.Move, ent.MoveEx, ent.TargetHomingMove
   if type(mv) == "function" then rawset(ent, "Move", function(self, sp, a) return mv(self, sp * PP.fly, a) end) end
@@ -649,6 +666,8 @@ local function ppSetup(ent)
       self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
       self.step, self.Angle, self.Wait, self.MotionFlag = 0, 0, PP.chargeMax, 1
       rawset(self, "__ppSteep", false)
+      rawset(self, "__ppAway", false)
+      rawset(self, "__ppPrevD", nil)
       Entity.SetMotionWithSameCheck(self.myHandle, "032")
       Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
       Entity.EnableAttackBodyColl(self.myHandle, 1)
@@ -676,6 +695,17 @@ local function ppSetup(ent)
         local h2 = dist * dist - xz * xz
         if h2 < 0 then h2 = 0 end
         local level = h2 < PP.stabSlope * PP.stabSlope * xz * xz
+        -- and closing in: nearer than last frame (after flying over you he is level again 5.5 m behind
+        -- you, flying away - no stab then; his homing turns him back)
+        local prev = rawget(self, "__ppPrevD")
+        rawset(self, "__ppPrevD", dist)
+        local closing = prev ~= nil and dist < prev
+        if dist < PP.stabAt and level and not closing and not rawget(self, "__ppAway") then
+          rawset(self, "__ppAway", true)
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: level at", dist, "m but not closing in - keeps flying")
+        end
+        level = level and closing
         if dist < PP.stabAt and not level and not rawget(self, "__ppSteep") then
           rawset(self, "__ppSteep", true)
           local st = rawget(self, "__rv")

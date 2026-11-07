@@ -1199,6 +1199,10 @@ do
   e:OnUpdate()
   check(e.step == 0, "... straight overhead: keeps flying (step " .. tostring(e.step) .. ")")
   M.num["Entity.CalcDistanceXZ"] = 4.8        -- height ~1.4 over 4.8: shallow
+  M.num["Entity.CalcDistance"] = 5.2          -- ... but further than last frame: flying away (past you)
+  e:OnUpdate()
+  check(e.step == 0, "level and in reach but not closing in (flying away): keeps flying (step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistance"] = 5            -- closing in again
   e:OnUpdate()
   M.num["Entity.CalcDistanceXZ"] = 2          -- (the emulator's default)
   check(e.step == 1 and mot == "300", "within 5.5 m, coming in shallow: the stab (" .. tostring(mot) .. ")")
