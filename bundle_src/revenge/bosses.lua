@@ -335,6 +335,16 @@ cfg.b12ex00 = {
 }
 
 -- Master Eraqus: guard (+ counter) chance on every hit.
+-- his attacks (out of a flinch his OnReturnDamage restarts the state he was in, so a combo on the end of
+-- RushAttack - its rounds armoured, the end open - started a fresh RushAttack, again and again)
+local ERAQUS_ATTACKS = { RushAttack = true, SuccessionAttack = true, Kagerou = true, Oboro = true,
+                         Kasumi = true, Itusen = true }
+-- the attack he did twice in a row, barred until he does another (nil: none)
+local function eraqusBarred(self)
+  if (rawget(self, "__exRun") or 0) >= 2 then return rawget(self, "__exLast") end
+  return nil
+end
+local ERAQUS_ANSWERS = { close = { "SuccessionAttack", "RushAttack", "Kagerou" }, far = { "RushAttack", "Oboro", "Kasumi", "Itusen" } }
 -- His Wander (b20ex00.lub): every 1-2 s a step by your distance - back off under 5, strafe 5-7.5, walk in
 -- beyond - and after each a 25% chance to stand still, for 60-120 frames.  Here 30-60.  (His hold-back
 -- after fleeing: Pause in bbskh2_boss.ini.)
@@ -356,26 +366,48 @@ local function eraqusSetup(ent)
   end
   own.Wander = w
   rawset(ent, "states", own)
-  -- after a flinch out of an attack (recover below): his next pick is not that attack again.  Every hit
-  -- clears his idlingTimer, so Idling picks on its first frame - and RushAttack often came up again
+  -- every attack he starts, by any route (his own picks, the mod's answers, his guard counter): the same
+  -- one twice in a row and it is barred until he does something else (eraqusBarred)
+  for name in pairs(ERAQUS_ATTACKS) do
+    if type(own[name]) == "table" and type(own[name].OnBeginState) == "function" then
+      local t = {}
+      for k, v in pairs(own[name]) do t[k] = v end
+      local ob = t.OnBeginState
+      t.OnBeginState = function(self, a, b)
+        if rawget(self, "__exLast") == name then
+          rawset(self, "__exRun", (rawget(self, "__exRun") or 0) + 1)
+        else
+          rawset(self, "__exLast", name)
+          rawset(self, "__exRun", 1)
+        end
+        return ob(self, a, b)
+      end
+      own[name] = t
+    end
+  end
+  -- his own picks (SelectAttack, from Idling and Wander): a pick holding a barred attack is rolled again
+  -- (barred: the attack he was just flinched out of, for that one pick; and one he did twice in a row)
   local sel = ent.SelectAttack
   if type(sel) == "function" then
     rawset(ent, "SelectAttack", function(self, a, b)
-      local no = rawget(self, "__exNoRepeat")
       local stk = self.stack
-      if no == nil or stk == nil or type(stk.ptr) ~= "number" then return sel(self, a, b) end
-      rawset(self, "__exNoRepeat", nil)
+      local bar = {}
+      local no = rawget(self, "__exNoRepeat")
+      if no ~= nil then bar[no] = true rawset(self, "__exNoRepeat", nil) end
+      local twice = eraqusBarred(self)
+      if twice ~= nil then bar[twice] = true end
+      if next(bar) == nil or stk == nil or type(stk.ptr) ~= "number" then return sel(self, a, b) end
       local p0 = stk.ptr
       local r
-      for try = 1, 4 do
+      for try = 1, 8 do
         r = sel(self, a, b)
-        local again = false
+        local hit = nil
         if r then
-          for i = p0, stk.ptr - 1 do if stk._et[i] == no then again = true end end
+          for i = p0, stk.ptr - 1 do if bar[stk._et[i]] then hit = stk._et[i] end end
         end
-        if not again then break end
+        if hit == nil then break end
         local st = rawget(self, "__rv")
-        rlog("b20ex00", st and st.t or 0, "picked", no, "again right after a flinch out of it: rolled again")
+        rlog("b20ex00", st and st.t or 0, "picked", hit, "- barred (", hit == twice and "twice in a row" or "just flinched out of it", "): rolled again")
         while stk.ptr > p0 do stk:pop() end
         r = false
       end
@@ -384,10 +416,6 @@ local function eraqusSetup(ent)
   end
 end
 
--- his attacks: out of a flinch his OnReturnDamage restarts the state he was in, so a combo on the end of
--- RushAttack (its rounds armoured, the end open) started a fresh RushAttack, again and again
-local ERAQUS_ATTACKS = { RushAttack = true, SuccessionAttack = true, Kagerou = true, Oboro = true,
-                         Kasumi = true, Itusen = true }
 
 cfg.b20ex00 = {
   limit = 9,
@@ -400,6 +428,10 @@ cfg.b20ex00 = {
     if not ERAQUS_ATTACKS[s] then return end
     local st = rawget(self, "__rv")
     rlog("b20ex00", st and st.t or 0, "out of hit-stun in", s, "- not restarting it: Idling, then Wander")
+    -- (his own restart just counted it as a new use: it was not)
+    if rawget(self, "__exLast") == s and (rawget(self, "__exRun") or 0) > 0 then
+      rawset(self, "__exRun", rawget(self, "__exRun") - 1)
+    end
     rawset(self, "__exNoRepeat", s)
     self.stack:push("Wander")
     self:GotoState("Idling")
@@ -407,7 +439,17 @@ cfg.b20ex00 = {
   rearm = rounds({ RushAttack = { up = "count" } }),           -- his rush runs 3 times in one move
   tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
-  answer = { close = { "SuccessionAttack", "RushAttack", "Kagerou" }, far = { "RushAttack", "Oboro", "Kasumi", "Itusen" } },
+  -- his answers (break-outs, owed answers, the opening), without one he did twice in a row
+  answer = function(self, near, ret, choose)
+    local list = near and ERAQUS_ANSWERS.close or ERAQUS_ANSWERS.far
+    local bar = eraqusBarred(self)
+    local l = {}
+    for i = 1, #list do if list[i] ~= bar then l[#l + 1] = list[i] end end
+    if #l == 0 then l = list end
+    local n = choose(l)
+    if n ~= nil and ret ~= nil and self.stack ~= nil then self.stack:push(ret) end
+    return n
+  end,
   pre = dmgCountPre,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -415,8 +457,8 @@ cfg.b20ex00 = {
     if s == "Dead" or s == "Appear" or s == "Guard" or s == "Kagerou" then return 0 end
     self.stack:push("Wander")
     self.stack:push("Idling")
-    if not answers(self) then
-      self.stack:push("Kagerou")  -- the guard is always followed by his counter
+    if not answers(self) and eraqusBarred(self) ~= "Kagerou" then
+      self.stack:push("Kagerou")  -- the guard is always followed by his counter (not a third in a row)
     end                           -- (with an answer: the guard, then the attack it picks)
     self:GotoState("Guard")
     if type(self.dmgCount) == "number" then self.dmgCount = 0 end

@@ -1336,5 +1336,66 @@ do
   M.rand = mr
   M.num["Entity.CalcDistanceXZSq"] = nil
 end
+-- Master Eraqus: an attack he did twice in a row is barred until he does another - his own picks, the
+-- mod's answers, his guard counter
+do
+  M.script("b20ex00")
+  local e, h = M.create("b20ex00")
+  rawset(e, "Debug", function() end)
+  rawset(e, "RestHpRate", function() return 1 end)
+  M.num["Entity.CalcDistanceXZSq"] = 36       -- mid range: a die under 0.3 is RushAttack
+  local mr = M.rand
+  local stk = e.stack
+  local function pick(dice)
+    local q = dice
+    M.rand = function() if #q > 0 then return table.remove(q, 1) end return 0.4 end
+    local p0 = stk.ptr
+    local ok = e:SelectAttack()
+    local got = {}
+    for i = p0, stk.ptr - 1 do got[#got + 1] = tostring(stk._et[i]) end
+    while stk.ptr > p0 do stk:pop() end
+    return table.concat(got, ",")
+  end
+  pcall(e.GotoState, e, "RushAttack")
+  pcall(e.GotoState, e, "Idling")
+  check(pick({ 0.1 }):find("RushAttack") ~= nil, "Eraqus: one RushAttack: the next pick may be RushAttack")
+  pcall(e.GotoState, e, "RushAttack")
+  pcall(e.GotoState, e, "Idling")
+  local g = pick({ 0.1, 0.1, 0.1 })
+  check(g:find("RushAttack") == nil, "Eraqus: RushAttack twice in a row: his pick is not RushAttack (" .. g .. ")")
+  pcall(e.GotoState, e, "Oboro")
+  pcall(e.GotoState, e, "Idling")
+  check(pick({ 0.1 }):find("RushAttack") ~= nil, "Eraqus: another attack in between: RushAttack allowed again")
+  -- a restart his own code does out of a flinch is not a new use
+  pcall(e.GotoState, e, "RushAttack")
+  e.reflect = false
+  EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+  check(rawget(e, "__exLast") == "RushAttack" and rawget(e, "__exRun") == 1, "Eraqus: his restart out of a flinch is not counted (" .. tostring(rawget(e, "__exRun")) .. ")")
+  -- the mod's answers: his lists without the barred attack
+  local cfg = BBS_REVENGE.cfg.b20ex00
+  local seen
+  local function choose(l) seen = table.concat(l, ",") return l[1] end
+  rawset(e, "__exLast", "RushAttack") rawset(e, "__exRun", 2)
+  local p0 = stk.ptr
+  local n = cfg.answer(e, false, "Wander", choose)
+  check(n == "Oboro" and seen == "Oboro,Kasumi,Itusen" and stk:get() == "Wander", "Eraqus: an answer (far) after RushAttack twice: not RushAttack (" .. tostring(seen) .. ")")
+  while stk.ptr > p0 do stk:pop() end
+  n = cfg.answer(e, true, nil, choose)
+  check(seen == "SuccessionAttack,Kagerou", "Eraqus: an answer (close): not RushAttack (" .. tostring(seen) .. ")")
+  rawset(e, "__exLast", "Oboro") rawset(e, "__exRun", 1)
+  cfg.answer(e, false, nil, choose)
+  check(seen == "RushAttack,Oboro,Kasumi,Itusen", "Eraqus: an answer with nothing barred: his full list (" .. tostring(seen) .. ")")
+  -- his guard counter: not a third Kagerou in a row
+  rawset(e, "__exLast", "Kagerou") rawset(e, "__exRun", 2)
+  pcall(e.GotoState, e, "Idling")
+  p0 = stk.ptr
+  cfg.counter(e)
+  local has = false
+  for i = p0, stk.ptr - 1 do if stk._et[i] == "Kagerou" then has = true end end
+  check(e:GetState() == "Guard" and not has, "Eraqus: guard after Kagerou twice: no third Kagerou queued")
+  while stk.ptr > p0 do stk:pop() end
+  M.rand = mr
+  M.num["Entity.CalcDistanceXZSq"] = nil
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
