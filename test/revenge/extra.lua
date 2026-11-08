@@ -1290,5 +1290,25 @@ do
   M.num["Entity.IsWall"] = nil
   M.num["Entity.CalcDistanceXZSq"] = nil
 end
+-- Master Eraqus: out of a flinch in an attack he does not restart it (his own OnReturnDamage did)
+do
+  M.script("b20ex00")
+  local e, h = M.create("b20ex00")
+  rawset(e, "Debug", function() end)
+  rawset(e, "RestHpRate", function() return 1 end)
+  for _, a in ipairs({ "RushAttack", "SuccessionAttack", "Oboro" }) do
+    pcall(e.GotoState, e, a)
+    e.reflect = false
+    local p0 = e.stack.ptr
+    EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+    check(e:GetState() == "Idling" and e.stack:get() == "Wander",
+          "Eraqus: out of a flinch in " .. a .. ": Idling, Wander next - not " .. a .. " again (" .. e:GetState() .. ")")
+    while e.stack.ptr > p0 do e.stack:pop() end
+  end
+  pcall(e.GotoState, e, "Wander")
+  e.reflect = false
+  EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+  check(e:GetState() == "Wander", "Eraqus: out of a flinch in Wander: his own (back to Wander) (" .. e:GetState() .. ")")
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)

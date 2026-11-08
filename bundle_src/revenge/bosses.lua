@@ -358,9 +358,25 @@ local function eraqusSetup(ent)
   rawset(ent, "states", own)
 end
 
+-- his attacks: out of a flinch his OnReturnDamage restarts the state he was in, so a combo on the end of
+-- RushAttack (its rounds armoured, the end open) started a fresh RushAttack, again and again
+local ERAQUS_ATTACKS = { RushAttack = true, SuccessionAttack = true, Kagerou = true, Oboro = true,
+                         Kasumi = true, Itusen = true }
+
 cfg.b20ex00 = {
   limit = 9,
   setup = eraqusSetup,
+  -- out of a flinch in an attack: not that attack again, but Idling and Wander - what his own script
+  -- does after a reflect - so his next attack is a fresh pick
+  recover = function(self)
+    if type(self.GetState) ~= "function" or self.stack == nil then return end
+    local s = self:GetState()
+    if not ERAQUS_ATTACKS[s] then return end
+    local st = rawget(self, "__rv")
+    rlog("b20ex00", st and st.t or 0, "out of hit-stun in", s, "- not restarting it: Idling, then Wander")
+    self.stack:push("Wander")
+    self:GotoState("Idling")
+  end,
   rearm = rounds({ RushAttack = { up = "count" } }),           -- his rush runs 3 times in one move
   tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
