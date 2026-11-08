@@ -356,6 +356,32 @@ local function eraqusSetup(ent)
   end
   own.Wander = w
   rawset(ent, "states", own)
+  -- after a flinch out of an attack (recover below): his next pick is not that attack again.  Every hit
+  -- clears his idlingTimer, so Idling picks on its first frame - and RushAttack often came up again
+  local sel = ent.SelectAttack
+  if type(sel) == "function" then
+    rawset(ent, "SelectAttack", function(self, a, b)
+      local no = rawget(self, "__exNoRepeat")
+      local stk = self.stack
+      if no == nil or stk == nil or type(stk.ptr) ~= "number" then return sel(self, a, b) end
+      rawset(self, "__exNoRepeat", nil)
+      local p0 = stk.ptr
+      local r
+      for try = 1, 4 do
+        r = sel(self, a, b)
+        local again = false
+        if r then
+          for i = p0, stk.ptr - 1 do if stk._et[i] == no then again = true end end
+        end
+        if not again then break end
+        local st = rawget(self, "__rv")
+        rlog("b20ex00", st and st.t or 0, "picked", no, "again right after a flinch out of it: rolled again")
+        while stk.ptr > p0 do stk:pop() end
+        r = false
+      end
+      return r
+    end)
+  end
 end
 
 -- his attacks: out of a flinch his OnReturnDamage restarts the state he was in, so a combo on the end of
@@ -374,6 +400,7 @@ cfg.b20ex00 = {
     if not ERAQUS_ATTACKS[s] then return end
     local st = rawget(self, "__rv")
     rlog("b20ex00", st and st.t or 0, "out of hit-stun in", s, "- not restarting it: Idling, then Wander")
+    rawset(self, "__exNoRepeat", s)
     self.stack:push("Wander")
     self:GotoState("Idling")
   end,

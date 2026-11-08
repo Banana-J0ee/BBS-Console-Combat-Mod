@@ -1311,6 +1311,30 @@ do
   e.reflect = false
   EntityManager:CallFunctionNoArg("OnReturnDamage", h)
   check(e:GetState() == "Wander", "Eraqus: out of a flinch in Wander: his own (back to Wander) (" .. e:GetState() .. ")")
+  -- his next pick after a flinch out of RushAttack is not RushAttack (mid range: a die under 0.3 is RushAttack)
+  M.num["Entity.CalcDistanceXZSq"] = 36
+  local mr = M.rand
+  pcall(e.GotoState, e, "RushAttack")
+  e.reflect = false
+  EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+  local q = { 0.1 }
+  M.rand = function() if #q > 0 then return table.remove(q, 1) end return 0.4 end
+  local stk = e.stack
+  local p0 = stk.ptr
+  local ok = e:SelectAttack()
+  local picked = {}
+  for i = p0, stk.ptr - 1 do picked[#picked + 1] = tostring(stk._et[i]) end
+  local rush = false
+  for _, v in ipairs(picked) do if v == "RushAttack" then rush = true end end
+  check(ok and not rush, "Eraqus: right after a flinch out of RushAttack his pick is not RushAttack (" .. table.concat(picked, ",") .. ")")
+  while stk.ptr > p0 do stk:pop() end
+  -- the pick after that: his own dice again (RushAttack allowed)
+  q = { 0.1 }
+  ok = e:SelectAttack()
+  check(ok and stk:get() == "RushAttack", "... and only that pick: the next may be RushAttack (" .. tostring(stk:get()) .. ")")
+  while stk.ptr > p0 do stk:pop() end
+  M.rand = mr
+  M.num["Entity.CalcDistanceXZSq"] = nil
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
