@@ -24,6 +24,18 @@ static int c_combo = 1, c_camera = 1, c_revenge = 1;
    sliding in along the ground towards the character: -60 by default here.  KH2's field camera has no manual tilt at all: it only
    reads the pad for yaw (3 deg/frame, 1403a9250) and the height follows automatically. */
 static float c_cam_dist = 0.9f, c_pitch_min = -60.0f, c_pitch_max = 45.0f;
+/* Style combos' scripted camera shots.  The last hit of Dark Impulse's combo (PAtkData record 644) plays the
+   Exusia camera "xcs13te2": hard-coded in the attack start [21e71d..21e74c: player+0x380 set and record 0x284 ->
+   294690(player+0x380, 0), then 22dd80("xcs13te2", ...)], which makes a CExusiaCameraEx and makes it the active
+   camera for the shot (moves to the side and zooms in).  0 = that call is skipped and the player camera stays;
+   the rest of the attack start is unchanged.  (xcs13te0 / te1, in 287400.., belong to the style's finisher.) */
+static int c_style_cam = 0;
+#define DICOMBO_CAM_CALL 0x21e74cu
+#define PLAY_XCAM        0x22dd80u
+static void MSABI dicombo_cam_hook(void *name, void *a, void *b, int c) {
+    (void)name; (void)a; (void)b; (void)c;
+    if (g_debug) LOG("camera: Dark Impulse combo camera shot skipped");
+}
 static u32 cam_scaled_crc[64];
 #define DEG2RAD 0.01745329252f              /* the same constant KH2 uses (0x3c8efa35) */
 #define PITCH_MIN_IMM 0x22dae9              /* FUN_14022d790: mov [rdi+344h], 0bf060a92h (-30 deg), imm at +6 */
@@ -313,6 +325,7 @@ static void cam_config(void) {
     c_pitch_min = ini_cam("PitchLow", c_pitch_min); c_pitch_max = ini_cam("PitchHigh", c_pitch_max);
     if (!(c_pitch_min >= -80.0f && c_pitch_min <= 0.0f)) c_pitch_min = -30.0f;
     if (!(c_pitch_max >= 0.0f && c_pitch_max <= 80.0f)) c_pitch_max = 45.0f;
+    c_style_cam = ini_cam("StyleComboCamera", (float)c_style_cam) != 0.0f;
 }
 static void cam_pitch_apply(void) {
     float lo = c_pitch_min * DEG2RAD, hi = c_pitch_max * DEG2RAD;
@@ -348,6 +361,10 @@ int bundle_check(void) {
     u8 *p = g_base + LUA_CALL; s32 d; memcpy(&d, p + 1, 4);
     if (p[0] != 0xE8 || (u32)(LUA_CALL + 5 + d) != LUA_LOAD) { LOG("bundle: Lua call site does not match"); bad++; }
     if (c_combo && combo_state() < 0) { LOG("bundle: Combo Flow code sites do not match"); bad++; }
+    if (!c_style_cam) {
+        u8 *q = g_base + DICOMBO_CAM_CALL; s32 e; memcpy(&e, q + 1, 4);
+        if (q[0] != 0xE8 || (u32)(DICOMBO_CAM_CALL + 5 + e) != PLAY_XCAM) { LOG("camera: Dark Impulse combo camera site does not match"); bad++; }
+    }
     return bad == 0;
 }
 void bundle_apply(void) {
@@ -366,6 +383,8 @@ void bundle_apply(void) {
     }
     if (c_revenge) hook_call(LUA_CALL, LUA_LOAD, lua_load_hook, "lua load");
     if (c_camera) cam_pitch_apply();
+    if (!c_style_cam && hook_call(DICOMBO_CAM_CALL, PLAY_XCAM, dicombo_cam_hook, "Dark Impulse combo camera"))
+        LOG("camera: style combos keep the normal camera (Dark Impulse)");
     LOG("bundle: combo flow %d, camera %d (distance %.2f, pitch %.0f..%.0f), revenge value %d (boss pace: idle x%.2f, walks %.1f s)",
         c_combo, c_camera, c_camera ? c_cam_dist : 1.0f, c_pitch_min, c_pitch_max, c_revenge, c_aggr, c_walkcap);
 }

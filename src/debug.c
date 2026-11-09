@@ -36,6 +36,34 @@ static void cam_trace(void) {
         frame, act, v[1], act && act == pc ? " = player cam" : "", v[2], v[3], v[4], v[5], (void*)v[6],
         v[7] == 0xffff ? -1LL : (long long)v[7], rec && v[7] != 0xffff ? rec[8] : 0, v[8], v[9], v[10]);
 }
+/* Who makes and starts the Exusia (scripted) cameras: debug only.  CExusiaCameraEx ctor 14029b3d0 (10 call sites),
+   start 14029c720 (19 call sites).  Each call is logged with its site and the player's attack record. */
+static long cam_rec(void) {
+    u8 *mgr = G(u8*, 0x10f9ee40), *pl = mgr ? *(u8**)(mgr + 0x118) : NULL;
+    u8 *base = mgr ? *(u8**)(mgr + 0x128) : NULL, *rec = pl ? *(u8**)(pl + 0x5b8) : NULL;
+    return base && rec >= base ? (long)((rec - base) / 0x28) : -1;
+}
+static u64 MSABI xcam_ctor_hook(u64 a, u64 b, u64 c, u64 d, u64 e) {
+    u32 site = (u32)((u8*)__builtin_return_address(0) - g_base) - 5;
+    u64 r = FN(u64, 0x29b3d0, u64, u64, u64, u64, u64)(a, b, c, d, e);
+    LOG("xcam: CExusiaCameraEx made at %x -> %p (rec %ld)", site, (void*)r, cam_rec());
+    return r;
+}
+static u64 MSABI xcam_start_hook(u64 a, u64 b, u64 c, u64 d) {
+    u32 site = (u32)((u8*)__builtin_return_address(0) - g_base) - 5;
+    u64 r = FN(u64, 0x29c720, u64, u64, u64, u64)(a, b, c, d);
+    LOG("xcam: camera %p started at %x (rec %ld)", (void*)a, site, cam_rec());
+    return r;
+}
+static void cam_trace_install(void) {
+    static const u32 ctor[] = { 0x22de59, 0x26ceb5, 0x26d040, 0x26d3ec, 0x2b4720, 0x304305, 0x314afd, 0x31ddae, 0x33cf8a, 0x33d0ec };
+    static const u32 start[] = { 0x22df1d, 0x26ced4, 0x26d0a6, 0x26d40b, 0x2b479e, 0x304324, 0x314b1c, 0x31ddda, 0x33cfaf, 0x33d111,
+                                 0x38803c, 0x3ab2a3, 0x3cfaf8, 0x3de689, 0x3df9d8, 0x3dfae2, 0x3dfb85, 0x48a03f, 0x48a3ca };
+    int n = 0;
+    for (unsigned i = 0; i < sizeof ctor / sizeof *ctor; i++) n += hook_call(ctor[i], 0x29b3d0, xcam_ctor_hook, "xcam ctor (debug)");
+    for (unsigned i = 0; i < sizeof start / sizeof *start; i++) n += hook_call(start[i], 0x29c720, xcam_start_hook, "xcam start (debug)");
+    LOG("debug: camera trace, %d call sites", n);
+}
 void dbg_frame(void) {       /* called from a main-thread hook */
     if (g_debug) cam_trace();
     if (g_mc.pending == 1) {
@@ -129,5 +157,6 @@ void dbg_start(void) {
     if (GetFileAttributesA(p) == INVALID_FILE_ATTRIBUTES) return;
     g_debug = 1;
     LOG("debug channel enabled");
+    cam_trace_install();
     CreateThread(NULL, 0, dbg_thread, NULL, 0, NULL);
 }

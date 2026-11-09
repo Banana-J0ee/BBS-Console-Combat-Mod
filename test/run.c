@@ -1028,6 +1028,15 @@ static void t_draw(void) {
     printf("t_draw done\n");
 }
 
+/* Dark Impulse's combo camera shot (bundle.c): the call that plays "xcs13te2" on record 644 no longer reaches the game's
+   camera player, and the rest of that attack start is as it was */
+static void t_stylecam(void) {
+    u8 *p = RVA(0x21e74c); s32 d; memcpy(&d, p + 1, 4);
+    u32 to = (u32)(0x21e74c + 5 + d);
+    CHECK(p[0] == 0xE8 && to != 0x22dd80, "the camera call is taken over (now to %x)", to);
+    CHECK(!memcmp(RVA(0x21e745), "\x48\x8d\x0d", 3) && !memcmp(RVA(0x21e722), "\x66\x39\x86\xa8\x05\x00\x00", 7), "the record test and the name before it untouched");
+    printf("t_stylecam done\n");
+}
 static u8 *t_node_ctl(int h, u16 node);
 /* The MP bar follows the HP gauge's hit shake (mp.c bar_shake), on the real 2D-layout runtime with the real
    gauge_01.l2d: the game's gauge layout (index 2) is drawn as the game draws it, node 0x14 is given the hit controls
@@ -3591,6 +3600,7 @@ int main(int argc, char **argv) {
     bad |= run("t_tex", t_tex);
     bad |= run("t_draw", t_draw);
     bad |= run("t_shake", t_shake);
+    bad |= run("t_stylecam", t_stylecam);
     bad |= run("t_guard", t_guard);
     bad |= run("t_gone", t_gone);
     bad |= run("t_shadow", t_shadow);
