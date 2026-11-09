@@ -1030,30 +1030,11 @@ static void t_draw(void) {
 
 /* Dark Impulse's combo camera shot (bundle.c): the call that plays "xcs13te2" on record 644 no longer reaches the game's
    camera player, and the rest of that attack start is as it was */
-static int g_xcam;
-static void MSABI xcam_count(void) { g_xcam++; }
 static void t_stylecam(void) {
     u8 *p = RVA(0x21e74c); s32 d; memcpy(&d, p + 1, 4);
     u32 to = (u32)(0x21e74c + 5 + d);
     CHECK(p[0] == 0xE8 && to != 0x22dd80, "the camera call is taken over (now to %x)", to);
     CHECK(!memcmp(RVA(0x21e745), "\x48\x8d\x0d", 3) && !memcmp(RVA(0x21e722), "\x66\x39\x86\xa8\x05\x00\x00", 7), "the record test and the name before it untouched");
-    /* style finishers: every other call of the camera player goes through the mod; a shot is dropped only while a
-       style finisher (command 0x12..0x20) is the player's command */
-    {   static const u32 sites[] = { 0x225e6e, 0x24ec65, 0x253b9f, 0x2877fc, 0x28803a };
-        int ok = 1; for (unsigned i = 0; i < 5; i++) { u8 *q = RVA(sites[i]); s32 e; memcpy(&e, q + 1, 4); ok &= q[0] == 0xE8 && (u32)(sites[i] + 5 + e) != 0x22dd80; }
-        CHECK(ok, "the other camera shot calls are taken over");
-        extern void test_fin_cam(const char *name);
-        stub_jmp(0x22dd80, xcam_count);
-        pl = calloc(1, 0x800); mgr = calloc(1, 0x200); *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9ee40) = mgr;
-        static const u16 cmd[] = { 0x01, 0x02, 0x10, 0x11, 0x12, 0x1e, 0x20, 0x21, 0xf8 };
-        static const int plays[] = { 1, 1, 1, 1, 0, 0, 0, 1, 1 };
-        for (unsigned i = 0; i < 9; i++) {
-            *(u16*)(pl + 0x312) = cmd[i]; g_xcam = 0; test_fin_cam("xcs01");
-            CHECK(g_xcam == plays[i], "command %x: camera shot %s", cmd[i], g_xcam ? "played" : "skipped");
-        }
-        G(u8*, 0x10f9ee40) = NULL; g_xcam = 0; test_fin_cam("xdc110");
-        CHECK(g_xcam == 1, "no player: played as asked");
-    }
     printf("t_stylecam done\n");
 }
 static u8 *t_node_ctl(int h, u16 node);
@@ -2100,7 +2081,7 @@ static void t_bundle(void) {
             for (u32 k = 0; k < rs; k++) if (g_base[va + k] != d[ro + k]) diff++;
         }
         printf("  code bytes differing from the original exe: %ld (our own hooks)\n", diff);
-        CHECK(diff > 0 && diff < 700, "only our hook sites differ (%ld; the 48 camera shot calls add up to 4 bytes each)", diff);
+        CHECK(diff > 0 && diff < 450, "only our hook sites differ");
         CHECK(!memcmp(RVA(0x62f080), d + 0x400 + 0x62e080, 349), "the old Combo Flow routines are not installed (speed.c has the walk-out)");
         CHECK(*(u8*)RVA(0x2291bf) == 0xe9 && *(u8*)RVA(0x26825f) == 0xe9 && *(u8*)RVA(0x26828a) == 0xe9, "its three sites carry our hooks");
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");

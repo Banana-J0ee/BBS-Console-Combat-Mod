@@ -36,27 +36,6 @@ static void MSABI dicombo_cam_hook(void *name, void *a, void *b, int c) {
     (void)name; (void)a; (void)b; (void)c;
     if (g_debug) LOG("camera: Dark Impulse combo camera shot skipped");
 }
-/* Style finishers' camera shots.  Every camera shot the player's code plays goes through 22dd80 (47 more call sites:
-   deck commands "xdc...", shotlocks "xsl..", D-Links "xdl..", abilities "xaa...", and the finishers, whose name
-   the command start [259290..] puts in player+0x628 and 253b9f plays at the frame in +0x634).  0 = a shot asked
-   for while the local player's command (player+0x312) is a style finisher, 0x12..0x20 (styles 0x152..0x160), is
-   skipped; every other shot plays as before. */
-static int c_fin_cam = 0;
-static const u32 xcam_sites[] = {
-    0x225e6e, 0x2268de, 0x22694f, 0x226b49, 0x226d4b, 0x226dea, 0x2270ff, 0x227b7c, 0x2396ad, 0x239d36, 0x239d87,
-    0x239e73, 0x24ec65, 0x24edfa, 0x24ee0b, 0x24ee61, 0x24ee87, 0x24eedf, 0x24f2d6, 0x24f319, 0x24f349, 0x24f382,
-    0x24f3ab, 0x24f3d4, 0x253b9f, 0x2542e8, 0x268a01, 0x273f45, 0x274a59, 0x274cb0, 0x274fab, 0x2752fc, 0x27ecac,
-    0x27f514, 0x27f661, 0x27f78a, 0x27fd26, 0x280130, 0x28328c, 0x2836c5, 0x283776, 0x28382f, 0x286e89, 0x2877fc,
-    0x287b18, 0x287c68, 0x28803a };
-static void MSABI fin_cam_hook(const char *name, void *a, void *b, int c) {
-    u8 *mgr = G(u8*, 0x10f9ee40), *pl = mgr ? *(u8**)(mgr + 0x118) : NULL;
-    u16 cmd = pl ? *(u16*)(pl + 0x312) : 0;
-    if (cmd >= 0x12 && cmd <= 0x20) {
-        if (g_debug) LOG("camera: finisher %x: camera shot \"%.15s\" skipped", cmd, name ? name : "");
-        return;
-    }
-    FN(void, PLAY_XCAM, const char*, void*, void*, int)(name, a, b, c);
-}
 static u32 cam_scaled_crc[64];
 #define DEG2RAD 0.01745329252f              /* the same constant KH2 uses (0x3c8efa35) */
 #define PITCH_MIN_IMM 0x22dae9              /* FUN_14022d790: mov [rdi+344h], 0bf060a92h (-30 deg), imm at +6 */
@@ -347,7 +326,6 @@ static void cam_config(void) {
     if (!(c_pitch_min >= -80.0f && c_pitch_min <= 0.0f)) c_pitch_min = -30.0f;
     if (!(c_pitch_max >= 0.0f && c_pitch_max <= 80.0f)) c_pitch_max = 45.0f;
     c_style_cam = ini_cam("StyleComboCamera", (float)c_style_cam) != 0.0f;
-    c_fin_cam = ini_cam("StyleFinisherCamera", (float)c_fin_cam) != 0.0f;
 }
 static void cam_pitch_apply(void) {
     float lo = c_pitch_min * DEG2RAD, hi = c_pitch_max * DEG2RAD;
@@ -387,11 +365,6 @@ int bundle_check(void) {
         u8 *q = g_base + DICOMBO_CAM_CALL; s32 e; memcpy(&e, q + 1, 4);
         if (q[0] != 0xE8 || (u32)(DICOMBO_CAM_CALL + 5 + e) != PLAY_XCAM) { LOG("camera: Dark Impulse combo camera site does not match"); bad++; }
     }
-    if (!c_fin_cam)
-        for (unsigned i = 0; i < sizeof xcam_sites / sizeof *xcam_sites; i++) {
-            u8 *q = g_base + xcam_sites[i]; s32 e; memcpy(&e, q + 1, 4);
-            if (q[0] != 0xE8 || (u32)(xcam_sites[i] + 5 + e) != PLAY_XCAM) { LOG("camera: camera shot site %x does not match", xcam_sites[i]); bad++; }
-        }
     return bad == 0;
 }
 void bundle_apply(void) {
@@ -412,17 +385,11 @@ void bundle_apply(void) {
     if (c_camera) cam_pitch_apply();
     if (!c_style_cam && hook_call(DICOMBO_CAM_CALL, PLAY_XCAM, dicombo_cam_hook, "Dark Impulse combo camera"))
         LOG("camera: style combos keep the normal camera (Dark Impulse)");
-    if (!c_fin_cam) {
-        int n = 0;
-        for (unsigned i = 0; i < sizeof xcam_sites / sizeof *xcam_sites; i++) n += hook_call(xcam_sites[i], PLAY_XCAM, fin_cam_hook, "camera shot");
-        LOG("camera: style finishers keep the normal camera (%d sites)", n);
-    }
     LOG("bundle: combo flow %d, camera %d (distance %.2f, pitch %.0f..%.0f), revenge value %d (boss pace: idle x%.2f, walks %.1f s)",
         c_combo, c_camera, c_camera ? c_cam_dist : 1.0f, c_pitch_min, c_pitch_max, c_revenge, c_aggr, c_walkcap);
 }
 
 #ifndef _WIN32
-void test_fin_cam(const char *name) { fin_cam_hook(name, NULL, NULL, 0); }
 u64 test_rsrc_loaded(u8 *r) { return rsrc_loaded(r); }
 int test_lua_swap(const char **buf, size_t *n) {      /* the decision of lua_load_hook, without calling Lua */
     if (c_revenge && is_factory(*buf, *n)) { *buf = (const char*)rv_buf; *n = sizeof rv_buf; return 1; }
