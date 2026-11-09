@@ -843,6 +843,7 @@ static void t_berserk(void) {
 }
 /* the MP bar on the real 2D-layout runtime, with the real gauge_01.l2d (needs BBS_GAUGE_L2D=<file>) */
 extern void test_bar_update(u8 *g);
+extern u64 test_bar_draw(u8 *self, u64 (MSABI *orig)(u8*, u64, u64, u64)); extern int *test_bar_shake(void);
 typedef struct { s16 x0, y0, x1, y1; u16 part, attr; } Grp;
 typedef struct { s16 u0, v0, u1, v1; u32 col[4]; } Part;
 typedef struct { Grp *g; Part *p; } Pair;
@@ -1025,6 +1026,80 @@ static void t_draw(void) {
       CHECK(v && NEAR(fr[1], 255.5f) && NEAR(fr[3], 263.0f), "the MP bar is unchanged by it"); }
     #undef NEAR
     printf("t_draw done\n");
+}
+
+static u8 *t_node_ctl(int h, u16 node);
+/* The MP bar follows the HP gauge's hit shake (mp.c bar_shake), on the real 2D-layout runtime with the real
+   gauge_01.l2d: the game's gauge layout (index 2) is drawn as the game draws it, node 0x14 is given the hit controls
+   the game gives it [20b050], and the bar is drawn through the mod's draw hook. */
+static u64 MSABI bar_draw_orig(u8 *s, u64 a, u64 b, u64 c) { return 0; }
+static void t_shake(void) {
+    const char *fn = getenv("BBS_GAUGE_L2D");
+    if (!fn) { printf("  (skipped: BBS_GAUGE_L2D not set)\n"); return; }
+    FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
+    u8 *img = memalign(16, 0x20000); fread(img, 1, 0x20000, f); fclose(f);
+    PD[0x31] = 1; PD[0x36] = 4;
+    *(u8*)RVA(0x111660) = 0xC3; *(u8*)RVA(0x10c5e0) = 0xC3; memcpy(RVA(0x11a8a0), "\x31\xc0\xc3", 3);
+    *(u8*)RVA(0x1aa620) = 0xC3;
+    FN(void, 0x1a6d70, void)();
+    CHECK(FN(int, 0x1a6fb0, void*, const char*, int)(img, "gauge_01.l2d", 0) > 0, "register gauge_01");
+    draw_stubs();
+    pl = calloc(1, 0x800); mgr = calloc(1, 0x200); gauge = calloc(1, 0xc8);
+    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9ee40) = mgr; G(u8*, 0x10f9ec60) = gauge; *(float*)(gauge + 0x20) = 1.0f;
+    G(u8, 0x8f88028) = 1;
+    int hg = FN(int, 0x1a4fe0, const char*, u16, int, void*)("gauge_01.l2d", 2, 0, NULL);      /* as the gauge does [207a00] */
+    *(int*)(gauge + 0x8c) = hg;
+    u8 *lc = FN(u8*, 0x1a65c0, int)(hg), *win = t_node_ctl(hg, 0x14);
+    CHECK(lc && win, "the gauge layout and its window node 0x14");
+    if (!lc || !win) return;
+    G(float, 0x8f88010) = 1.0f; G(u8, 0x8f88020) = 1; G(u8, 0x8f8802c) = 1;
+    #define FRAME() do { for (int ni = 0; ni < *(s16*)(lc + 0xa8); ni++) FN(void, 0x1aaea0, u8*, int)(*(u8**)(lc + 0x98) + ni * 0xb8, 0); \
+                         test_bar_update(gauge); test_bar_draw(FN(u8*, 0x1a5fd0, int)(*test_bar()), bar_draw_orig); } while (0)
+    #define BARX() (*(float*)(FN(u8*, 0x1a5fd0, int)(*test_bar()) + 0x50))
+    #define BARY() (*(float*)(FN(u8*, 0x1a5fd0, int)(*test_bar()) + 0x54))
+    #define NEAR(a, b) ((a) - (b) < 0.002f && (b) - (a) < 0.002f)
+    for (int k = 0; k < 5; k++) FRAME();
+    CHECK(*test_bar() > 0, "bar made");
+    float x0 = BARX(), y0 = BARY(), wx = *(float*)(win + 0x44);
+    printf("  bar at rest (%.3f, %.3f), window x %.3f\n", x0, y0, wx);
+    /* each hit control: the bar moves with the window, frame by frame, and is back where it was set at the end */
+    static const float peak[8] = { 0, 0, 0, 0, 0, 3.333f, 5.364f, 9.292f };
+    for (int st = 5; st <= 7; st++) {
+        FN(int, 0x1a7e20, int, u16, int, int, int, int)(hg, 0x14, st, 1, 0, -1);
+        int same = 1, frames = 0; float big = 0;
+        for (int k = 0; k < 80; k++) {
+            FRAME();
+            float d = *(float*)(win + 0x44) - wx, b = BARX() - x0;
+            if (!NEAR(d, b) || !NEAR(BARY(), y0)) same = 0;
+            if (d > big) big = d; if (-d > big) big = -d;
+            if (FN(int, 0x1a6790, int, u16)(hg, 0x14) != st) break;
+            frames++;
+        }
+        CHECK(same && NEAR(big, peak[st]), "control %d: the bar moves with the gauge, up to %.3f, for %d frames", st, big, frames);
+        CHECK(NEAR(BARX(), x0) && NEAR(BARY(), y0), "control %d: and is back at (%.3f, %.3f)", st, BARX(), BARY());
+    }
+    /* low HP (control 4, the flash) and the slide-in (control 1) leave the bar alone */
+    FN(int, 0x1a7db0, int, u16, int)(hg, 0x14, 4);
+    { int ok = 1; for (int k = 0; k < 40; k++) { FRAME(); ok &= NEAR(BARX(), x0); } CHECK(ok, "low-HP flash: the bar stays put"); }
+    FN(int, 0x1a7e20, int, u16, int, int, int, int)(hg, 0x14, 7, 1, 4, -1);      /* a hit at low HP, back to the flash */
+    { float big = 0; for (int k = 0; k < 70; k++) { FRAME(); float b = BARX() - x0; if (b < 0) b = -b; if (b > big) big = b; }
+      CHECK(NEAR(big, peak[7]) && NEAR(BARX(), x0) && FN(int, 0x1a6790, int, u16)(hg, 0x14) == 4, "a hit at low HP: shakes (%.3f), then back to the flash", big); }
+    FN(int, 0x1a7db0, int, u16, int)(hg, 0x14, 1);
+    { int ok = 1; for (int k = 0; k < 40; k++) { FRAME(); ok &= NEAR(BARX(), x0); } CHECK(ok, "the HUD's slide-in: the bar stays put"); }
+    /* Shake=0: no shake */
+    FN(int, 0x1a7db0, int, u16, int)(hg, 0x14, 0); FRAME();
+    *test_bar_shake() = 0;
+    FN(int, 0x1a7e20, int, u16, int, int, int, int)(hg, 0x14, 7, 1, 0, -1);
+    { int ok = 1; for (int k = 0; k < 20; k++) { FRAME(); ok &= NEAR(BARX(), x0); } CHECK(ok, "Shake=0: the bar keeps still"); }
+    *test_bar_shake() = 1;
+    /* the gauge gone: the bar is placed as set */
+    G(u8*, 0x10f9ec60) = NULL; FRAME();
+    CHECK(NEAR(BARX(), x0), "no gauge: placed as set");
+    #undef FRAME
+    #undef BARX
+    #undef BARY
+    #undef NEAR
+    printf("t_shake done\n");
 }
 /* the texture guard (src/guard.c): a node whose block points at a texture that is gone */
 extern int test_guard_seq(u8 *self);
@@ -3494,6 +3569,7 @@ int main(int argc, char **argv) {
     bad |= run("t_bar", t_bar);
     bad |= run("t_tex", t_tex);
     bad |= run("t_draw", t_draw);
+    bad |= run("t_shake", t_shake);
     bad |= run("t_guard", t_guard);
     bad |= run("t_gone", t_gone);
     bad |= run("t_shadow", t_shadow);

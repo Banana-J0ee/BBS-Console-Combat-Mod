@@ -111,7 +111,11 @@ group 0) and task flags & 0x8001 == 0. It reads no PlayerData.
 HP -> node 0x17 (green), damage HP -> node 0x16 (red). 470 = layout length, 180 = HP cap.
 Setters: `FUN_14020b9e0(g, hp, instant)` (HP; sets 0x94=30.0, re-evaluates alert),
 `FUN_14020bb80(maxhp)` (uses the global), `FUN_14020b050(g, hp, dmgType)` = SetHP + window shake
-(node 0x14 state 5/6/7, then back to 4 or 0). Player side: `FUN_14021fd80(player,hp,maxhp)`
+(node 0x14 state 5/6/7, then back to 4 or 0). Damage type -> state: 1, 24, 50 -> 7; 2 -> 6; 34, 42 -> none; other
+3..49 -> 5. Measured on the real runtime (test/run.c t_shake): the states only move node 0x14 sideways, no scale or
+rotation: 5 = +3.33 peak, 30 frames; 6 = -5.36 peak, 46 frames; 7 = -9.29 peak, 58 frames (damped sway), plus a red
+flash of its colour. State 1 = the slide-in from x -30. Every gauge node hangs under 0x14, so all of them move; the
+mod's MP bar follows it in mp.c bar_shake. Player side: `FUN_14021fd80(player,hp,maxhp)`
 (`player+0x4a0` HP, `+0x4a2` max HP, capped 0xb4).
 
 **Low-HP alert**: `FUN_14020ae00(g,on,h)` only does `FUN_1401a7db0(h,0x14,4|0)` and

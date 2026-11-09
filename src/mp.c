@@ -74,7 +74,7 @@ static int   c_retry_refill = 1;       /* Continue / Retry (any Game Over choice
    100 MP (the plate adds 11.7: 69.5 in all, as long as the first bar, so its left end is where that one's was).  Before that it was 7.5 high and 50 long at y 255.5. */
 static float c_bar_right = 425.0f, c_bar_top = 254.6f, c_bar_height = 4.5f;
 static float c_bar_len = 57.6f, c_bar_grow = 0.4f;
-static int   c_bar = 1, c_bar_art = 1, c_bar_round = 1, c_bar_exact = 1;
+static int   c_bar = 1, c_bar_art = 1, c_bar_round = 1, c_bar_exact = 1, c_bar_shake = 1;
 /* colours AABBGGRR; 80 = the art's own colour, ff = twice as bright */
 static u32 c_col_fill = 0x80808080, c_col_label = 0x80ff9030, c_col_empty = 0x80381810, c_col_frame = 0x80808080;
 static u32 c_col_burn_fill = 0x80b860ff, c_col_burn_label = 0x80c060ff, c_col_burn_empty = 0x80280c20;
@@ -265,6 +265,7 @@ static void load_ini(void) {
     c_bar_art = (int)ini_f("Bar", "KH2Art", (float)c_bar_art);
     c_bar_round = (int)ini_f("Bar", "RoundEnd", (float)c_bar_round);
     c_bar_exact = (int)ini_f("Bar", "ExactSize", (float)c_bar_exact);
+    c_bar_shake = (int)ini_f("Bar", "Shake", (float)c_bar_shake);
     c_bar_right = ini_f("Bar", "Right", c_bar_right);
     c_bar_top = ini_f("Bar", "Top", c_bar_top);
     c_bar_height = ini_f("Bar", "Height", c_bar_height);
@@ -838,6 +839,45 @@ static void set_quad(Pair *q, int x0, int y0, int x1, int y1, int u0, int v0, in
 }
 static void no_quad(Pair *q) { set_quad(q, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
 
+/* The hit shake.  When the player is hit the game plays a one-shot control on node 0x14 (p_wind_alart) of the HP
+   gauge's layout, the window every other gauge node hangs under [20b050]: 5 for most hits, 6 for damage type 2, 7 for
+   types 1, 24 and 50 (none for 34 and 42).  They only move it sideways (about 3.3, 5.4 and 9.3 screen units at most,
+   fading out over 30 to 60 frames; no scale or rotation).  The bar is not part of that layout, so it is moved by the
+   same amount: just before the bar is drawn (CD2SeqCtrl draw, vtable slot), by how far the window is from where it
+   rests.  The window's position is the one the game worked out when it drew the gauge, which in the same draw
+   priority comes first (the gauge is the older instance).  Only those three controls count, so the HUD's slide-in
+   (control 1) and the low-HP flash (4) leave the bar where it is set. */
+#define VT_SEQ_DRAW_SLOT 0x641dd8u      /* CD2SeqCtrl vtable slot 3 */
+#define FN_SEQ_DRAW_ORIG 0x1aaea0u
+static float g_bar_x, g_bar_y;          /* where bar_update put the bar this frame */
+static float g_shake_rx, g_shake_ry;    /* the window's position at rest */
+static int g_shake_rest;                /* ... known */
+static u64 (MSABI *o_bar_draw)(u8 *self, u64 a, u64 b, u64 c);
+static u8 *gauge_window(void) {
+    u8 *g = G(u8*, 0x10f9ec60);
+    u8 *lc = g ? FN(u8*, 0x1a65c0, int)(*(int*)(g + 0x8c)) : NULL;
+    u8 *nodes = lc ? *(u8**)(lc + 0x98) : NULL;
+    if (!nodes) return NULL;
+    for (int i = 0; i < *(s16*)(lc + 0xa8); i++) if (*(u16*)(nodes + i * 0xb8 + 0xb0) == 0x14) return nodes + i * 0xb8;
+    return NULL;
+}
+static void bar_shake(void) {
+    float dx = 0, dy = 0;
+    u8 *w = gauge_window();
+    if (w) {
+        int ctl = (s8)w[0x82];
+        float x = *(float*)(w + 0x44), y = *(float*)(w + 0x48);
+        if (ctl >= 5 && ctl <= 7) { if (g_shake_rest) dx = x - g_shake_rx, dy = y - g_shake_ry; }
+        else if (ctl == 0 || ctl == 4) { g_shake_rx = x; g_shake_ry = y; g_shake_rest = 1; }
+        if (dx > 20 || dx < -20 || dy > 20 || dy < -20) dx = dy = 0;      /* not a shake: leave the bar alone */
+    } else g_shake_rest = 0;
+    FN(int, 0x1a7660, int, float, float)(g_bar, g_bar_x + dx, g_bar_y + dy);
+}
+static u64 MSABI bar_draw_hook(u8 *self, u64 a, u64 b, u64 c) {
+    if (g_bar > 0 && c_bar_shake && *(s32*)(self + 0x18) == g_bar) bar_shake();
+    return o_bar_draw(self, a, b, c);
+}
+
 static void bar_update(u8 *g) {
     if (!c_bar) { if (g_bar) bar_destroy(); return; }
     if (!bar_alive()) { bar_create(); if (!g_bar) return; }
@@ -913,7 +953,8 @@ static void bar_update(u8 *g) {
     }
     root_scale(h, &g_root_bar, se);
     /* the sprite sits at (-77, +1) from the instance origin, in sprite units */
-    FN(int, 0x1a7660, int, float, float)(h, c_bar_right - (right_sx - 77.0f) * se, c_bar_top - (top_sy + 1.0f) * se);
+    g_bar_x = c_bar_right - (right_sx - 77.0f) * se; g_bar_y = c_bar_top - (top_sy + 1.0f) * se;
+    FN(int, 0x1a7660, int, float, float)(h, g_bar_x, g_bar_y);
     int vis = FN(int, 0x1a6060, int)(*(int*)(g + 0x8c)) != 0;                         /* follow the HP gauge */
     FN(int, 0x1a5b30, int, int)(h, vis);
 }
@@ -1192,6 +1233,7 @@ int mod_install(void) {
     if (!combomaster_check()) bad++;
     if (!worldmap_check()) bad++;
     if (!sporb_check()) bad++;
+    if (c_bar && c_bar_shake && G(u64, VT_SEQ_DRAW_SLOT) != (u64)(g_base + FN_SEQ_DRAW_ORIG)) { LOG("2D draw vtable slot does not match (MP bar shake)"); bad++; }
     if (bad) { LOG("this is not the game build the mod was written for: nothing changed"); g_patch_errors += bad; return 0; }
     if (c_desc_cost || c_ether) hook_call(DESC_CALL, MSG_FIND, desc_hook, "descriptions (MP cost, MP items)");
     if (c_floor) {
@@ -1228,6 +1270,11 @@ int mod_install(void) {
     combomaster_apply();
     worldmap_apply();
     sporb_apply();
+    if (c_bar && c_bar_shake) {     /* after the texture guard, which may have taken the same slot: call on to whatever is there */
+        u64 old = G(u64, VT_SEQ_DRAW_SLOT), f = (u64)bar_draw_hook;
+        o_bar_draw = (void*)old;
+        if (patch_bytes(VT_SEQ_DRAW_SLOT, (u8*)&old, (u8*)&f, 8, "MP bar shake (2D draw)")) LOG("MP bar: follows the HP gauge's hit shake");
+    }
 
     o_gauge_update = hook_fn(&S_gauge_update, gauge_update_hook, "gauge_update");
     o_gauge_dtor   = hook_fn(&S_gauge_dtor, gauge_dtor_hook, "gauge_dtor");
@@ -1307,6 +1354,8 @@ u8 *test_use(u8 *P) { return use_hook(P); }
 #endif
 #ifndef _WIN32
 void test_bar_update(u8 *g) { bar_update(g); }
+u64 test_bar_draw(u8 *self, u64 (MSABI *orig)(u8*, u64, u64, u64)) { o_bar_draw = orig; return bar_draw_hook(self, 0, 0, 0); }
+int *test_bar_shake(void) { return &c_bar_shake; }
 int *test_bar_round(void) { return &c_bar_round; }
 int *test_bar_exact(void) { return &c_bar_exact; }
 void test_bar_geom(float *io, int set) {      /* right, top, height, length */
