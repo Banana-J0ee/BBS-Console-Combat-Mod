@@ -10,7 +10,34 @@ void dbg_custom(const char *cmd, char *args);   /* mp.c */
 /* main-thread call queue */
 typedef struct { volatile LONG pending; u32 rva; u64 a[4]; u64 ret; } MainCall;
 static MainCall g_mc;
+static int readable(const void *p, size_t n);
+/* Camera trace (debug only, for research): one line whenever the active camera, the player camera's mode or
+   settings, or the player's attack changes.  [148f6d450] = the active camera (Lua GetActiveCameraHandle,
+   14010fb80); player camera = player+0x368 (mode +0x1e0, previous +0x1e4, flags +0x20c, settings pointer +0xb0,
+   attack camera data +0x1f0 [22ed00]); attack record = player+0x5b8 (PAtkData, 0x28 each). */
+extern int g_debug;
+static void cam_trace(void) {
+    static u64 last[12]; static unsigned frame;
+    frame++;
+    u8 *mgr = G(u8*, 0x10f9ee40), *pl = mgr ? *(u8**)(mgr + 0x118) : NULL;
+    u8 *act = G(u8*, 0x8f6d450), *pc = pl ? *(u8**)(pl + 0x368) : NULL;
+    u8 *base = mgr ? *(u8**)(mgr + 0x128) : NULL, *rec = pl ? *(u8**)(pl + 0x5b8) : NULL;
+    if (act && !readable(act, 8)) act = NULL;
+    if (pc && !readable(pc + 0x1e0, 0x50)) pc = NULL;
+    u64 v[12] = {
+        (u64)act, act ? *(u64*)act - (u64)g_base : 0,
+        pc ? *(u32*)(pc + 0x1e0) : 0xff, pc ? *(u32*)(pc + 0x1e4) : 0xff, pc ? *(u32*)(pc + 0x20c) : 0,
+        pc && *(u8**)(pc + 0xb0) ? (u64)(*(u8**)(pc + 0xb0) - pc) : 0, pc ? (u64)*(u8**)(pc + 0x1f0) : 0,
+        base && rec >= base ? (u64)((rec - base) / 0x28) : 0xffff, pl ? *(u16*)(pl + 0x312) : 0,
+        pl ? *(u16*)(pl + 0x304) : 0, pl ? (u16)*(s16*)(pl + 0x310) : 0, (u64)pc };
+    if (!memcmp(v, last, sizeof v)) return;
+    memcpy(last, v, sizeof v);
+    LOG("cam f%u: active %p (vt %llx%s) | pcam mode %llu prev %llu flags %08llx set +%llx acam %p | rec %lld motion %x cmd %llx state %llx/%llx",
+        frame, act, v[1], act && act == pc ? " = player cam" : "", v[2], v[3], v[4], v[5], (void*)v[6],
+        v[7] == 0xffff ? -1LL : (long long)v[7], rec && v[7] != 0xffff ? rec[8] : 0, v[8], v[9], v[10]);
+}
 void dbg_frame(void) {       /* called from a main-thread hook */
+    if (g_debug) cam_trace();
     if (g_mc.pending == 1) {
         g_mc.ret = FN(u64, g_mc.rva, u64, u64, u64, u64)(g_mc.a[0], g_mc.a[1], g_mc.a[2], g_mc.a[3]);
         LOG("call %x(%llx,%llx,%llx,%llx) = %llx", g_mc.rva, g_mc.a[0], g_mc.a[1], g_mc.a[2], g_mc.a[3], g_mc.ret);
