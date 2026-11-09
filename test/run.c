@@ -575,8 +575,10 @@ static void t_ether(void) {
       CHECK(mp_cost(0xe4) == 5 && mp_cost(0xe9) == 5 && mp_cost(0xf1) == 5 && mp_would_burn(0xe9) == 0, "DLinkCostByClass = 0: 5 each, as before");
       *test_dlink_cost() = 1; }
     /* which commands would empty the bar */
-    { extern int mp_would_burn(int id);
+    { extern int mp_would_burn(int id); extern s16 *mp_cost_overrides(void);
       CHECK(!mp_would_burn(0x83) && mp_would_burn(0x92), "full MP: Fire is fine, Cure always ends in MP charge");
+      CHECK(mp_would_burn(0xd3) && mp_would_burn(0xd4) && mp_would_burn(0xd5) && !mp_would_burn(0xd6), "Group Cure, Cura, Curaga take everything too; Group Esuna does not");
+      { s16 *ov = mp_cost_overrides(); ov[0xd4] = 40; CHECK(!mp_would_burn(0xd4) && mp_cost(0xd4) == 40, "[Cost] d4=40: Group Cura back to 40"); ov[0xd4] = 0; }
       *test_mp() = 10; CHECK(mp_would_burn(0x83), "10 MP left: Fire (10) would empty the bar");
       *test_mp() = 11; CHECK(!mp_would_burn(0x83) && mp_would_burn(0x85), "11 MP left: Fire fits, Firaga (20) does not"); }
     /* a save point (its Save prompt up) refills MP within a second and finishes a recharge */

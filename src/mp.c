@@ -40,7 +40,7 @@ static float c_max_base_crit = 20.0f;  /* ... on Critical */
 static float c_max_per_slot = 10.0f;   /* extra MP per command deck slot the character has (filled or not) */
 static float c_max_per_level = 0.0f;   /* extra MP per level above 1 */
 static float c_cost_scale = 1.0f;      /* MP cost = command's reload seconds x this */
-static int   c_cure_all = 1;           /* Cure/Cura/Curaga use all remaining MP (KH2 rule) */
+static int   c_cure_all = 1;           /* Cure/Cura/Curaga and the Group cures use all remaining MP (KH2 rule) */
 static int   c_rebalance = 1;          /* the strongest commands cost by their strength (see k_rebalance) */
 static float c_charge_seconds = 25.0f; /* MP charge: seconds to recharge from empty (KH2: 50) */
 static float c_haste_bonus = 0.10f;    /* ... divided by 1 + this for every Magic Haste ("MP Haste") installed */
@@ -363,11 +363,12 @@ float mp_cost(int id) {
     float c = (float)base_cost(id) * c_cost_scale;
     return c < 1.0f ? 1.0f : c;
 }
-/* Cure, Cura, Curaga, the D-Link decks' two heals and (Rebalanced) Faith: what CureUsesAllMP is about.  A command with a cost of its
+/* Cure, Cura, Curaga, Group Cure / Cura / Curaga (d3..d5, 40 MP each before 2026-11-08), the D-Link decks' two heals
+   and (Rebalanced) Faith: what CureUsesAllMP is about.  A command with a cost of its
    own in [Cost] is not one of them: that cost is what it costs, as the ini says. */
 static int is_cure(int id) {
     if (id <= 0 || id >= CMD_MAX || g_cost_over[id] > 0) return 0;
-    return (id >= 0x92 && id <= 0x94) || (c_dlink_cost && is_dlink_cure(id)) || (c_rebalance && id == FAITH);
+    return (id >= 0x92 && id <= 0x94) || (id >= 0xd3 && id <= 0xd5) || (c_dlink_cost && is_dlink_cure(id)) || (c_rebalance && id == FAITH);
 }
 
 /* would using this command now end in MP burn?  (what the menu marks) */
