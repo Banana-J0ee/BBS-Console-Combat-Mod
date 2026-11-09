@@ -52,6 +52,7 @@ int  sc_slot(int row);              /* deck slot 0..7 of that row's shortcut in 
 int  sc_assign(int row, int slot);
 int  sc_slot_in(int set, int row);  /* ... of a given set */
 int  sc_assign_in(int set, int row, int slot);
+void sc_reset_defaults(void);
 int  sc_sets(void);                 /* sets in use: 1 or 2 */
 int  sc_page(void);                 /* the set shown in battle, 0 or 1 */
 u32  sc_row_mask(int row);

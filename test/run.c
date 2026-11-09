@@ -2933,7 +2933,10 @@ static void t_sccamp(void) {
     STEP(0, 0); STEP(0x40, 0x40); STEP(0, 0); STEP(0x40, 0x40); STEP(0, 0); STEP(0x40, 0x40); STEP(0, 0); STEP(0x40, 0x40);
     CHECK(ST(1) == 3, "back on slot 4");
     /* assign */
-    STEP(0, 0); STEP(PAD_TRI, PAD_TRI); CHECK(ST(0) == 2 && sc_slot(1) == 1, "a face button alone does nothing");
+    STEP(0, 0); STEP(PAD_TRI, PAD_TRI); CHECK(ST(0) == 4 && sc_slot(1) == 1, "triangle alone: asks whether to reset, nothing changed yet");
+    STEP(0, 0); STEP(0x40, 0x40); CHECK(ST(0) == 2 && ST(1) == 3 && sc_slot(1) == 1 && sc_slot(0) == 0, "a direction: kept, still on slot 4");
+    STEP(0, 0); STEP(PAD_TRI, PAD_TRI); STEP(0, 0); STEP(0x2000, 0x2000);
+    CHECK(ST(0) == 2 && sc_slot(1) == 1, "cancel while asked: kept, still picking a slot");
     STEP(0, 0); STEP(0x4000, 0x4000); CHECK(ST(0) == 3, "confirm: waiting for a button");
     STEP(0, 0); STEP(PAD_TRI, PAD_TRI);
     p1 = node_text(plate[1], 5); p3 = node_text(plate[3], 5);
@@ -2962,6 +2965,24 @@ static void t_sccamp(void) {
         q3 = node_text(plate[3], 5);
         CHECK(*test_sccamp_set() == 0 && q3 && !strcmp(q3, "\xf5\x7b\xf5\x7c"), "square again: set 1, as it was");
         b2[0] = 4; b2[1] = 5; b2[2] = 6; b2[3] = 7; }
+    /* triangle twice: both sets back to the default slots, the save's bytes written whole */
+    {   extern int sc_slot_in(int set, int row);
+        u32 *ab = &G(u32, 0x10fa3d08 + 0x18cc + 4);                     /* abilities 1..4 */
+        static const u32 junk[4] = { 0xff012345, 0x0a6789ab, 0xe0cdef01, 0x5f234567 };
+        for (int i = 0; i < 4; i++) ab[i] = junk[i];
+        STEP(0, 0); STEP(PAD_TRI, PAD_TRI); CHECK(ST(0) == 4, "asked");
+        CHECK((ab[0] >> 24) == 0xff, "nothing written before the second press");
+        STEP(0, 0); STEP(PAD_TRI, PAD_TRI);
+        int ok = 1; for (int i = 0; i < 4; i++) ok &= ab[i] == ((junk[i] & 0x00ffffffu) | (u32)((2 * i + 1) | (2 * i + 2) << 4) << 24);
+        CHECK(ST(0) == 2 && ok, "reset: top bytes %02x %02x %02x %02x, the rest of each ability as it was", ab[0] >> 24, ab[1] >> 24, ab[2] >> 24, ab[3] >> 24);
+        int def = 1; for (int st = 0; st < 2; st++) for (int r = 0; r < 4; r++) def &= sc_slot_in(st, r) == st * 4 + r;
+        CHECK(def, "set 1: slots 1..4, set 2: slots 5..8 (circle, triangle, square, cross)");
+        const char *r0 = node_text(plate[0], 5), *r1 = node_text(plate[1], 5), *r2 = node_text(plate[2], 5), *r3 = node_text(plate[3], 5), *r4 = node_text(plate[4], 5);
+        CHECK(r0 && !strcmp(r0, "\xf5\x7b") && r1 && !strcmp(r1, "\xf5\x67") && r2 && !strcmp(r2, "\xf5\x66") && r3 && !strcmp(r3, "\xf5\x7c") && r4 && !*r4,
+              "the plates show it at once");
+        test_sc_bind()[0] = 5; CHECK(sc_slot_in(0, 0) == 0, "written as numbers: the old shortcuts file is not looked at");
+        test_sc_bind()[0] = 0;
+    }
     /* cancel: back to the list, then out */
     STEP(0, 0); STEP(0x2000, 0x2000);
     CHECK(ST(0) == 1 && top[0x11] == 1 && top[0x9b] == 2, "cancel: back on the Shortcuts entry");

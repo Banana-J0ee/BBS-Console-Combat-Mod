@@ -98,6 +98,13 @@ int sc_assign_in(int set, int row, int slot) {
     return changed;
 }
 int sc_assign(int row, int slot) { return sc_assign_in(sc_page(), row, slot); }
+/* Both sets back to the default slots (set 1: 1..4, set 2: 5..8, in the rows' order), as numbers rather than "never
+   set", so the old bbskh2_shortcuts.ini is not consulted.  The four bytes are written whole: anything else another
+   mod may have left in them goes.  The rest of each ability's u32 is not touched. */
+void sc_reset_defaults(void) {
+    for (int i = 0; i < SC_SETS * SC_ROWS / 2; i++) SAVE_SC(i) = (u8)((2 * i + 1) | (2 * i + 2) << 4);
+    if (g_debug) LOG("shortcuts: reset to the default slots");
+}
 static void load(void) {
     static const char *const sec[3] = { "Character0", "Character1", "Character2" };
     snprintf(g_file, sizeof g_file, "%sbbskh2_shortcuts.ini", g_dir);

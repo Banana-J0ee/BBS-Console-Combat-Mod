@@ -17,7 +17,10 @@
        button again clears it), any direction backs out.  Each plate shows the buttons of its slot where the
        command's level normally is.  Cancel goes back to the list.
      - two sets of shortcuts (shortcut.c): while picking a slot, square shows and sets the other set, and square
-       again goes back; the help line says which set is shown. */
+       again goes back; the help line says which set is shown.
+     - triangle, while picking a slot, asks whether to put both sets back to the default slots (sc_reset_defaults:
+       rewrites the save's shortcut bytes whole, for saves another mod has written into); triangle again does it,
+       any other button keeps them. */
 #include "mod.h"
 #include <stdio.h>
 #include <string.h>
@@ -57,7 +60,8 @@ extern int g_debug;
 static int  c_on = 1;
 static char c_title[32] = "Shortcuts";
 
-enum { M_OFF, M_ENTRY, M_SLOTS, M_ASSIGN };     /* cursor elsewhere / on our entry / picking a slot / waiting for a button */
+enum { M_OFF, M_ENTRY, M_SLOTS, M_ASSIGN, M_RESET };   /* cursor elsewhere / on our entry / picking a slot / waiting for a button /
+                                                           asking whether to reset */
 static int g_mode, g_slot;
 static int g_set;                               /* the set being shown and set: 0 or 1 */
 static int g_list_h, g_item;                    /* the list's layout instance and our plate */
@@ -180,10 +184,14 @@ static void help(void) {
         HELP_TEXT(t); break;
     case M_SLOTS:
         if (sc_sets() > 1)
-            snprintf(t, sizeof t, "Set %d: pick a deck slot and press %c%c to give it a button.\nPress %s for set %d. In battle the d-pad switches sets.",
-                     g_set + 1, 0xf5, 0x64, sc_row_icon(2), 2 - g_set);
+            snprintf(t, sizeof t, "Set %d: pick a slot and press %c%c to give it a button.\n%s: set %d  %s: reset all  In battle the d-pad switches sets.",
+                     g_set + 1, 0xf5, 0x64, sc_row_icon(2), 2 - g_set, sc_row_icon(1));
         else
-            snprintf(t, sizeof t, "Select a deck slot and press %c%c to give it a button.\nShortcuts follow the slot, not the command in it.", 0xf5, 0x64);
+            snprintf(t, sizeof t, "Select a deck slot and press %c%c to give it a button.\n%s: reset all. Shortcuts follow the slot, not the command.", 0xf5, 0x64, sc_row_icon(1));
+        HELP_TEXT(t); break;
+    case M_RESET:
+        snprintf(t, sizeof t, "%s\nPress %s again to reset them, any other button to keep them.",
+                 sc_sets() > 1 ? "Reset both sets of shortcuts to the default slots?" : "Reset the shortcuts to the default slots?", sc_row_icon(1));
         HELP_TEXT(t); break;
     case M_ASSIGN:
         if (sc_sets() > 1)
@@ -270,8 +278,12 @@ static int MSABI list_input_hook(u8 *self) {
         int to = (move & up) ? slot_next(g_slot, -1) : (move & down) ? slot_next(g_slot, 1) : -1;
         if (to >= 0) { if (to != g_slot) { g_slot = to; slot_cursor(); } SE(1); }
         else if (sc_sets() > 1 && (press & sc_row_mask(2)) && !(press & (ok | cancel))) { g_set ^= 1; plates(1); help(); SE(1); }   /* square: the other set */
+        else if ((press & sc_row_mask(1)) && !(press & (ok | cancel))) { g_mode = M_RESET; help(); SE(1); }         /* triangle: reset? */
         else if (press & ok) { g_mode = M_ASSIGN; help(); SE(2); }
         else if (press & cancel) { leave_slots(self); SE(4); }
+    } else if (g_mode == M_RESET) {
+        if ((press & sc_row_mask(1)) && !(press & (ok | cancel))) { sc_reset_defaults(); plates(1); g_mode = M_SLOTS; help(); SE(2); }
+        else if (press & (0x00f0fff0u | ok | cancel)) { g_mode = M_SLOTS; help(); SE(4); }                   /* anything else: keep them */
     } else {
         u32 face = press & 0xf000u;
         if (face) {
