@@ -335,12 +335,121 @@ cfg.b12ex00 = {
 }
 
 -- Master Eraqus: guard (+ counter) chance on every hit.
+-- his attacks (out of a flinch his OnReturnDamage restarts the state he was in, so a combo on the end of
+-- RushAttack - its rounds armoured, the end open - started a fresh RushAttack, again and again)
+local ERAQUS_ATTACKS = { RushAttack = true, SuccessionAttack = true, Kagerou = true, Oboro = true,
+                         Kasumi = true, Itusen = true }
+-- the attack he did twice in a row, barred until he does another (nil: none)
+local function eraqusBarred(self)
+  if (rawget(self, "__exRun") or 0) >= 2 then return rawget(self, "__exLast") end
+  return nil
+end
+local ERAQUS_ANSWERS = { close = { "SuccessionAttack", "RushAttack", "Kagerou" }, far = { "RushAttack", "Oboro", "Kasumi", "Itusen" } }
+-- His Wander (b20ex00.lub): every 1-2 s a step by your distance - back off under 5, strafe 5-7.5, walk in
+-- beyond - and after each a 25% chance to stand still, for 60-120 frames.  Here 30-60.  (His hold-back
+-- after fleeing: Pause in bbskh2_boss.ini.)
+local function eraqusSetup(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.Wander) ~= "table" then return end
+  local own = {}
+  for k, v in pairs(states) do own[k] = v end
+  local w = {}
+  for k, v in pairs(states.Wander) do w[k] = v end
+  local wu = w.OnUpdate
+  w.OnUpdate = function(self, a, b)
+    local was = self.step
+    local r = wu(self, a, b)
+    if was == 0 and self.step == 1 and self:GetState() == "Wander" then
+      self.walkTimer = Script.RandomInRange(30, 60)    -- he picked standing still: shorter
+    end
+    return r
+  end
+  own.Wander = w
+  rawset(ent, "states", own)
+  -- every attack he starts, by any route (his own picks, the mod's answers, his guard counter): the same
+  -- one twice in a row and it is barred until he does something else (eraqusBarred)
+  for name in pairs(ERAQUS_ATTACKS) do
+    if type(own[name]) == "table" and type(own[name].OnBeginState) == "function" then
+      local t = {}
+      for k, v in pairs(own[name]) do t[k] = v end
+      local ob = t.OnBeginState
+      t.OnBeginState = function(self, a, b)
+        if rawget(self, "__exLast") == name then
+          rawset(self, "__exRun", (rawget(self, "__exRun") or 0) + 1)
+        else
+          rawset(self, "__exLast", name)
+          rawset(self, "__exRun", 1)
+        end
+        return ob(self, a, b)
+      end
+      own[name] = t
+    end
+  end
+  -- his own picks (SelectAttack, from Idling and Wander): a pick holding a barred attack is rolled again
+  -- (barred: the attack he was just flinched out of, for that one pick; and one he did twice in a row)
+  local sel = ent.SelectAttack
+  if type(sel) == "function" then
+    rawset(ent, "SelectAttack", function(self, a, b)
+      local stk = self.stack
+      local bar = {}
+      local no = rawget(self, "__exNoRepeat")
+      if no ~= nil then bar[no] = true rawset(self, "__exNoRepeat", nil) end
+      local twice = eraqusBarred(self)
+      if twice ~= nil then bar[twice] = true end
+      if next(bar) == nil or stk == nil or type(stk.ptr) ~= "number" then return sel(self, a, b) end
+      local p0 = stk.ptr
+      local r
+      for try = 1, 8 do
+        r = sel(self, a, b)
+        local hit = nil
+        if r then
+          for i = p0, stk.ptr - 1 do if bar[stk._et[i]] then hit = stk._et[i] end end
+        end
+        if hit == nil then break end
+        local st = rawget(self, "__rv")
+        rlog("b20ex00", st and st.t or 0, "picked", hit, "- barred (", hit == twice and "twice in a row" or "just flinched out of it", "): rolled again")
+        while stk.ptr > p0 do stk:pop() end
+        r = false
+      end
+      return r
+    end)
+  end
+end
+
+
 cfg.b20ex00 = {
   limit = 9,
+  setup = eraqusSetup,
+  -- out of a flinch in an attack: not that attack again, but Idling and Wander - what his own script
+  -- does after a reflect - so his next attack is a fresh pick
+  recover = function(self)
+    if type(self.GetState) ~= "function" or self.stack == nil then return end
+    local s = self:GetState()
+    if not ERAQUS_ATTACKS[s] then return end
+    local st = rawget(self, "__rv")
+    rlog("b20ex00", st and st.t or 0, "out of hit-stun in", s, "- not restarting it: Idling, then Wander")
+    -- (his own restart just counted it as a new use: it was not)
+    if rawget(self, "__exLast") == s and (rawget(self, "__exRun") or 0) > 0 then
+      rawset(self, "__exRun", rawget(self, "__exRun") - 1)
+    end
+    rawset(self, "__exNoRepeat", s)
+    self.stack:push("Wander")
+    self:GotoState("Idling")
+  end,
   rearm = rounds({ RushAttack = { up = "count" } }),           -- his rush runs 3 times in one move
   tempo = { idle = { Idling = "timer" }, pop = { Flee = true } },
   armorStates = { RushAttack = true, SuccessionAttack = true },
-  answer = { close = { "SuccessionAttack", "RushAttack", "Kagerou" }, far = { "RushAttack", "Oboro", "Kasumi", "Itusen" } },
+  -- his answers (break-outs, owed answers, the opening), without one he did twice in a row
+  answer = function(self, near, ret, choose)
+    local list = near and ERAQUS_ANSWERS.close or ERAQUS_ANSWERS.far
+    local bar = eraqusBarred(self)
+    local l = {}
+    for i = 1, #list do if list[i] ~= bar then l[#l + 1] = list[i] end end
+    if #l == 0 then l = list end
+    local n = choose(l)
+    if n ~= nil and ret ~= nil and self.stack ~= nil then self.stack:push(ret) end
+    return n
+  end,
   pre = dmgCountPre,
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" or self.stack == nil then return 0 end
@@ -348,8 +457,8 @@ cfg.b20ex00 = {
     if s == "Dead" or s == "Appear" or s == "Guard" or s == "Kagerou" then return 0 end
     self.stack:push("Wander")
     self.stack:push("Idling")
-    if not answers(self) then
-      self.stack:push("Kagerou")  -- the guard is always followed by his counter
+    if not answers(self) and eraqusBarred(self) ~= "Kagerou" then
+      self.stack:push("Kagerou")  -- the guard is always followed by his counter (not a third in a row)
     end                           -- (with an answer: the guard, then the attack it picks)
     self:GotoState("Guard")
     if type(self.dmgCount) == "number" then self.dmgCount = 0 end
@@ -564,17 +673,239 @@ cfg.b01pp00 = {
   end,
 }
 
--- Peter Pan.  vanilla: no break-out of any kind - he can be comboed forever - and
--- he recovers from hit-stun into idling.  At the limit he answers with one of his
--- own attacks; after any combo he goes straight back on the offensive.
+-- Peter Pan (experimental, 2026-11-03): a quick duelist.  He charges in and strikes fast; a guard
+-- staggers him (the game's own recoil); a long combo is allowed (limit 12) and his hand trail lights up
+-- as the warning that his revenge is close.  His moves (b20pp00.lub):
+--   Attack1 motion 320 (overhead swing), Attack2 300 (stab), Attack3 310 x N then 311 (multi-hit),
+--   Attack4 an unused stub in his script (body collision on, no motion) - here: the charge, which his
+--   script otherwise runs inside Move (step 4: hand trail B014_KAZ_00_0, homing flight 032/033/034,
+--   the stab 300 within 4 m - with Attack2's attack data here, so a guard bounces him as from Attack2).
+local PP = {
+  fly = 1.5,          -- his flying speeds (Move, MoveEx, TargetHomingMove) x this
+  charge = 2.0,       -- the charge: his own 0.16 x this
+  chargeMax = 180,    -- frames of flight before a charge that cannot reach gives up (his own: 300)
+  -- the charge's homing is scaled with its speed (x charge), so his flight path keeps the shape of his
+  -- own charge's (a turn ramp of 0.05 deg/frame each frame, up to 5 deg/frame): at x2 with his own
+  -- turning the curve was twice as wide and he swung past you
+  stabAt = 5.5,       -- m: the charge's stab starts this close (his own: 4).  Its hit is on frames 7-13 of
+                      -- motion 300; at x2 speed from 4 m he was on top of you or past by frame 13
+  stabSlope = 0.5,    -- ... and only when his height above you is under this x the ground distance (0.5 = ~27
+                      -- degrees above level); steeper - he is above you - he keeps homing in
+  bodyAttack = 2,     -- his body collision during the charge takes this attack of his .epd (#2: Attack2's stab)
+  turn = 3,           -- the charge's homing x this (his own ramp and cap; 2 matched the speed and was not enough)
+  turnRamp = 0.05,    -- his own; x PP.turn
+  turnMax = 5,        -- his own; x PP.turn
+  chargeAfter = 30,   -- frames of flying around before he charges (his own: a 40% roll every 180)
+  loops = 3,          -- Attack3: his counter starts here; the finisher comes once it passes 3 (his own: 0 = 5 swings)
+  warnAt = 2,         -- the trail lights up this far below the limit (and stays through the break-out)
+}
+
+-- (the game's Lua has no math library) a square root for the log only
+local function ppSqrt(x)
+  if x <= 0 then return 0 end
+  local r = x > 1 and x or 1
+  for i = 1, 12 do r = 0.5 * (r + x / r) end
+  return r
+end
+
+local function ppFinish(self)
+  self.attackCnt = (self.attackCnt or 0) - 1
+  if 0 > self.attackCnt then self:GotoState("Idling") else self:GotoState("BeforeAttackIdling") end
+end
+
+-- the warning: his hand trail while the gauge is within PP.warnAt of the limit or a break-out runs.
+-- `dec` is his own DashEffectControler; the instance's one ignores "off" while the warning is on
+-- (his OnDamage switches the trail off on every hit).
+local function ppWarn(self)
+  local dec = rawget(self, "__ppDec")
+  local st = rawget(self, "__rv")
+  if dec == nil or type(st) ~= "table" then return end
+  local s = type(self.GetState) == "function" and self:GetState() or nil
+  local on = s ~= "Dead" and s ~= "Appear" and (st.rv >= st.limit - PP.warnAt or (st.armor or 0) > 0)
+  if on then
+    if not rawget(self, "__ppWarn") then
+      rawset(self, "__ppWarn", true)
+      rlog("b20pp00", st.t or 0, "warning on: gauge", st.rv, "/", st.limit)
+    end
+    pcall(dec, self, 1)
+  elseif rawget(self, "__ppWarn") then
+    rawset(self, "__ppWarn", false)
+    rlog("b20pp00", st.t or 0, "warning off: gauge", st.rv, "/", st.limit)
+    if not (s == "Attack4" and self.step == 0) then pcall(dec, self, 0) end
+  end
+end
+
+local function ppSetup(ent)
+  local states = ent.states
+  if type(states) ~= "table" or type(states.Attack3) ~= "table" or type(states.Move) ~= "table" then return end
+  local function copy(t) local n = {} for k, v in pairs(t) do n[k] = v end return n end
+  local own = copy(states)
+  -- the multi-hit: 2 swings and the finisher
+  local a3 = copy(states.Attack3)
+  local a3b = a3.OnBeginState
+  a3.OnBeginState = function(self, a, b)
+    local r = a3b(self, a, b)
+    self.attackLoopCnt = PP.loops
+    return r
+  end
+  own.Attack3 = a3
+  -- (log only) his height above you when Attack2 - the same stab, which a guard catches - starts
+  if type(states.Attack2) == "table" then
+    local a2 = copy(states.Attack2)
+    local a2b = a2.OnBeginState
+    a2.OnBeginState = function(self, a, b)
+      local r = a2b(self, a, b)
+      local ok, d = pcall(Entity.CalcDistance, self.myHandle, self.targetHandle)
+      local ok2, xz = pcall(Entity.CalcDistanceXZ, self.myHandle, self.targetHandle)
+      if ok and ok2 and type(d) == "number" and type(xz) == "number" then
+        local h2 = d * d - xz * xz
+        local st = rawget(self, "__rv")
+        rlog("b20pp00", st and st.t or 0, "Attack2 starts at", d, "m: ground", xz, "height", ppSqrt(h2))
+      end
+      return r
+    end
+    own.Attack2 = a2
+  end
+  -- faster flight
+  local mv, mvx, thm = ent.Move, ent.MoveEx, ent.TargetHomingMove
+  if type(mv) == "function" then rawset(ent, "Move", function(self, sp, a) return mv(self, sp * PP.fly, a) end) end
+  if type(mvx) == "function" then rawset(ent, "MoveEx", function(self, sp, a) return mvx(self, sp * PP.fly, a) end) end
+  if type(thm) == "function" then rawset(ent, "TargetHomingMove", function(self, sp, a) return thm(self, sp * PP.fly, a) end) end
+  -- the charge as an attack of its own
+  own.Attack4 = {
+    OnBeginState = function(self)
+      self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
+      self.step, self.Angle, self.Wait, self.MotionFlag = 0, 0, PP.chargeMax, 1
+      rawset(self, "__ppSteep", false)
+      rawset(self, "__ppAway", false)
+      rawset(self, "__ppPrevD", nil)
+      Entity.SetMotionWithSameCheck(self.myHandle, "032")
+      Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
+      -- his body collision (touching him during the charge) as his Attack2's stab, attack #2 of his
+      -- b20pp00.epd - so running into your guard is a guarded hit.  The game's own way of giving a body
+      -- collision an attack (b10vs00, b83vs00: SetAttack...ForBodyColl from Enemy.GetAttack...)
+      local n = PP.bodyAttack
+      local okK, kind = pcall(Enemy.GetAttackKind, self.myHandle, n)
+      local okA, attr = pcall(Enemy.GetAttackAttr, self.myHandle, n)
+      local okP, point = pcall(Enemy.GetAttackPoint, self.myHandle, n)
+      local okC, corr = pcall(Enemy.GetAttackPowerCorrection, self.myHandle, n)
+      if okK then pcall(Entity.SetAttackKindForBodyColl, self.myHandle, kind) end
+      if okP then pcall(Entity.SetAttackPointForBodyColl, self.myHandle, point) end
+      if okA then pcall(Entity.SetAttackAttrForBodyColl, self.myHandle, attr) end
+      if okC then pcall(Entity.SetTechniquePowerCorrectionForBodyColl, self.myHandle, corr) end
+      if not rawget(self, "__ppBodyLogged") then
+        rawset(self, "__ppBodyLogged", true)
+        local st = rawget(self, "__rv")
+        rlog("b20pp00", st and st.t or 0, "charge: body collision as attack #" .. n .. ": kind", okK and kind or "?",
+             "attr", okA and attr or "?", "point", okP and point or "?", "correction", okC and corr or "?")
+      end
+      Entity.EnableAttackBodyColl(self.myHandle, 1)
+      self:DashEffectControler(1)
+    end,
+    OnEndState = function(self)
+      Entity.ClearSpeed(self.myHandle)
+      Entity.EnableAttackBodyColl(self.myHandle, 0)
+      self:DashEffectControler(0)
+    end,
+    OnUpdate = function(self)
+      local fr = Entity.GetFrameRate(self.myHandle)
+      if self.step == 0 then
+        self.Wait = self.Wait - fr
+        self.Angle = self.Angle + PP.turnRamp * PP.turn * fr
+        if self.Angle > PP.turnMax * PP.turn then self.Angle = PP.turnMax * PP.turn end
+        Entity.TurnTargetDegree(self.myHandle, self.targetHandle, self.Angle)
+        mvx(self, 0.16 * PP.charge, 0.01)
+        local w = self:WhichRightandLeft()
+        Entity.SetMotionWithSameCheck(self.myHandle, (w == 2 and "034") or (w == 1 and "033") or "032")
+        local dist = Entity.CalcDistance(self.myHandle, self.targetHandle)
+        -- in reach and coming in shallow: his height above you (from the 3D and the ground distance, as
+        -- squares) under PP.stabSlope x the ground distance.  Steeper - over your head - he keeps flying
+        local xz = Entity.CalcDistanceXZ(self.myHandle, self.targetHandle)
+        local h2 = dist * dist - xz * xz
+        if h2 < 0 then h2 = 0 end
+        local level = h2 < PP.stabSlope * PP.stabSlope * xz * xz
+        -- and closing in: nearer than last frame (after flying over you he is level again 5.5 m behind
+        -- you, flying away - no stab then; his homing turns him back)
+        local prev = rawget(self, "__ppPrevD")
+        rawset(self, "__ppPrevD", dist)
+        local closing = prev ~= nil and dist < prev
+        if dist < PP.stabAt and level and not closing and not rawget(self, "__ppAway") then
+          rawset(self, "__ppAway", true)
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: level at", dist, "m but not closing in - keeps flying")
+        end
+        level = level and closing
+        if dist < PP.stabAt and not level and not rawget(self, "__ppSteep") then
+          rawset(self, "__ppSteep", true)
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: too steep at", dist, "m: ground", xz, "height", ppSqrt(h2), "- keeps flying")
+        end
+        if dist < PP.stabAt and level then
+          local st = rawget(self, "__rv")
+          rlog("b20pp00", st and st.t or 0, "charge: the stab at", dist, "m: ground", xz, "height", ppSqrt(h2),
+               "slope", xz > 0 and ppSqrt(h2) / xz or 99)
+          -- attack group 0 of motion 300 = attack #2, his Attack2's stab (a guard blocks it).  His own charge
+          -- plays group 1 = attack #3 (b20pp00.aac / .epd: power 2.5, knock-away, flags 0x86 - the guard
+          -- does not stop it); the 4th argument picks the group (-1 all, n only group n)
+          Entity.SetMotionWithSameCheck(self.myHandle, "300", 1, 0)
+          Entity.SetAttackerHandle(self.targetHandle, self.myHandle)
+          self.step = 1
+          Entity.EnableAttackBodyColl(self.myHandle, 0)
+          self:DashEffectControler(0)
+        elseif self.Wait < 0 then
+          ppFinish(self)
+        end
+      elseif self.step == 1 then
+        if Entity.IsMotionEnd(self.myHandle) then ppFinish(self) end
+      end
+    end,
+  }
+  -- flying around: the charge after PP.chargeAfter frames, and his own charge (step 4) goes to it
+  local m = copy(states.Move)
+  local mb, mu = m.OnBeginState, m.OnUpdate
+  m.OnBeginState = function(self, a, b)
+    local r = mb(self, a, b)
+    rawset(self, "__ppMoveT", 0)
+    return r
+  end
+  m.OnUpdate = function(self, a, b)
+    local r = mu(self, a, b)
+    if self:GetState() ~= "Move" then return r end
+    if self.step == 4 then self:GotoState("Attack4") return r end
+    local t = (rawget(self, "__ppMoveT") or 0) + Entity.GetFrameRate(self.myHandle)
+    rawset(self, "__ppMoveT", t)
+    if t >= PP.chargeAfter and (self.step == 1 or self.step == 3) then self:GotoState("Attack4") end
+    return r
+  end
+  own.Move = m
+  rawset(ent, "states", own)
+  -- the warning
+  local dec = ent.DashEffectControler
+  if type(dec) == "function" then
+    rawset(ent, "__ppDec", dec)
+    rawset(ent, "DashEffectControler", function(self, on)
+      if on == 0 and rawget(self, "__ppWarn") then return end
+      return dec(self, on)
+    end)
+  end
+  local upd = ent.Update
+  if type(upd) == "function" then
+    rawset(ent, "Update", function(self, a, b)
+      local r = upd(self, a, b)
+      ppWarn(self)
+      return r
+    end)
+  end
+end
+
 cfg.b20pp00 = {
-  limit = 8,
+  limit = 12,
+  setup = ppSetup,
   tempo = { idle = { Idling = "timer", BeforeAttackIdling = "timer" } },
   armorStates = { Attack1 = true, Attack2 = true, Attack3 = true, Attack4 = true },
   iframes = 48,
-  -- his three attacks are all picked at the same range in his script (BeforeAttackIdling); Attack4 is
-  -- never used by it, so it stays out
-  answer = { close = { "Attack1", "Attack2", "Attack3" }, far = { "Attack1", "Attack2", "Attack3" }, noRet = true },
+  -- close: his three attacks (picked at the same range in his script, BeforeAttackIdling); far: the charge
+  answer = { close = { "Attack1", "Attack2", "Attack3" }, far = { "Attack4" }, noRet = true },
   openAt = { BattleStartState = true },   -- his opening hover (up to 500 frames) is where his fight starts
   counter = function(self)
     if type(self.GotoState) ~= "function" or type(self.GetState) ~= "function" then return 0 end
@@ -585,6 +916,7 @@ cfg.b20pp00 = {
       pcall(function() self.stack:clear() self.stack:push("Idling") end)
     end
     pcall(self.ReSetRot, self)
+    ppWarn(self)
     if answers(self) and answerNow(self) then return 1 end
     self:GotoState("Attack3")
     return 1
@@ -595,6 +927,9 @@ cfg.b20pp00 = {
     if s == "Dead" or s == "Appear" then return end
     self.targetHandle = Enemy.SearchAttackEntity(self.myHandle, SEARCH_TYPE_NEAR)
     self:GotoState("BeforeAttackIdling")
+    -- dazed a moment after the flinch: his script's own idling comes first, so the tempo counts this
+    -- wait as "idle after idle" (2 frames) and he attacked the instant he stood up
+    if self:GetState() == "BeforeAttackIdling" then pcall(Entity.SetTimer, self.myHandle, 24) end
   end,
 }
 
@@ -640,6 +975,34 @@ cfg.b20ls00 = {
     if type(self.dmgCount) == "number" then self.dmgCount = 0 end
     self:GotoState(self.stack:pop(1))
     return 1
+  end,
+  -- Electric Ball (2026-10-31, asked for): armoured until the ball is thrown, then open for the rest of the move.
+  -- He makes the ball at frame 10 and throws it at 40 (step 1 -> 2); a hit in between (40 fixed frames of armour
+  -- could run out a frame early) left a ball that was never thrown, growing forever, while the next Electric Ball
+  -- made a new one.  The move's armour is "all" (bbskh2_boss.ini); here it ends at the throw.
+  setup = function(ent)
+    local states = ent.states
+    if type(states) ~= "table" or type(states.ElectricBall) ~= "table" then return end
+    local upd = states.ElectricBall.OnUpdate
+    if type(upd) ~= "function" then return end
+    local own = {}
+    for k, v in pairs(states) do own[k] = v end
+    local eb = {}
+    for k, v in pairs(states.ElectricBall) do eb[k] = v end
+    eb.OnUpdate = function(self, a, b)
+      local before = self.step
+      local r = upd(self, a, b)
+      if before ~= 2 and self.step == 2 then
+        local st = RV.ents.b20ls00
+        if st ~= nil and (st.mArmor or 0) > 0 then
+          st.mArmor, st.hitWin, st.winOff, st.winState = 0, nil, true, "ElectricBall"
+          rlog("b20ls00", st.t or 0, "armour of ElectricBall ends: the ball is thrown")
+        end
+      end
+      return r
+    end
+    own.ElectricBall = eb
+    rawset(ent, "states", own)
   end,
 }
 

@@ -140,9 +140,9 @@ static const BossHp k_boss_hp[] = {
     { "b01rg00", 110 }, { "b04rg00", 110 }, { "b05rg00", 110 }, { "b06rg00", 110 }, { "b07rg00", 110 }, { "b08rg00", 110 },
     /* mid: x1.20 */
     { "b30he00", 105 }, { "b40he00", 105 } /* Zack, helmet and not: 630 */, { "b01he00", 120 }, { "b10he00", 120 },
-    { "b20ls00", 120 }, { "b01ls00", 120 }, { "b02ls00", 120 }, { "b10ls00", 120 },
+    { "b20ls00", 105 } /* Experiment 221: 525 */, { "b01ls00", 120 }, { "b02ls00", 120 }, { "b10ls00", 120 },
     /* late worlds and the story finales: x1.30 */
-    { "b01pp00", 130 }, { "b20pp00", 130 }, { "b10ex02", 130 }, { "b11ex00", 130 }, { "b20ex00", 130 },
+    { "b01pp00", 130 }, { "b20pp00", 100 } /* Peter Pan: 700, as the game has it */, { "b10ex02", 130 }, { "b11ex00", 130 }, { "b20ex00", 130 },
     { "b30ex00", 130 }, { "b40ex00", 130 }, { "b63ex00", 130 }, { "b50ex00", 130 },
     /* Final Episode: x1.25 */
     { "b51ex00", 125 }, { "b52ex00", 125 },
@@ -388,7 +388,8 @@ int mp_would_burn(int id) {
 #define DESC_CALL 0x1a81bf
 #define MSG_FIND  0x1b3750
 #define DESC_MSG  0x320000u
-#define DESC_MAX_LINE 54                 /* longest line of the original descriptions */
+#define DESC_MAX_LINE 48   /* a line and its cost: the box holds about 50 characters ("Punish faraway enemies with a
+                              charging attack. SP 15", 52, ran out of it; 54 was the longest original line) */
 static char g_desc[768];
 static int costs_mp(int id) { return id >= 0x5b && id <= 0xe3 && CMD_CAT(id) != 3; }    /* deck commands, not items */
 /* ---------------- Focus Exchange (2026-10-23; the ability is combomaster.c's) ----------------

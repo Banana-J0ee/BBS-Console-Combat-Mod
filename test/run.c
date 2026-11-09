@@ -2178,6 +2178,8 @@ static void t_desc(void) {
     /* colour codes and icons in the text: "(Uses two slots.)" is yellow in the original */
     t = test_desc(0xb0, "Create an anti-gravity field no enemy can\nescape, then deal damage by sending them\nhurtling in all directions. \xf9Y(Uses two slots.)");
     CHECK(t && strstr(t, "slots.) " GREEN "SP 25" BACK), "after the yellow note: %s", t ? strrchr(t, '\n') + 1 : "-");
+    t = test_desc(0x83, "Punish faraway enemies with a charging attack.");    /* 52 with its cost: off the box (2026-10-29) */
+    CHECK(t && strstr(t, "attack.\n" GREEN "SP "), "52 characters with the cost: on a second line (%s)", t ? t : "-");
     t = test_desc(0x83, "Fire. \n"); CHECK(t && !strcmp(t, "Fire. " GREEN "SP 10" BACK), "trailing blanks are dropped");
     /* what has no MP cost is left alone */
     CHECK(!test_desc(0xbc, "Potion") && !test_desc(0xc5, "Ice cream"), "items");
@@ -2227,7 +2229,7 @@ static void t_bosshp(void) {
     for (unsigned i = 0; i < 6; i++) CHECK(call_target(load[i]) != RVA(0x2d0700), ".epd load %x is hooked", load[i]);
     CHECK(call_target(0x2b7dfe) != RVA(0x2d2ec0), "HP reset is hooked");
     CHECK(call_target(0x2d2510) != RVA(0xd2960), "the damage floor call is hooked");
-    static const struct { const char *n; int pct; } P[] = { { "b10sb00", 100 }, { "b10ex00", 110 }, { "b20ls00", 120 },
+    static const struct { const char *n; int pct; } P[] = { { "b10sb00", 100 }, { "b10ex00", 110 }, { "b20ls00", 105 },
         { "b40ex00", 130 }, { "b52ex00", 125 }, { "b12ex00", 100 }, { "b01ex00", 100 }, { "b81vs00", 100 },
         { "b85vs00", 100 }, { "b02ex00", 100 }, { "b80vs00", 100 }, { "m01ex00", 100 } };
     for (unsigned i = 0; i < sizeof P / sizeof *P; i++)

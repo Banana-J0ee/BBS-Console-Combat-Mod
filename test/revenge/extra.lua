@@ -155,11 +155,11 @@ do
   rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 7 do r = hit(h) end
-  check(r == nil and st.rv == 7, "Peter Pan: 7 hits land, no vanilla escape fires")
+  for i = 1, 11 do r = hit(h) end
+  check(r == nil and st.rv == 11, "Peter Pan: 11 hits land, no vanilla escape fires")
   r = hit(h)
   local s8 = e:GetState()
-  check(r == "before" and st.rv == 8 and (s8 == "Attack1" or s8 == "Attack2" or s8 == "Attack3"), "8th hit: one of his own attacks as the revenge (" .. tostring(s8) .. "), value kept")
+  check(r == "before" and st.rv == 12 and (s8 == "Attack1" or s8 == "Attack2" or s8 == "Attack3" or s8 == "Attack4"), "12th hit: one of his own attacks as the revenge (" .. tostring(s8) .. "), value kept")
   check(st.armor > 0, "the revenge has its armour window")
   for i = 1, 70 do e:OnUpdate() end
   check(st.armor > 0, "... held while his attack runs")
@@ -168,6 +168,15 @@ do
   check(st.armor == 0, "... and off once he is idle again (punishable)")
   EntityManager:CallFunctionNoArg("OnReturnDamage", h)
   check(e:GetState() == "BeforeAttackIdling", "after a combo he goes back on the offensive (" .. e:GetState() .. ")")
+  do
+    local tset
+    local old = M.num["Entity.SetTimer"]
+    M.num["Entity.SetTimer"] = function(h2, v) tset = v end
+    pcall(e.GotoState, e, "Idling")
+    EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+    M.num["Entity.SetTimer"] = old
+    check(e:GetState() == "BeforeAttackIdling" and tset == 24, "... dazed 24 frames first, not 2 (" .. tostring(tset) .. ")")
+  end
   -- a juggle the engine hides from the callbacks: the HP watch and the watchdog still break it
   local hp = 100
   M.num["Enemy.GetHp"] = function() return hp end
@@ -204,7 +213,7 @@ do
     if st.limit > hi then hi = st.limit end
   end
   BBS_REVENGE.vary = 0
-  check(lo >= 7 and hi <= 9 and hi > lo, string.format("the limit re-rolls in 8 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
+  check(lo >= 11 and hi <= 13 and hi > lo, string.format("the limit re-rolls in 12 +- 1 after each revenge (%.2f .. %.2f)", lo, hi))
 end
 -- boss pace: idle waits shortened, walks capped, attacks / superbosses / allies left alone
 do
@@ -1097,6 +1106,296 @@ do
   M.num["Entity.GetLayoutParam"] = nil
   M.num["Script.GetDebugTestParam"] = nil
   M.num["Enemy.GetExtraParam"] = 8
+end
+-- Experiment 221's Electric Ball: armoured until the ball is thrown (frame 40), then open
+do
+  M.script("b20ls00")
+  local e, h = M.create("b20ls00")
+  local st = BBS_REVENGE.ents.b20ls00
+  local lock
+  M.num["Enemy.EnableNoDamageReaction"] = function(hh, on) if hh == h then lock = on end end
+  M.num["Entity.GetMotionNowFrame"] = 0
+  pcall(e.GotoState, e, "ElectricBall")
+  check(e:GetState() == "ElectricBall" and lock == 1 and (st.mArmor or 0) > 1e8, "221 Electric Ball: armoured from its start")
+  M.num["Entity.GetMotionNowFrame"] = 12
+  for i = 1, 3 do e:OnUpdate() end
+  check(e.step == 1 and lock == 1 and st.mArmor > 1e8, "... the ball made (step " .. tostring(e.step) .. "): still armoured")
+  M.num["Entity.GetMotionNowFrame"] = 41
+  e:OnUpdate()
+  check(e.step == 2 and st.mArmor == 0 and st.winOff == true and lock == 0, "... thrown: open (step " .. tostring(e.step) .. ", lock " .. tostring(lock) .. ")")
+  e:OnUpdate()
+  check(lock == 0, "... and stays open")
+  M.num["Entity.GetMotionNowFrame"] = 0
+  M.num["Enemy.EnableNoDamageReaction"] = nil
+end
+-- Peter Pan, experimental (2026-11-03): short multi-hit, faster flight, the charge as Attack4, the warning trail
+do
+  M.script("b20pp00")
+  local e, h = M.create("b20pp00")
+  local st = BBS_REVENGE.ents.b20pp00
+  rawset(e, "Debug", function() end)
+  check(st.limit >= 11 and st.limit <= 13, "Peter Pan: limit 12 (+- 1): " .. st.limit)
+  -- Attack3: 2 swings, then the finisher
+  pcall(e.GotoState, e, "Attack3")
+  check(e:GetState() == "Attack3" and e.attackLoopCnt == 3, "Attack3 starts its swing count at 3 (" .. tostring(e.attackLoopCnt) .. ")")
+  local swings, fin = 0, false
+  M.num["Entity.SetMotion"] = function(hh, m) if m == "311" then fin = true end end
+  e.step = 1
+  M.num["Entity.IsMotionEnd"] = true
+  for i = 1, 6 do if not fin then swings = swings + 1 end e:OnUpdate() end
+  M.num["Entity.IsMotionEnd"] = false
+  M.num["Entity.SetMotion"] = nil
+  check(fin and swings == 2, "... the finisher after 2 swings (" .. swings .. ")")
+  -- faster flight
+  local got
+  M.num["Entity.CalcVelocity"] = function(hh, v) got = v end
+  e.Speed = 1
+  e:MoveEx(0.16, 0.01)
+  check(got ~= nil and math.abs(got - 0.24) < 1e-4, "his flight speeds x1.5 (0.16 -> " .. tostring(got) .. ")")
+  M.num["Entity.CalcVelocity"] = nil
+  -- flying around: the charge after 30 frames
+  M.num["Entity.CalcDistance"] = 10
+  pcall(e.GotoState, e, "Move")
+  for i = 1, 20 do e:OnUpdate() end
+  check(e:GetState() == "Move", "Move: still flying around after 20 frames (" .. e:GetState() .. ")")
+  for i = 1, 15 do e:OnUpdate() end
+  check(e:GetState() == "Attack4" and e.step == 0, "... then the charge (" .. e:GetState() .. ")")
+  -- his own charge inside Move goes to the attack too
+  pcall(e.GotoState, e, "Move")
+  e:OnUpdate()
+  e.step, e.Wait = 4, 300            -- as his script starts it (Move step 1, the 40% roll)
+  e:OnUpdate()
+  check(e:GetState() == "Attack4", "his own charge (Move step 4) becomes Attack4 (" .. e:GetState() .. ")")
+  -- the charge: flies, stabs within 4 m, ends with the stab
+  local mot
+  local grp
+  M.num["Entity.SetMotionWithSameCheck"] = function(hh, m, a3, a4) mot = m if m == "300" then grp = a4 end end
+  pcall(e.GotoState, e, "Idling")
+  e.attackCnt = 3
+  pcall(e.GotoState, e, "Attack4")
+  check((st.mArmor or 0) > 1e8 and st.hitWin ~= nil and st.hitWin.fallback == 180, "the charge: armoured until the stab's hits are over (hit 180)")
+  do
+    local asked, set = {}, {}
+    for _, f in ipairs({ "Kind", "Attr", "Point", "PowerCorrection" }) do
+      M.num["Enemy.GetAttack" .. f] = function(hh, n) asked[f] = n return 100 + #f end
+    end
+    for _, f in ipairs({ "AttackKind", "AttackAttr", "AttackPoint", "TechniquePowerCorrection" }) do
+      M.num["Entity.Set" .. f .. "ForBodyColl"] = function(hh, v) set[f] = v end
+    end
+    pcall(e.GotoState, e, "Idling")
+    e.attackCnt = 3
+    pcall(e.GotoState, e, "Attack4")
+    for _, f in ipairs({ "Kind", "Attr", "Point", "PowerCorrection" }) do M.num["Enemy.GetAttack" .. f] = nil end
+    for _, f in ipairs({ "AttackKind", "AttackAttr", "AttackPoint", "TechniquePowerCorrection" }) do M.num["Entity.Set" .. f .. "ForBodyColl"] = nil end
+    check(asked.Kind == 2 and asked.Attr == 2 and asked.Point == 2 and asked.PowerCorrection == 2
+          and set.AttackKind == 104 and set.AttackAttr == 104 and set.AttackPoint == 105 and set.TechniquePowerCorrection == 115,
+          "the charge: his body collision takes attack #2 (Attack2's stab): kind, attr, point, correction")
+  end
+  e:OnUpdate()
+  check(e.step == 0 and (mot == "032" or mot == "033" or mot == "034"), "charging: flight motion (" .. tostring(mot) .. ")")
+  do
+    local deg
+    M.num["Entity.TurnTargetDegree"] = function(hh, t, d) deg = d end
+    e.Angle = 0
+    e:OnUpdate()
+    local first = deg
+    for i = 1, 120 do e.Wait = 100 e:OnUpdate() end
+    M.num["Entity.TurnTargetDegree"] = nil
+    check(first ~= nil and math.abs(first - 0.15) < 1e-4 and math.abs(deg - 15) < 1e-4,
+          string.format("charge homing x3: +0.15 deg/frame up to 15 (%s, %s)", tostring(first), tostring(deg)))
+  end
+  M.num["Entity.CalcDistance"] = 6
+  M.num["Entity.CalcDistanceXZ"] = 6
+  e:OnUpdate()
+  check(e.step == 0, "6 m: still flying (step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistance"] = 5
+  M.num["Entity.CalcDistanceXZ"] = 3          -- height 4 over 3 on the ground: above you
+  e:OnUpdate()
+  check(e.step == 0, "within 5.5 m but above you (height 4, ground 3): keeps flying (step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistanceXZ"] = 0          -- straight over your head
+  e:OnUpdate()
+  check(e.step == 0, "... straight overhead: keeps flying (step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistanceXZ"] = 4.8        -- height ~1.4 over 4.8: shallow
+  M.num["Entity.CalcDistance"] = 5.2          -- ... but further than last frame: flying away (past you)
+  e:OnUpdate()
+  check(e.step == 0, "level and in reach but not closing in (flying away): keeps flying (step " .. tostring(e.step) .. ")")
+  M.num["Entity.CalcDistance"] = 5            -- closing in again
+  e:OnUpdate()
+  M.num["Entity.CalcDistanceXZ"] = 2          -- (the emulator's default)
+  check(e.step == 1 and mot == "300", "within 5.5 m, coming in shallow: the stab (" .. tostring(mot) .. ")")
+  check(grp == 0, "... with attack group 0 = his Attack2's stab, which a guard blocks (" .. tostring(grp) .. ")")
+  M.num["Entity.IsMotionEnd"] = true
+  e:OnUpdate()
+  M.num["Entity.IsMotionEnd"] = false
+  check(e:GetState() == "BeforeAttackIdling" and e.attackCnt == 2, "the stab done: next attack (" .. e:GetState() .. ")")
+  -- a charge that cannot reach gives up
+  M.num["Entity.CalcDistance"] = 30
+  pcall(e.GotoState, e, "Attack4")
+  for i = 1, 185 do e:OnUpdate() if e:GetState() ~= "Attack4" then break end end
+  check(e:GetState() ~= "Attack4", "a charge that cannot reach gives up (" .. e:GetState() .. ")")
+  M.num["Entity.SetMotionWithSameCheck"] = nil
+  -- the warning: trail on near the limit, kept through his OnDamage, off once the gauge drains
+  local made, ended = 0, 0
+  M.num["Effect.IsAlive"] = false
+  M.num["Entity.AttachEffect"] = function() made = made + 1 return 1 end
+  M.num["Effect.LoopEnd"] = function() ended = ended + 1 end
+  M.num["Entity.CalcDistance"] = 2
+  pcall(e.GotoState, e, "Idling")
+  st.rv, st.firing, st.armor = 0, false, 0
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") ~= true, "no warning on an empty gauge")
+  st.rv = st.limit - 2.5
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") ~= true, "... nor 2.5 short of the limit")
+  st.rv = st.limit - 1.5
+  made = 0
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") == true and made > 0, "2 or less short of the limit: the trail lights up (" .. made .. ")")
+  ended = 0
+  pcall(e.DashEffectControler, e, 0)
+  check(ended == 0, "... and his own 'trail off' (every OnDamage) leaves it on")
+  st.rv = 0
+  e:OnUpdate()
+  check(rawget(e, "__ppWarn") == false and ended > 0, "the gauge drained: the trail goes out")
+  M.num["Effect.IsAlive"] = nil; M.num["Entity.AttachEffect"] = nil; M.num["Effect.LoopEnd"] = nil
+  M.num["Entity.CalcDistance"] = 2
+end
+-- Master Eraqus: his stand-still in Wander lasts 30-60 frames (his own 60-120); his hold-back after fleeing 30-60
+do
+  M.script("b20ex00")
+  local e, h = M.create("b20ex00")
+  rawset(e, "Debug", function() end)
+  rawset(e, "RestHpRate", function() return 1 end)
+  local st = BBS_REVENGE.ents.b20ex00
+  check(st.pr ~= nil and st.pr.pause[1] == 25 and st.pr.pause[2] == 30 and st.pr.pause[3] == 60,
+        "Eraqus: hold-back after fleeing 25%, 30-60 frames (" .. tostring(st.pr and st.pr.pause[2]) .. "-" .. tostring(st.pr and st.pr.pause[3]) .. ")")
+  pcall(e.GotoState, e, "Wander")
+  M.num["Entity.IsTimeOver"] = false
+  M.num["Entity.IsWall"] = false
+  M.num["Entity.CalcDistanceXZSq"] = 36
+  local asked
+  M.num["Script.RandomInRange"] = function(a, b) asked = (asked or "") .. a .. "-" .. b .. " " return b end
+  local mr = M.rand
+  M.rand = function() return 0.1 end          -- under 0.25: he stands still
+  e.step, e.walkTimer, e.timer = 0, 0, 5
+  e:OnUpdate()
+  check(e.step == 1 and e.walkTimer == 60, "Wander: he stands still for 30-60 frames (" .. tostring(e.walkTimer) .. ", asked " .. tostring(asked) .. ")")
+  M.rand = function() return 0.9 end          -- a walk step: his own 60-120
+  e.step, e.walkTimer = 0, 0
+  e:OnUpdate()
+  check(e.step == 0 and e.walkTimer == 120, "Wander: his walk steps unchanged, 60-120 (" .. tostring(e.walkTimer) .. ")")
+  M.rand = mr
+  M.num["Script.RandomInRange"] = nil
+  M.num["Entity.IsTimeOver"] = nil
+  M.num["Entity.IsWall"] = nil
+  M.num["Entity.CalcDistanceXZSq"] = nil
+end
+-- Master Eraqus: out of a flinch in an attack he does not restart it (his own OnReturnDamage did)
+do
+  M.script("b20ex00")
+  local e, h = M.create("b20ex00")
+  rawset(e, "Debug", function() end)
+  rawset(e, "RestHpRate", function() return 1 end)
+  for _, a in ipairs({ "RushAttack", "SuccessionAttack", "Oboro" }) do
+    pcall(e.GotoState, e, a)
+    e.reflect = false
+    local p0 = e.stack.ptr
+    EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+    -- (Oboro is "no damage reaction" in his script: a flinch out of it only happens in this test, and
+    -- the mod's own handling adds an Idling there; he still does not restart it)
+    check(e:GetState() == "Idling" and (e.stack:get() == "Wander" or (a == "Oboro" and e.stack:get(2) == "Wander")),
+          "Eraqus: out of a flinch in " .. a .. ": Idling, Wander next - not " .. a .. " again (" .. e:GetState() .. ")")
+    while e.stack.ptr > p0 do e.stack:pop() end
+  end
+  pcall(e.GotoState, e, "Wander")
+  e.reflect = false
+  EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+  check(e:GetState() == "Wander", "Eraqus: out of a flinch in Wander: his own (back to Wander) (" .. e:GetState() .. ")")
+  -- his next pick after a flinch out of RushAttack is not RushAttack (mid range: a die under 0.3 is RushAttack)
+  M.num["Entity.CalcDistanceXZSq"] = 36
+  local mr = M.rand
+  pcall(e.GotoState, e, "RushAttack")
+  e.reflect = false
+  EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+  local q = { 0.1 }
+  M.rand = function() if #q > 0 then return table.remove(q, 1) end return 0.4 end
+  local stk = e.stack
+  local p0 = stk.ptr
+  local ok = e:SelectAttack()
+  local picked = {}
+  for i = p0, stk.ptr - 1 do picked[#picked + 1] = tostring(stk._et[i]) end
+  local rush = false
+  for _, v in ipairs(picked) do if v == "RushAttack" then rush = true end end
+  check(ok and not rush, "Eraqus: right after a flinch out of RushAttack his pick is not RushAttack (" .. table.concat(picked, ",") .. ")")
+  while stk.ptr > p0 do stk:pop() end
+  -- the pick after that: his own dice again (RushAttack allowed)
+  q = { 0.1 }
+  ok = e:SelectAttack()
+  check(ok and stk:get() == "RushAttack", "... and only that pick: the next may be RushAttack (" .. tostring(stk:get()) .. ")")
+  while stk.ptr > p0 do stk:pop() end
+  M.rand = mr
+  M.num["Entity.CalcDistanceXZSq"] = nil
+end
+-- Master Eraqus: an attack he did twice in a row is barred until he does another - his own picks, the
+-- mod's answers, his guard counter
+do
+  M.script("b20ex00")
+  local e, h = M.create("b20ex00")
+  rawset(e, "Debug", function() end)
+  rawset(e, "RestHpRate", function() return 1 end)
+  M.num["Entity.CalcDistanceXZSq"] = 36       -- mid range: a die under 0.3 is RushAttack
+  local mr = M.rand
+  local stk = e.stack
+  local function pick(dice)
+    local q = dice
+    M.rand = function() if #q > 0 then return table.remove(q, 1) end return 0.4 end
+    local p0 = stk.ptr
+    local ok = e:SelectAttack()
+    local got = {}
+    for i = p0, stk.ptr - 1 do got[#got + 1] = tostring(stk._et[i]) end
+    while stk.ptr > p0 do stk:pop() end
+    return table.concat(got, ",")
+  end
+  pcall(e.GotoState, e, "RushAttack")
+  pcall(e.GotoState, e, "Idling")
+  check(pick({ 0.1 }):find("RushAttack") ~= nil, "Eraqus: one RushAttack: the next pick may be RushAttack")
+  pcall(e.GotoState, e, "RushAttack")
+  pcall(e.GotoState, e, "Idling")
+  local g = pick({ 0.1, 0.1, 0.1 })
+  check(g:find("RushAttack") == nil, "Eraqus: RushAttack twice in a row: his pick is not RushAttack (" .. g .. ")")
+  pcall(e.GotoState, e, "Oboro")
+  pcall(e.GotoState, e, "Idling")
+  check(pick({ 0.1 }):find("RushAttack") ~= nil, "Eraqus: another attack in between: RushAttack allowed again")
+  -- a restart his own code does out of a flinch is not a new use
+  pcall(e.GotoState, e, "RushAttack")
+  e.reflect = false
+  EntityManager:CallFunctionNoArg("OnReturnDamage", h)
+  check(rawget(e, "__exLast") == "RushAttack" and rawget(e, "__exRun") == 1, "Eraqus: his restart out of a flinch is not counted (" .. tostring(rawget(e, "__exRun")) .. ")")
+  -- the mod's answers: his lists without the barred attack
+  local cfg = BBS_REVENGE.cfg.b20ex00
+  local seen
+  local function choose(l) seen = table.concat(l, ",") return l[1] end
+  rawset(e, "__exLast", "RushAttack") rawset(e, "__exRun", 2)
+  local p0 = stk.ptr
+  local n = cfg.answer(e, false, "Wander", choose)
+  check(n == "Oboro" and seen == "Oboro,Kasumi,Itusen" and stk:get() == "Wander", "Eraqus: an answer (far) after RushAttack twice: not RushAttack (" .. tostring(seen) .. ")")
+  while stk.ptr > p0 do stk:pop() end
+  n = cfg.answer(e, true, nil, choose)
+  check(seen == "SuccessionAttack,Kagerou", "Eraqus: an answer (close): not RushAttack (" .. tostring(seen) .. ")")
+  rawset(e, "__exLast", "Oboro") rawset(e, "__exRun", 1)
+  cfg.answer(e, false, nil, choose)
+  check(seen == "RushAttack,Oboro,Kasumi,Itusen", "Eraqus: an answer with nothing barred: his full list (" .. tostring(seen) .. ")")
+  -- his guard counter: not a third Kagerou in a row
+  rawset(e, "__exLast", "Kagerou") rawset(e, "__exRun", 2)
+  pcall(e.GotoState, e, "Idling")
+  p0 = stk.ptr
+  cfg.counter(e)
+  local has = false
+  for i = p0, stk.ptr - 1 do if stk._et[i] == "Kagerou" then has = true end end
+  check(e:GetState() == "Guard" and not has, "Eraqus: guard after Kagerou twice: no third Kagerou queued")
+  while stk.ptr > p0 do stk:pop() end
+  M.rand = mr
+  M.num["Entity.CalcDistanceXZSq"] = nil
 end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
