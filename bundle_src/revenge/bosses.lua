@@ -1341,7 +1341,7 @@ cfg.b80vs00 = hadesArena
 -- warp, from idle into a warp attack) is still there but switched off at the first line
 -- of OnDamageBefore.  At the limit he uses it.
 cfg.b40ex00 = {
-  limit = 7,
+  limit = 9,
   tempo = { idle = { Idling = "timer" } },
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },

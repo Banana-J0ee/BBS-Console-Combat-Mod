@@ -44,10 +44,10 @@ do
   local st = BBS_REVENGE.ents.b40ex00
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 6 do r = hit(h) end
-  check(r == nil and st.rv == 6 and e:GetState() == "Idling", "Xehanort: 6 hits land, he stays in the combo")
+  for i = 1, 8 do r = hit(h) end
+  check(r == nil and st.rv == 8 and e:GetState() == "Idling", "Xehanort: 8 hits land, he stays in the combo")
   r = hit(h)
-  check(r == "before" and e:GetState() == "Warp" and st.rv == 7 and e.defenseTimer > 0, "7th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
+  check(r == "before" and e:GetState() == "Warp" and st.rv == 9 and e.defenseTimer > 0, "9th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
   local grace = BBS_REVENGE.grace
   check(st.idle >= grace, "... and it drains from now on, while he acts")
   check(hit(h) == nil and e:GetState() == "Warp", "while he is warping nothing more is triggered")
@@ -63,7 +63,7 @@ do
   check(st.rv > 6.9 and st.rv < 7.1, "a third of a second later: drained at KH2's pace, 9 -> " .. st.rv)
   local n = 0
   repeat n = n + 1 r = hit(h) until r == "before" or n > 12
-  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 7")
+  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 9")
   pcall(e.GotoState, e, "Idling")
   for i = 1, 200 do e:OnUpdate() end
   check(st.rv == 0, "left alone long enough it drains to nothing (" .. st.rv .. ")")
