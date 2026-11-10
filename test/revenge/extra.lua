@@ -342,7 +342,7 @@ do
   rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
   M.num["Entity.IsGround"] = true
   local na, nd = 0, 0
-  for k = 1, 80 do
+  for k = 1, 1000 do   -- (about 54 : 46 - enough tries that chance cannot tie it)
     pcall(e2.GotoState, e2, "BattleIdling")
     st2.rv, st2.firing, st2.armor = 0, false, 0
     local nh = 12
@@ -352,7 +352,7 @@ do
     if s2 == "EvasionAction" then nd = nd + 1 elseif s2 == "Combo" or s2 == "SpecialCommandAttack0" or s2 == "ShortDistAttackCommand" then na = na + 1 end
   end
   M.num["Entity.IsGround"] = nil
-  check(na > nd and nd > 0, "Terra (practice, limit 3 +- 1): " .. na .. " attacks, " .. nd .. " dodges out of 80 break-outs")
+  check(na > nd and nd > 0, "Terra (practice, limit 3 +- 1): " .. na .. " attacks, " .. nd .. " dodges out of 1000 break-outs")
   -- bbskh2_boss.ini [Keyblade wielders]: the enemy wielders get the combo window and the gaps, the allies nothing
   local e6 = M.create("b82ex00")
   local st6 = BBS_REVENGE.ents.b82ex00
