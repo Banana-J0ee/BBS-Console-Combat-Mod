@@ -613,7 +613,6 @@ local function attach(ent, name, handle)
       local mh = rawget(ent, "myHandle")
       if mh ~= nil and mh ~= h then return v end        -- a stale entry: another object owns h now
       if not active(ent) then return v end
-      if st.keepWait then return v end                    -- (cfg.keepIdle) the script's own wait, as it is
       if st.tempoSet ~= nil then return st.tempoSet end  -- the gap of bbskh2_boss.ini (an idle being entered)
       return paceValue(paceKind(st.state), v, c.idleFloor)
     end
@@ -785,9 +784,7 @@ local function attach(ent, name, handle)
             end
             st.afterRepo = false
           elseif idles[prev] ~= nil then
-            -- idle after idle: the beat was had already.  cfg.keepIdle(self) true = this one is a wait of the
-            -- script's own (Master Xehanort with Vanitas: asked to wait his turn, 300 frames), left as it is
-            if c.keepIdle ~= nil and c.keepIdle(self) then st.keepWait = true else f = 2 end
+            f = 2                       -- idle after idle: the beat was had already
           else
             f = roll(pr.beat[1], pr.beat[2])
           end
@@ -795,7 +792,7 @@ local function attach(ent, name, handle)
         st.tstate = s
         if f ~= nil and mode == "timer" then st.tempoSet = f end
         local ok, r = pcall(gssT, self, s, a, b)
-        st.tempoSet, st.keepWait = nil, false
+        st.tempoSet = nil
         if not ok then error(r, 0) end
         if f ~= nil and type(self.GetState) == "function" and self:GetState() == s then
           st.idleName = s
