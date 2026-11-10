@@ -1006,10 +1006,11 @@ do
     local d = M.create("m42ex00")
     check(d ~= nil and rawget(d, "__rvmob") ~= nil, "Darkball gets the pace")
     rawset(d, "Update", function() end)
-    M.num["Script.Random"] = 1.0
+    local rand0 = M.rand
+    M.rand = function() return 0.999 end           -- its longest drift (Script.Random comes from M.rand)
     set = {}; pcall(d.GotoState, d, "Move")
     local want = nil
-    M.num["Script.Random"] = nil
+    M.rand = rand0
     check(set[1] ~= nil and set[1] > 30, "Darkball Move (its drift between attacks): " .. tostring(set[1]))
     set = {}; pcall(d.GotoState, d, "Bite")
     check(#set == 0 or set[1] == nil or set[1] >= 0, "Darkball Bite (an attack): its own timer")
