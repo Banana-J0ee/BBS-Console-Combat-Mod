@@ -796,6 +796,7 @@ local function attach(ent, name, handle)
         st.tstate = s
         if f ~= nil and mode == "timer" then st.tempoSet = f end
         local ok, r = pcall(gssT, self, s, a, b)
+        if mode ~= nil then st.idleRatio = st.waitRatio end   -- (kept for the idle that was entered)
         st.tempoSet, st.waitRatio = nil, nil
         if not ok then error(r, 0) end
         if f ~= nil and type(self.GetState) == "function" and self:GetState() == s then

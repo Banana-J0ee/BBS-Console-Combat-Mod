@@ -1354,9 +1354,33 @@ local function xehanortVoice(ent)
     return pv(self, n, a, b, c)
   end)
 end
+-- His close-range warp: with Vanitas, when his wait after a refusal is over and you are close, his script
+-- warps away (50 %) or attacks (50 %).  That wait is 2 frames instead of 300 here, so he checked ~20 times a
+-- second and teleported away almost as soon as you came near.  The warp is let through with the chance x
+-- (wait given / wait asked), 2/300; otherwise he goes on idling (and checks again).  The attack half is his
+-- own, unchanged.  Only that warp: Idling entered with his param 101, warping with 101 - not the break-out
+-- (his team param 102) nor his other warps.
+local function xehanortSetup(ent)
+  xehanortVoice(ent)
+  local go = ent.GotoState
+  if type(go) ~= "function" then return end
+  rawset(ent, "GotoState", function(self, s, a, b)
+    if s == "Idling" then rawset(self, "__idleParam", self.StateParam)
+    elseif s == "Warp" and self.phase == 100 and self.StateParam == 101 and rawget(self, "__idleParam") == 101
+       and type(self.GetState) == "function" and self:GetState() == "Idling" then
+      local st = rawget(self, "__rv")
+      local k = st ~= nil and st.idleRatio or nil
+      if type(k) == "number" and k < 1 and Script.Random() >= k then
+        if st ~= nil and RV.log ~= nil then RV.log(st.name, "close-range warp held back (chance x " .. k .. ")") end
+        return go(self, "Idling", a, b)
+      end
+    end
+    return go(self, s, a, b)
+  end)
+end
 cfg.b40ex00 = {
   limit = 9,
-  setup = xehanortVoice,
+  setup = xehanortSetup,
   tempo = { idle = { Idling = "timer" } },
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },

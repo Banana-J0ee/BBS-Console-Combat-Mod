@@ -94,6 +94,31 @@ do
   check(refusals >= 10 and refusals <= 80, "with Vanitas: " .. refusals .. " lines in 27000 refused idles (~36; unscaled ~5400)")
   check(said > 480 and said < 720, "alone: his lines as before (" .. said .. " in 3000 idles, ~600)")
 end
+-- Master Xehanort with Vanitas: his close-range warp after a refusal, scaled the same way (2 / 300)
+do
+  local e, h = M.create("b40ex00")
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  local st = BBS_REVENGE.ents.b40ex00
+  local function tries(phase, param, n)
+    e.phase, e.DamageWarpParam = phase, 102
+    local warps = 0
+    for k = 1, n do
+      pcall(e.GotoState, e, "Attack0"); e.StateParam = 0
+      pcall(e.GotoState, e, "Idling")
+      e.StateParam = 101
+      pcall(e.GotoState, e, "Idling")              -- refused: his wait made 2 frames
+      e.StateParam = param                         -- his script: close by, param 101 -> Warp
+      pcall(e.GotoState, e, "Warp")
+      if e:GetState() == "Warp" then warps = warps + 1 end
+    end
+    return warps
+  end
+  local w = tries(100, 101, 3000)
+  check(w >= 5 and w <= 45 and st.idleRatio ~= nil and st.idleRatio < 0.01, "with Vanitas: the close-range warp " .. w .. " times in 3000 (~20; it was every time)")
+  check(e:GetState() == "Idling" or e:GetState() == "Warp", "held back: he stays in Idling (" .. e:GetState() .. ")")
+  check(tries(100, 102, 200) == 200, "his warp with the team param (the break-out's) is never held back")
+  check(tries(0, 101, 200) == 200, "alone: never held back")
+end
 -- Master Xehanort with Vanitas: he breaks out at his limit too, with his team warp (param 102)
 do
   local e, h = M.create("b40ex00")
