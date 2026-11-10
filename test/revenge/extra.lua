@@ -68,6 +68,29 @@ do
   for i = 1, 200 do e:OnUpdate() end
   check(st.rv == 0, "left alone long enough it drains to nothing (" .. st.rv .. ")")
 end
+-- Master Xehanort with Vanitas (his phase 100): a refusal's idle keeps his own wait; alone it is the tempo's
+do
+  local e, h = M.create("b40ex00")
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  local tset
+  local old = M.num["Entity.SetTimer"]
+  M.num["Entity.SetTimer"] = function(h2, v) tset = v end
+  local function refused()
+    pcall(e.GotoState, e, "Attack0")
+    pcall(e.GotoState, e, "Idling")              -- the idle after his attack: the Beat
+    local beat = tset
+    e.StateParam = 101
+    pcall(e.GotoState, e, "Idling")              -- refused: back to Idling with his param 101
+    return beat, tset
+  end
+  e.phase, e.DamageWarpParam = 100, 102
+  local b1, w1 = refused()
+  check(b1 >= 15 and b1 <= 24.01 and w1 == 300, "with Vanitas: the Beat after his attack (" .. tostring(b1) .. "), then his own wait when refused (" .. tostring(w1) .. ", not 2)")
+  e.phase = 0
+  local b2, w2 = refused()
+  check(b2 >= 15 and b2 <= 24.01 and w2 == 2, "alone: the same idle after an idle stays a quick hand-over (" .. tostring(w2) .. ")")
+  M.num["Entity.SetTimer"] = old
+end
 -- Zack
 M.script("b40he00")
 do

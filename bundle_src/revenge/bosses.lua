@@ -1343,6 +1343,10 @@ cfg.b80vs00 = hadesArena
 cfg.b40ex00 = {
   limit = 9,
   tempo = { idle = { Idling = "timer" } },
+  -- with Vanitas (his script finds him and sets phase 100) he asks Vanitas before each attack; a refusal sends
+  -- him back into Idling with his own 300-frame wait before he asks again.  That idle-after-idle keeps his wait
+  -- (the tempo's 2 frames had him asking ~20 times a second, with a voice line on 1 in 5 of his idles)
+  keepIdle = function(self) return self.phase == 100 end,
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },
   -- his answer: his own attack patterns - close mostly his slashes (pattern 1: Attack0 / Attack1), else
