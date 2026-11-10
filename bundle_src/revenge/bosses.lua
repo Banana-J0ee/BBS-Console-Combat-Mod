@@ -1360,9 +1360,11 @@ cfg.b40ex00 = {
   counter = function(self)
     if type(self.QuickWarpStart) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
-    if s == "Warp" or s == "UltimateFreeze" or s == "Dead" or s == "Appear" or self.phase == 100 then return 0 end
-    -- with an answer the quick warp lands in Idling (his param 101) and the answer picks the attack
-    if answers(self) and type(self.DamageWarpParam) == "number" then self.DamageWarpParam = 101 end
+    if s == "Warp" or s == "UltimateFreeze" or s == "Dead" or s == "Appear" then return 0 end
+    -- with an answer the quick warp lands in Idling (his param 101) and the answer picks the attack.  With
+    -- Vanitas (phase 100) his own team param stays (102: after the warp he goes on with his team pattern,
+    -- still taking turns with Vanitas); the answer has nothing to pick there.
+    if self.phase ~= 100 and answers(self) and type(self.DamageWarpParam) == "number" then self.DamageWarpParam = 101 end
     self:QuickWarpStart()
     self.damageCombo = 0
     return 1

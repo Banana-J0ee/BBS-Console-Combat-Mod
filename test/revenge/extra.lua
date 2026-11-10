@@ -91,6 +91,30 @@ do
   check(b2 >= 15 and b2 <= 24.01 and w2 == 2, "alone: the same idle after an idle stays a quick hand-over (" .. tostring(w2) .. ")")
   M.num["Entity.SetTimer"] = old
 end
+-- Master Xehanort with Vanitas: he breaks out at his limit too, with his team warp (param 102)
+do
+  local e, h = M.create("b40ex00")
+  local st = BBS_REVENGE.ents.b40ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  e.phase, e.DamageWarpParam = 100, 102
+  local r
+  for i = 1, 8 do r = hit(h) end
+  check(r == nil and st.rv == 8, "with Vanitas: 8 hits land")
+  r = hit(h)
+  check(r == "before" and e:GetState() == "Warp" and e.StateParam == 102 and e.DamageWarpParam == 102,
+        "9th hit: his quick warp, landing in his team pattern (state " .. e:GetState() .. ", param " .. tostring(e.StateParam) .. ")")
+  local e2, h2 = M.create("b40ex00")
+  local st2 = BBS_REVENGE.ents.b40ex00
+  rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
+  pcall(e2.GotoState, e2, "Idling"); pcall(e2.GotoState, e2, "Attack0")
+  e2.phase, e2.DamageWarpParam = 100, 102
+  M.num["Enemy.IsNoDamageReaction"] = function() return false end
+  for i = 1, 8 do hit(h2) end
+  r = hit(h2)
+  check(r == "before" and e2:IsQuickWarping() and e2.DamageWarpParam == 102, "... also when hit out of his slash (he vanishes, as alone)")
+  M.num["Enemy.IsNoDamageReaction"] = false
+end
 -- Zack
 M.script("b40he00")
 do
