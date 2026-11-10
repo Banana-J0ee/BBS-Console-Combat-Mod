@@ -68,6 +68,32 @@ do
   for i = 1, 200 do e:OnUpdate() end
   check(st.rv == 0, "left alone long enough it drains to nothing (" .. st.rv .. ")")
 end
+-- Master Xehanort with Vanitas: his idle voice lines scaled by how much shorter his refusal wait is (2 / 300)
+do
+  local e, h = M.create("b40ex00")
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  check(type(rawget(e, "PlayVoice")) == "function", "his voice lines go through the mod")
+  local said = 0
+  local old = M.num["Sound.PlayVoice"]
+  M.num["Sound.PlayVoice"] = function() said = said + 1 end
+  e.phase, e.DamageWarpParam = 100, 102
+  local refusals = 0
+  for k = 1, 3000 do
+    pcall(e.GotoState, e, "Attack0")
+    e.StateParam = 0
+    pcall(e.GotoState, e, "Idling")               -- after his attack: the Beat
+    e.StateParam = 101
+    local before = said
+    for j = 1, 9 do pcall(e.GotoState, e, "Idling") end   -- refused nine times: idle after idle, 2 of his 300
+    refusals = refusals + (said - before)
+  end
+  e.phase, said = 0, 0
+  for k = 1, 3000 do pcall(e.GotoState, e, "Attack0") e.StateParam = 0 pcall(e.GotoState, e, "Idling") end
+  M.num["Sound.PlayVoice"] = old
+  -- 27000 refusals at 20 % x 2/300: ~36 lines (unscaled ~5400)
+  check(refusals >= 10 and refusals <= 80, "with Vanitas: " .. refusals .. " lines in 27000 refused idles (~36; unscaled ~5400)")
+  check(said > 480 and said < 720, "alone: his lines as before (" .. said .. " in 3000 idles, ~600)")
+end
 -- Master Xehanort with Vanitas: he breaks out at his limit too, with his team warp (param 102)
 do
   local e, h = M.create("b40ex00")

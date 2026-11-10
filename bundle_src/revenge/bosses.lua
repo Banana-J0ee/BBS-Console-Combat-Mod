@@ -1340,8 +1340,23 @@ cfg.b80vs00 = hadesArena
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
 -- warp, from idle into a warp attack) is still there but switched off at the first line
 -- of OnDamageBefore.  At the limit he uses it.
+-- His idle voice lines: each time he enters Idling he says line 27 or 28 (10 % each).  With Vanitas (his phase
+-- 100) a refusal sends him back into Idling to wait 300 frames before he asks again; the tempo makes that wait
+-- 2 frames, so he enters Idling ~100x as often and talked almost non-stop.  There the chance is scaled by how
+-- much the wait was shortened (2 / 300), so the lines come about as often per second as in the game.
+local function xehanortVoice(ent)
+  local pv = ent.PlayVoice
+  if type(pv) ~= "function" then return end
+  rawset(ent, "PlayVoice", function(self, n, a, b, c)
+    local st = rawget(self, "__rv")
+    local k = st ~= nil and st.waitRatio or nil
+    if self.phase == 100 and (n == 27 or n == 28) and type(k) == "number" and k < 1 and Script.Random() >= k then return end
+    return pv(self, n, a, b, c)
+  end)
+end
 cfg.b40ex00 = {
   limit = 9,
+  setup = xehanortVoice,
   tempo = { idle = { Idling = "timer" } },
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },

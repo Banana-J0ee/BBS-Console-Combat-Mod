@@ -613,7 +613,11 @@ local function attach(ent, name, handle)
       local mh = rawget(ent, "myHandle")
       if mh ~= nil and mh ~= h then return v end        -- a stale entry: another object owns h now
       if not active(ent) then return v end
-      if st.tempoSet ~= nil then return st.tempoSet end  -- the gap of bbskh2_boss.ini (an idle being entered)
+      if st.tempoSet ~= nil then                          -- the gap of bbskh2_boss.ini (an idle being entered)
+        -- how much the gap shortens the wait the script asked for (a boss may scale what it does per idle by it)
+        if type(v) == "number" and v > 0 then st.waitRatio = st.tempoSet / v end
+        return st.tempoSet
+      end
       return paceValue(paceKind(st.state), v, c.idleFloor)
     end
     if h0 ~= nil then P.by[h0] = st end
@@ -792,7 +796,7 @@ local function attach(ent, name, handle)
         st.tstate = s
         if f ~= nil and mode == "timer" then st.tempoSet = f end
         local ok, r = pcall(gssT, self, s, a, b)
-        st.tempoSet = nil
+        st.tempoSet, st.waitRatio = nil, nil
         if not ok then error(r, 0) end
         if f ~= nil and type(self.GetState) == "function" and self:GetState() == s then
           st.idleName = s
