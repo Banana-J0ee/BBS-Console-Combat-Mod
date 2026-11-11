@@ -318,7 +318,8 @@ static s16 g_cost_over[CMD_MAX];        /* 0 = none */
    (~15 x 140) at 25, the mines (3..8 x 360), Quake (4 x 500), the long chains (Chaos Blade 9 dashes + finisher, Time
    Splicer 3..8 slashes + finisher, Ars Arcanum 7 steps), and the two that heal as they hit - Faith (300 per hit and
    50..100 % of max HP) and Salvation (40..90 %).  Faith counts as a cure: all remaining SP (50 with CureUsesAllMP=0).
-   Deep Freeze (one 350 hit) stays at 25, as asked.  [Cost] still overrides any of these. */
+   Deep Freeze (one 350 hit) stays at 25, as asked.  The three Surges 40 (2026-11-10, asked; were 20, 15 and 20).
+   [Cost] still overrides any of these. */
 #define FAITH 0xa6
 static const struct { u8 id, cost; } k_rebalance[] = {
     { 0x7c, 50 },  /* Salvation */        { 0xaf, 50 },  /* Meteor */           { 0xaa, 50 },  /* Firaga Burst */
@@ -328,7 +329,8 @@ static const struct { u8 id, cost; } k_rebalance[] = {
     { 0x68, 30 },  /* Spark Raid */       { 0x81, 30 },  /* Sacrifice */        { 0x89, 30 },  /* Crawling Fire */
     { 0xa5, 30 },  /* Warp */             { 0xa8, 30 },  /* Glacier */          { 0x88, 25 },  /* Triple Firaga */
     { 0x8d, 25 },  /* Triple Blizzaga */  { 0x7f, 25 },  /* Collision Magnet */ { 0x7b, 25 },  /* Magnet Spiral */
-    { 0x5c, 20 },  /* Blitz */            { 0x6a, 20 },  /* Fire Surge */       { 0x6c, 20 },  /* Thunder Surge */
+    { 0x6a, 40 },  /* Fire Surge */       { 0x6b, 40 },  /* Barrier Surge */    { 0x6c, 40 },  /* Thunder Surge */
+    { 0x5c, 20 },  /* Blitz */
     { FAITH, 50 }, /* Faith: all remaining SP under CureUsesAllMP */
 };
 static int rebalanced(int id) {
