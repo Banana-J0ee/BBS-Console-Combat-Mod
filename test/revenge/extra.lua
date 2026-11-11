@@ -1378,8 +1378,9 @@ do
     local p0 = e.stack.ptr
     EntityManager:CallFunctionNoArg("OnReturnDamage", h)
     -- (Oboro is "no damage reaction" in his script: a flinch out of it only happens in this test, and
-    -- the mod's own handling adds an Idling there; he still does not restart it)
-    check(e:GetState() == "Idling" and (e.stack:get() == "Wander" or (a == "Oboro" and e.stack:get(2) == "Wander")),
+    -- the mod's own handling adds an Idling there; that can also happen in SuccessionAttack, depending on
+    -- the dice - about 1 run in 4.  Either way he does not restart it: Idling, then Wander)
+    check(e:GetState() == "Idling" and (e.stack:get() == "Wander" or (e.stack:get() == "Idling" and e.stack:get(2) == "Wander")),
           "Eraqus: out of a flinch in " .. a .. ": Idling, Wander next - not " .. a .. " again (" .. e:GetState() .. ")")
     while e.stack.ptr > p0 do e.stack:pop() end
   end
