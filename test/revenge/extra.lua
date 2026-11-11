@@ -155,6 +155,34 @@ do
   BBS_REVENGE.debug, BBS_REVENGE.log = false, log0
   M.num["Enemy.SearchEnemy"] = nil
 end
+-- Master Xehanort with Vanitas: close to you after a refusal his Idling update starts a team pattern and, with
+-- the timer over, also asks for Move in the same frame (his script carries on): that Move is dropped
+do
+  local function run(phase, over, param)
+    local e, h = M.create("b40ex00")
+    rawset(e, "Debug", function() end)
+    e.phase, e.DamageWarpParam = phase, 102
+    pcall(e.GotoState, e, "Idling")
+    e.StateParam = param
+    pcall(e.GotoState, e, "Idling")
+    M.num["Entity.CalcDistanceSq"] = 0.5
+    M.num["Entity.IsTimeOver"] = over
+    local r0 = M.rand
+    M.rand = function() return 0.9 end            -- the close branch's die: his attack pattern
+    pcall(e.OnUpdate, e)
+    M.rand = r0
+    M.num["Entity.CalcDistanceSq"] = 4; M.num["Entity.IsTimeOver"] = false
+    return e
+  end
+  local e = run(100, true, 101)
+  check(e:GetState() == "Attack1" and e.AttackPattern == 1 and e.AttackParam == 101, "with Vanitas: his team attack goes ahead (" .. e:GetState() .. ", pattern " .. tostring(e.AttackPattern) .. " / " .. tostring(e.AttackParam) .. ")")
+  e = run(100, false, 101)
+  check(e:GetState() == "Attack1", "timer not over (the game's 300 frames): the same, as before (" .. e:GetState() .. ")")
+  e = run(100, true, 0)
+  check(e:GetState() == "Move", "his own Move from Idling (path 0, timer over) is left alone (" .. e:GetState() .. ")")
+  e = run(0, true, 101)
+  check(e:GetState() == "Move", "alone: unchanged (" .. e:GetState() .. ")")
+end
 -- Master Xehanort with Vanitas: he breaks out at his limit too, with his team warp (param 102)
 do
   local e, h = M.create("b40ex00")

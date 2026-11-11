@@ -1418,6 +1418,21 @@ local function xehanortSetup(ent)
   if type(go) ~= "function" then return end
   if RV.debug then rawset(RV, "xehanort", ent) end     -- (debug: Vanitas's team watch reports on him)
   rawset(ent, "GotoState", function(self, s, a, b)
+    -- With Vanitas: his Idling update, close to you after a refusal, starts a team attack pattern and then
+    -- carries on to its timer check; the pattern start set StateParam 0, so with the timer over (the tempo's
+    -- 2 frames instead of his 300) it also sends him to Move - his attack is cut, and Move starts a solo
+    -- pattern, which never sends Vanitas his turn back.  That Move, asked in the same frame he left Idling for
+    -- an attack, is dropped; any other Move is his own.
+    local now = rawget(self, "__rv") ~= nil and rawget(self, "__rv").t or nil
+    local cur = type(self.GetState) == "function" and self:GetState() or nil
+    if self.phase == 100 then
+      if cur == "Idling" and s ~= "Idling" and s ~= "Move" then rawset(self, "__leftIdleT", now)
+      elseif s == "Move" and cur ~= "Idling" and now ~= nil and rawget(self, "__leftIdleT") == now then
+        local st = rawget(self, "__rv")
+        if st ~= nil and RV.log ~= nil then RV.log(st.name, "team: Move after starting " .. tostring(cur) .. " in the same frame - dropped") end
+        return
+      end
+    end
     if RV.debug then
       local last = rawget(self, "__watchLast") or {}
       last[#last + 1] = tostring(s) .. "(" .. tostring(self.StateParam) .. ")"
