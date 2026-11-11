@@ -548,7 +548,10 @@ static void t_ether(void) {
       CHECK(mp_cost(0xaf) == 50 && mp_cost(0xaa) == 50 && mp_cost(0x7c) == 50 && mp_cost(0x63) == 50 && mp_cost(0x70) == 50 && mp_cost(0x6f) == 50, "Rebalanced: Meteor, Firaga Burst, Salvation, Chaos Blade, Time Splicer, Ars Arcanum 50");
       CHECK(mp_cost(0xad) == 45 && mp_cost(0x98) == 45 && mp_cost(0x97) == 40 && mp_cost(0x96) == 35 && mp_cost(0x80) == 35, "Quake / Seeker Mine 45, Mine Square 40, Mine Shield / Geo Impact 35");
       CHECK(mp_cost(0x62) == 30 && mp_cost(0x68) == 30 && mp_cost(0x81) == 30 && mp_cost(0x89) == 30 && mp_cost(0xa5) == 30 && mp_cost(0xa8) == 30, "30: Sonic Blade, Spark Raid, Sacrifice, Crawling Fire, Warp, Glacier");
-      CHECK(mp_cost(0x88) == 25 && mp_cost(0x8d) == 25 && mp_cost(0x7f) == 25 && mp_cost(0x7b) == 25 && mp_cost(0x5c) == 20 && mp_cost(0x6a) == 40 && mp_cost(0x6b) == 40 && mp_cost(0x6c) == 40, "25 Triples / magnets, 20 Blitz, 40 the three Surges");
+      CHECK(mp_cost(0x88) == 25 && mp_cost(0x8d) == 25 && mp_cost(0x7f) == 25 && mp_cost(0x7b) == 25 && mp_cost(0x5c) == 20 && mp_cost(0x6a) == 30 && mp_cost(0x6b) == 30 && mp_cost(0x6c) == 30, "25 Triples / magnets, 20 Blitz, 30 the three Surges");
+      CHECK(mp_cost(0x6e) == 45 && mp_cost(0xb0) == 35 && mp_cost(0x79) == 35 && mp_cost(0x5e) == 35 && mp_cost(0x5d) == 35 && mp_cost(0xab) == 30
+            && mp_cost(0x7a) == 25 && mp_cost(0x64) == 25 && mp_cost(0x61) == 25 && mp_cost(0xb1) == 10 && mp_cost(0x82) == 20,
+            "by price: Ars Solum 45; Transcendence, Tornado Strike, Meteor Crash, Magic Hour 35; Raging Storm 30; Brutal Blast, Zantetsuken, Dark Haze 25; Mini 10, Break Time 20 kept");
       CHECK(mp_cost(0xa7) == 25 && mp_cost(0xac) == 50 && mp_cost(0x85) == 20 && mp_cost(0x83) == 10, "unchanged: Deep Freeze 25, Mega Flare 50, Firaga 20, Fire 10");
       CHECK(mp_would_burn(0xa6) == 1 && mp_would_burn(0xaf) == 0, "Faith uses all remaining SP like the cures; Meteor does not");
       mp_cost_overrides()[0xa6] = 40; mp_cost_overrides()[0xaf] = 33;
@@ -2263,7 +2266,7 @@ static void t_desc(void) {
     CHECK(t && strstr(t, "live. " GREEN "SP "), "three lines: the cost stays on the third");
     /* colour codes and icons in the text: "(Uses two slots.)" is yellow in the original */
     t = test_desc(0xb0, "Create an anti-gravity field no enemy can\nescape, then deal damage by sending them\nhurtling in all directions. \xf9Y(Uses two slots.)");
-    CHECK(t && strstr(t, "slots.) " GREEN "SP 25" BACK), "after the yellow note: %s", t ? strrchr(t, '\n') + 1 : "-");
+    CHECK(t && strstr(t, "slots.) " GREEN "SP 35" BACK), "after the yellow note (Transcendence 35): %s", t ? strrchr(t, '\n') + 1 : "-");
     t = test_desc(0x83, "Punish faraway enemies with a charging attack.");    /* 52 with its cost: off the box (2026-10-29) */
     CHECK(t && strstr(t, "attack.\n" GREEN "SP "), "52 characters with the cost: on a second line (%s)", t ? t : "-");
     t = test_desc(0x83, "Fire. \n"); CHECK(t && !strcmp(t, "Fire. " GREEN "SP 10" BACK), "trailing blanks are dropped");

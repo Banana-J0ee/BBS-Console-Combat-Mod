@@ -318,7 +318,10 @@ static s16 g_cost_over[CMD_MAX];        /* 0 = none */
    (~15 x 140) at 25, the mines (3..8 x 360), Quake (4 x 500), the long chains (Chaos Blade 9 dashes + finisher, Time
    Splicer 3..8 slashes + finisher, Ars Arcanum 7 steps), and the two that heal as they hit - Faith (300 per hit and
    50..100 % of max HP) and Salvation (40..90 %).  Faith counts as a cure: all remaining SP (50 with CureUsesAllMP=0).
-   Deep Freeze (one 350 hit) stays at 25, as asked.  The three Surges 40 (2026-11-10, asked; were 20, 15 and 20).
+   Deep Freeze (one 350 hit) stays at 25, as asked.  2026-11-10, asked, by shop price against commands priced
+   alike: the three Surges 30 (were 20, 15, 20), Ars Solum 45, Transcendence / Tornado Strike / Meteor Crash /
+   Magic Hour 35, Raging Storm 30, Brutal Blast / Zantetsuken / Dark Haze 25 (were 25, 25, 25, 25, 25, 25, 20,
+   20, 15).  Mini and Break Time stay.
    [Cost] still overrides any of these. */
 #define FAITH 0xa6
 static const struct { u8 id, cost; } k_rebalance[] = {
@@ -329,7 +332,10 @@ static const struct { u8 id, cost; } k_rebalance[] = {
     { 0x68, 30 },  /* Spark Raid */       { 0x81, 30 },  /* Sacrifice */        { 0x89, 30 },  /* Crawling Fire */
     { 0xa5, 30 },  /* Warp */             { 0xa8, 30 },  /* Glacier */          { 0x88, 25 },  /* Triple Firaga */
     { 0x8d, 25 },  /* Triple Blizzaga */  { 0x7f, 25 },  /* Collision Magnet */ { 0x7b, 25 },  /* Magnet Spiral */
-    { 0x6a, 40 },  /* Fire Surge */       { 0x6b, 40 },  /* Barrier Surge */    { 0x6c, 40 },  /* Thunder Surge */
+    { 0x6a, 30 },  /* Fire Surge */       { 0x6b, 30 },  /* Barrier Surge */    { 0x6c, 30 },  /* Thunder Surge */
+    { 0x6e, 45 },  /* Ars Solum */        { 0xab, 30 },  /* Raging Storm */     { 0xb0, 35 },  /* Transcendence */
+    { 0x79, 35 },  /* Tornado Strike */   { 0x5e, 35 },  /* Meteor Crash */     { 0x5d, 35 },  /* Magic Hour */
+    { 0x7a, 25 },  /* Brutal Blast */     { 0x64, 25 },  /* Zantetsuken */      { 0x61, 25 },  /* Dark Haze */
     { 0x5c, 20 },  /* Blitz */
     { FAITH, 50 }, /* Faith: all remaining SP under CureUsesAllMP */
 };
