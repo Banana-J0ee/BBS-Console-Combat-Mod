@@ -119,47 +119,6 @@ do
   check(tries(100, 102, 200) == 200, "his warp with the team param (the break-out's) is never held back")
   check(tries(0, 101, 200) == 200, "alone: never held back")
 end
--- Vanitas with Master Xehanort: their turns overlap with [Master Xehanort] TeamOverlap (percent, per turn)
-do
-  M.script("b10ex00")
-  local function vanitas(overlap, with)
-    BBS_BossIni = function(sec) if sec == "Master Xehanort" then return "TeamOverlap = " .. overlap .. "\n" end end
-    M.num["Enemy.SearchEnemy"] = function(h, name) if with and name == "b40ex00" then return 777 end return NULL_HANDLE end
-    local e, h = M.create("b10ex00")
-    rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
-    return e, h
-  end
-  M.num["Enemy.CanAttack"] = true
-  local sent
-  M.num["Enemy.SendMessage"] = function(a, b, c, m) sent = m end
-  local function gaveUp(e)             -- his attack over, back to Idling: his turn given up
-    pcall(e.GotoState, e, "Idling")
-    return e.attackPermission == false and e:SearchTarget() and true or false
-  end
-  local function asked(e)              -- Xehanort's end message gives his turn back, then Xehanort asks
-    e:OnMessage(B40EX_MES_B40EX_ATTACK_END, 777)
-    sent = nil
-    e:OnMessage(B40EX_MES_B40EX_ATTACK_REQUEST, 777)
-    return sent == B10EX_MES_B40EX_ATTACK_ACCEPT, e.attackPermission
-  end
-  local e = vanitas(0, true)
-  local acc = asked(e)
-  check(not gaveUp(e) and not acc, "TeamOverlap 0: he waits on Xehanort's turn, and refuses him on his own (the game's)")
-  e = vanitas(100, true)
-  local acc2, perm = asked(e)
-  check(gaveUp(e) and acc2 and perm == true, "TeamOverlap 100: he attacks on Xehanort's turn, and lets him in on his own (still his turn)")
-  e = vanitas(50, true)
-  local free, letin, n = 0, 0, 2000
-  for k = 1, n do
-    if gaveUp(e) then free = free + 1 end
-    if asked(e) then letin = letin + 1 end
-  end
-  check(free > 880 and free < 1120 and letin > 880 and letin < 1120, "TeamOverlap 50: " .. free .. " / " .. n .. " turns he keeps attacking, " .. letin .. " he lets Xehanort in")
-  e = vanitas(100, false)
-  pcall(e.GotoState, e, "Idling")
-  check(rawget(e, "__teamFree") ~= true, "without Xehanort: nothing rolled")
-  BBS_BossIni = nil; M.num["Enemy.SearchEnemy"] = nil; M.num["Enemy.CanAttack"] = nil; M.num["Enemy.SendMessage"] = nil
-end
 -- Master Xehanort with Vanitas: he breaks out at his limit too, with his team warp (param 102)
 do
   local e, h = M.create("b40ex00")

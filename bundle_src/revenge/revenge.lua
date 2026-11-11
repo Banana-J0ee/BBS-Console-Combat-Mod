@@ -253,10 +253,9 @@ local function bossProfile(id)
   local pct, rest = (sec.Pause or "0"):match("^%s*([%d%.]+)%s*,?%s*(.*)$")
   pr.pause = { tonumber(pct) or 0, numRange(rest, 60, 120) }
   pr.near = tonumber(sec.PauseNear or "") or 3
-  pr.teamOverlap = tonumber(sec.TeamOverlap or "")   -- (percent; Master Xehanort's section, for him and Vanitas)
   for n in (sec.Reposition or ""):gmatch("[%w_]+") do pr.repo[n] = true; pr.repoList[#pr.repoList + 1] = n end
   for k, v in pairs(sec) do
-    if k ~= "Ids" and k ~= "Beat" and k ~= "Chain" and k ~= "Pause" and k ~= "PauseNear" and k ~= "Reposition" and k ~= "TeamOverlap" then
+    if k ~= "Ids" and k ~= "Beat" and k ~= "Chain" and k ~= "Pause" and k ~= "PauseNear" and k ~= "Reposition" then
       local a, rest2 = v:match("^%s*([^,]+)%s*,?(.*)$")
       if a ~= nil then
         a = trim(a):lower()
