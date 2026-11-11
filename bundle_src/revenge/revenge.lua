@@ -62,6 +62,7 @@ local function rlog(...)
   end)
 end
 RV.log = rlog
+RV.debug = LOGF ~= nil      -- (bbskh2_debug.txt present: the DLL registered BBS_Log)
 -- debug: milliseconds (BBS_Ms, debug builds only) - a boss callback that takes long is logged
 local MSF = rawget(_G, "BBS_Ms")
 if type(MSF) ~= "function" or LOGF == nil then MSF = nil end

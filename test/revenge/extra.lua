@@ -119,6 +119,42 @@ do
   check(tries(100, 102, 200) == 200, "his warp with the team param (the break-out's) is never held back")
   check(tries(0, 101, 200) == 200, "alone: never held back")
 end
+-- Debug only: Vanitas's team watch - a wait over 4 s for Xehanort's end message is logged; nothing changed
+do
+  M.script("b10ex00")
+  check(BBS_REVENGE.debug == false, "no debug file: the watch is not put on (" .. tostring(BBS_REVENGE.debug) .. ")")
+  local v0 = M.create("b10ex00")
+  check(rawget(v0, "SearchTarget") == nil and rawget(v0, "OnMessage") == nil, "... his functions are the script's own")
+  local lines = {}
+  local log0 = BBS_REVENGE.log
+  BBS_REVENGE.debug = true
+  BBS_REVENGE.log = function(...)
+    local t = { ... } for i = 1, #t do t[i] = tostring(t[i]) end
+    local l = table.concat(t, " ")
+    if l:find("team watch", 1, true) then lines[#lines + 1] = l end
+  end
+  local x = M.create("b40ex00")
+  rawset(x, "Update", function() end); rawset(x, "Debug", function() end)
+  x.phase, x.DamageWarpParam = 100, 102
+  pcall(x.GotoState, x, "Attack0"); x.StateParam = 3; pcall(x.GotoState, x, "Idling"); pcall(x.GotoState, x, "Move")
+  M.num["Enemy.SearchEnemy"] = function(h, name) if name == "b40ex00" then return 777 end return NULL_HANDLE end
+  local v, hv = M.create("b10ex00")
+  rawset(v, "Update", function() end); rawset(v, "Debug", function() end)
+  local st = rawget(v, "__rv")
+  pcall(v.GotoState, v, "Idling")
+  local perm0 = v.attackPermission
+  st.t = st.t + 200; v:SearchTarget()
+  local n200 = #lines
+  st.t = st.t + 100; v:SearchTarget(); v:SearchTarget()
+  check(perm0 == false and n200 == 0 and #lines == 1 and lines[1]:find("waiting 5.0 s", 1, true) and lines[1]:find("Xehanort: Move", 1, true)
+        and lines[1]:find("Idling(3)", 1, true), "waiting over 4 s: one line, with what Xehanort is doing: " .. tostring(lines[1]))
+  v:OnMessage(B40EX_MES_B40EX_ATTACK_END, 777)
+  check(#lines == 2 and lines[2]:find("his turn back after 5.0 s", 1, true) and v.attackPermission == true, "the end message: logged, his turn back as the game does: " .. tostring(lines[2]))
+  pcall(v.GotoState, v, "Idling"); st.t = st.t + 60; v:OnMessage(B40EX_MES_B40EX_ATTACK_END, 777)
+  check(#lines == 2, "a short wait: nothing logged")
+  BBS_REVENGE.debug, BBS_REVENGE.log = false, log0
+  M.num["Enemy.SearchEnemy"] = nil
+end
 -- Master Xehanort with Vanitas: he breaks out at his limit too, with his team warp (param 102)
 do
   local e, h = M.create("b40ex00")

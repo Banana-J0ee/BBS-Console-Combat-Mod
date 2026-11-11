@@ -249,7 +249,59 @@ local vanitasArmor = { SuccessionAttack1 = true, SuccessionAttack2 = true, DarkF
 -- bbskh2_boss.ini [Vanitas]: his armour windows, gaps and cooldowns; his Idling waits with Entity.SetTimer, and his
 -- back-handspring / cartwheel go back through his stack
 local vanitasTempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } }
-local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
+local function withXehanort(self)
+  local ok, x = pcall(Enemy.SearchEnemy, self.myHandle, "b40ex00", SEARCH_TYPE_NEAR)
+  return ok and x ~= nil and x ~= NULL_HANDLE
+end
+-- Debug only (bbskh2_debug.txt): with Master Xehanort, how long Vanitas waits for his turn.  Each time he goes
+-- back to Idling he gives up his turn and may not attack until Xehanort's end message; a wait over 4 s is
+-- logged once while it lasts (with what Xehanort is doing and his last few states), and again when it ends.
+-- Nothing is changed: the wrappers only look.
+local function vanitasWatch(ent)
+  if not RV.debug then return end
+  local go, msg, search = ent.GotoState, ent.OnMessage, ent.SearchTarget
+  if type(go) ~= "function" or type(msg) ~= "function" or type(search) ~= "function" then return end
+  local function now(self) local st = rawget(self, "__rv") return st ~= nil and st.t or 0 end
+  local function xeh()
+    local x = rawget(RV, "xehanort")
+    if x == nil then return "Xehanort: not seen" end
+    local ok, s = pcall(x.GetState, x)
+    return string.format("Xehanort: %s, StateParam %s, AttackPattern %s, AttackParam %s, phase %s, last: %s",
+      ok and tostring(s) or "?", tostring(x.StateParam), tostring(x.AttackPattern), tostring(x.AttackParam), tostring(x.phase),
+      table.concat(rawget(x, "__watchLast") or {}, " > "))
+  end
+  local function log(...) local st = rawget(ent, "__rv") RV.log(st ~= nil and st.name or "vanitas", ...) end
+  rawset(ent, "GotoState", function(self, s, a, b)
+    if s == "Idling" and rawget(self, "__waitFrom") == nil and withXehanort(self) then
+      rawset(self, "__waitFrom", now(self)); rawset(self, "__waitLogged", false)
+    end
+    return go(self, s, a, b)
+  end)
+  rawset(ent, "SearchTarget", function(self, a, b)
+    local w = rawget(self, "__waitFrom")
+    if w ~= nil and self.attackPermission == false and not rawget(self, "__waitLogged") and now(self) - w > 240 then
+      rawset(self, "__waitLogged", true)
+      log("team watch: waiting " .. string.format("%.1f", (now(self) - w) / 60) .. " s for Xehanort's turn to end -", xeh())
+    end
+    return search(self, a, b)
+  end)
+  rawset(ent, "OnMessage", function(self, m, from, a, b)
+    local r = msg(self, m, from, a, b)
+    if m == B40EX_MES_B40EX_ATTACK_END then
+      local w = rawget(self, "__waitFrom")
+      if w ~= nil and now(self) - w > 240 then
+        log("team watch: his turn back after " .. string.format("%.1f", (now(self) - w) / 60) .. " s -", xeh())
+      end
+      rawset(self, "__waitFrom", nil)
+    end
+    return r
+  end)
+end
+local function vanitasSetup(ent)
+  rideSetup(ent)
+  vanitasWatch(ent)
+end
+local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = vanitasSetup,
                   tempo = vanitasTempo }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
@@ -1364,7 +1416,14 @@ local function xehanortSetup(ent)
   xehanortVoice(ent)
   local go = ent.GotoState
   if type(go) ~= "function" then return end
+  if RV.debug then rawset(RV, "xehanort", ent) end     -- (debug: Vanitas's team watch reports on him)
   rawset(ent, "GotoState", function(self, s, a, b)
+    if RV.debug then
+      local last = rawget(self, "__watchLast") or {}
+      last[#last + 1] = tostring(s) .. "(" .. tostring(self.StateParam) .. ")"
+      if #last > 6 then table.remove(last, 1) end
+      rawset(self, "__watchLast", last)
+    end
     if s == "Idling" then rawset(self, "__idleParam", self.StateParam)
     elseif s == "Warp" and self.phase == 100 and self.StateParam == 101 and rawget(self, "__idleParam") == 101
        and type(self.GetState) == "function" and self:GetState() == "Idling" then
