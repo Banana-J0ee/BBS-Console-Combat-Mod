@@ -68,6 +68,7 @@ static int   c_link_in_burn = 1;       /* a D-Link can be started during MP char
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
 static int   c_retry_refill = 1;       /* Continue / Retry (any Game Over choice): the bar starts full again */
+static int   c_retry_items = 1;        /* Continue / Retry in place: the deck's item slots restocked from the inventory */
 /* MP bar: right end and top edge in the game's screen units (480 x 272), thickness, length of the bar itself at
    100 MP, and the share of any extra MP that lengthens it */
 /* The bar hangs under the Focus bar, whose outline ends at about y 253.9: 0.7 below that, 4.5 high, and 57.6 long at
@@ -246,6 +247,7 @@ static void load_ini(void) {
     c_ether = (int)ini_f("MP", "EtherRestoresMP", (float)c_ether);
     c_save_seconds = ini_f("MP", "SavePointSeconds", c_save_seconds);
     c_retry_refill = (int)ini_f("MP", "RetryRefillsMP", (float)c_retry_refill);
+    c_retry_items = (int)ini_f("MP", "RetryRefillsItems", (float)c_retry_items);
     c_tiered = (int)ini_f("MP", "TieredMagic", (float)c_tiered);
     c_dlink_cost = (int)ini_f("MP", "DLinkCostByClass", (float)c_dlink_cost);
     c_link_in_burn = (int)ini_f("MP", "DLinkDuringCharge", (float)c_link_in_burn);
@@ -735,12 +737,45 @@ static void MSABI item_effect_hook(u8 *pl) {
 #define GO_FN_2   0x1db1b0
 #define GO_SITE_3 0x3eeb71
 #define GO_FN_3   0x1dad00
-static void go_refill(void) { g_fresh = 1; g_burn = 0; g_charge = 0; owe_clear(); if (g_debug) LOG("mp: game over choice, the bar fills"); }
-static void MSABI go_hook_0(void) { go_refill(); FN(void, GO_FN_0, void)(); }
+static void go_refill(void) { if (!c_retry_refill) return; g_fresh = 1; g_burn = 0; g_charge = 0; owe_clear(); if (g_debug) LOG("mp: game over choice, the bar fills"); }
+/* Items on a restart in place (0, 2; 2026-11-16, asked for): the deck's item slots used up in the failed attempt are
+   topped up from the inventory, as when a fight ends.  The game never restocks in battle - that test is in the
+   use-an-item path [206cf0], not in the restock itself: 2394f0(cmd) runs 206c10 on every plate, which for a deck
+   plate (+0x30 == 2) with an item (+0x60 & 0x800) moves stock from the inventory into the slot up to its maximum
+   [41d640(slot, 0)], writes the count (PlayerData and the plate), makes it ready and redraws its number - what a
+   pick-up outside battle does.  Nothing free: no stock, nothing moved.  Done at the next gauge update, once the
+   command menu is there. */
+#define FN_RESTOCK_ALL 0x2394f0u
+static int g_items_due;
+static void items_restock(void) {
+    u8 *cmd = CMD;
+    if (!cmd) return;
+    g_items_due = 0;
+    int n = *(u16*)(cmd + 0x220), before[32], k = 0;
+    if (n > 32) n = 32;
+    for (int i = 0; i < n; i++) {
+        u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+        before[i] = (P && P[0x30] == 2 && (*(u32*)(P + 0x60) & 0x800) && *(u8**)(P + 0x58)) ? (*(u8**)(P + 0x58))[2] : -1;
+    }
+    FN(void, FN_RESTOCK_ALL, u8*)(cmd);
+    if (g_debug)
+        for (int i = 0; i < n; i++) {
+            u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+            if (before[i] < 0 || !P || !*(u8**)(P + 0x58)) continue;
+            int now = (*(u8**)(P + 0x58))[2];
+            LOG("mp: retry - item slot %d (%x): %d -> %d", i, *(u16*)*(u8**)(P + 0x58), before[i], now); k++;
+        }
+    if (g_debug && !k) LOG("mp: retry - no item slots");
+}
+static void go_items(void) { if (c_retry_items) { g_items_due = 1; if (g_debug) LOG("mp: game over, restart in place: item slots restocked at the next update"); } }
+static void MSABI go_hook_0(void) { go_refill(); go_items(); FN(void, GO_FN_0, void)(); }
 static void MSABI go_hook_1(void) { go_refill(); FN(void, GO_FN_1, void)(); }
-static void MSABI go_hook_2(void) { go_refill(); FN(void, GO_FN_2, void)(); }
+static void MSABI go_hook_2(void) { go_refill(); go_items(); FN(void, GO_FN_2, void)(); }
 static void MSABI go_hook_3(void) { go_refill(); FN(void, GO_FN_3, void)(); }
 void test_go_refill(void) { go_refill(); }
+void test_go_choice(int i) { go_refill(); if (i == 0 || i == 2) go_items(); }
+int *test_retry_items(void) { return &c_retry_items; }
+int *test_items_due(void) { return &g_items_due; }
 int *test_retry_refill(void) { return &c_retry_refill; }
 
 /* 285780: PlayerData is reset (new game / load) */
@@ -1152,6 +1187,7 @@ static void tick(u8 *g) {
     g_time += dt;
     g_mpmax = max_mp();
     if (g_fresh) { g_fresh = 0; g_mp = g_mpmax; g_burn = 0; g_charge = 0; }
+    if (g_items_due) items_restock();
     if (g_mp > g_mpmax) g_mp = g_mpmax;
     u8 *cmd = CMD, *pl = player();
     rage(pl);
@@ -1227,7 +1263,7 @@ int mod_install(void) {
     if (G(u64, VT_CTD_READY) != (u64)(g_base + FN_CTD_READY)) { LOG("message file vtable does not match"); bad++; }
     if (c_berserk_pct > 0 && !call_ok(DMG_CALL, DMG_FN)) { LOG("damage site does not match"); bad++; }
     if (c_link_keep < 100.0f && (!call_ok(LINK_END_A, LINK_END) || !call_ok(LINK_END_B, LINK_END))) { LOG("D-Link end sites do not match"); bad++; }
-    if (c_retry_refill && (!call_ok(GO_SITE_0, GO_FN_0) || !call_ok(GO_SITE_1, GO_FN_1) || !call_ok(GO_SITE_2, GO_FN_2) || !call_ok(GO_SITE_3, GO_FN_3))) {
+    if ((c_retry_refill || c_retry_items) && (!call_ok(GO_SITE_0, GO_FN_0) || !call_ok(GO_SITE_1, GO_FN_1) || !call_ok(GO_SITE_2, GO_FN_2) || !call_ok(GO_SITE_3, GO_FN_3))) {
         LOG("game over sites do not match"); bad++;
     }
     if (!bundle_check()) bad++;
@@ -1294,7 +1330,7 @@ int mod_install(void) {
     o_cmd_start    = hook_fn(&S_cmd_start, cmd_start_hook, "command start (SP charged)");
     hook_call(0x233d40, 0x2063c0, use_hook, "deck_use");
     hook_call(0x206a6e, 0x1ce550, reload_hook, "reload");
-    if (c_retry_refill) {
+    if (c_retry_refill || c_retry_items) {
         hook_call(GO_SITE_0, GO_FN_0, go_hook_0, "game over: continue");
         hook_call(GO_SITE_1, GO_FN_1, go_hook_1, "game over: choice 1");
         hook_call(GO_SITE_2, GO_FN_2, go_hook_2, "game over: retry");

@@ -723,6 +723,8 @@ static void t_link_end(void) {
 /* Game Over: every choice (Continue / Retry / the other two) refills the bar at the next gauge update */
 extern void test_go_refill(void); extern int *test_retry_refill(void); extern int *test_fresh(void); extern float *test_mp(void);
 static u8 *go_target(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
+static int g_restock_n; static u8 *g_restock_cmd;
+static void MSABI s_restock(u8 *cmd) { g_restock_n++; g_restock_cmd = cmd; }
 static void t_retry(void) {
     static const u32 site[4] = { 0x3eeb86, 0x3eeb7f, 0x3eeb78, 0x3eeb71 }, fn[4] = { 0x1dab70, 0x1db060, 0x1db1b0, 0x1dad00 };
     CHECK(*test_retry_refill() == 1, "RetryRefillsMP on by default");
@@ -732,6 +734,31 @@ static void t_retry(void) {
     test_go_refill();
     CHECK(*test_fresh() == 1, "a game over choice marks the bar for a full fill at the next update");
     *test_fresh() = 0;
+    /* items: a restart in place (choices 0 and 2) restocks the deck's item slots from the inventory at the next update,
+       with the game's own "restock every plate" (2394f0) */
+    {   extern void test_go_choice(int i); extern int *test_retry_items(void), *test_items_due(void);
+        static const u16 ids[] = { 0x5b, 0xbc, 0x83 };
+        world(3, ids);
+        stub_jmp(0x2394f0, s_restock);
+        CHECK(*test_retry_items() == 1, "RetryRefillsItems on by default");
+        g_restock_n = 0; g_restock_cmd = NULL;
+        test_go_choice(2);
+        CHECK(*test_items_due() == 1 && g_restock_n == 0, "Retry: marked, nothing done yet");
+        test_tick(gauge);
+        CHECK(g_restock_n == 1 && g_restock_cmd == G(u8*, 0x10f9ed40) && *test_items_due() == 0, "the next update: the game's restock, once, on the command menu");
+        test_tick(gauge); CHECK(g_restock_n == 1, "... and only once");
+        test_go_choice(0); test_tick(gauge); CHECK(g_restock_n == 2, "choice 0 (restart in place): restocked too");
+        test_go_choice(1); test_go_choice(3); test_tick(gauge); CHECK(g_restock_n == 2, "load / title: not (a new PlayerData anyway)");
+        u8 *c0 = G(u8*, 0x10f9ed40); G(u8*, 0x10f9ed40) = NULL;
+        test_go_choice(2); test_tick(gauge); CHECK(g_restock_n == 2 && *test_items_due() == 1, "no command menu yet: it waits");
+        G(u8*, 0x10f9ed40) = c0; test_tick(gauge); CHECK(g_restock_n == 3 && *test_items_due() == 0, "... and restocks once it is there");
+        *test_retry_items() = 0; test_go_choice(2); test_tick(gauge);
+        CHECK(g_restock_n == 3 && *test_items_due() == 0, "RetryRefillsItems=0: nothing");
+        *test_retry_items() = 1;
+        *test_retry_refill() = 0; *test_fresh() = 0; test_go_choice(2);
+        CHECK(*test_fresh() == 0 && *test_items_due() == 1, "RetryRefillsMP=0: the bar left alone, the items still marked");
+        test_tick(gauge); *test_retry_refill() = 1;
+    }
     printf("t_retry done\n");
 }
 /* MP Rage: Attack Haste renamed; HP lost gives lost / max HP x max MP x 25% x copies / 5, never during the MP charge */
