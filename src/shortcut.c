@@ -29,9 +29,10 @@
 
    R2 (TargetButton=R2, the default).  The next lock-on target is on R2 instead: a press of R2 (as the pad gives it,
    frame to frame) makes the 2650d4 test true for that frame, and the L1 tap no longer changes the target.  The game
-   has R2 (with L2 the other way) scroll the command menu; while the command menu is on screen during play (as for
-   the shortcuts) R2 is hidden from the game, so it only changes the target.  L2 is left as it is, and so is R2 in
-   the pause and camp menus.  TargetButton=L1: as before. */
+   has R2 (with L2 the other way) scroll the command menu, in control scheme 2: the deck scroll test 272580 takes
+   0x210 (up / R2) and 0x140 (down / L2).  R2 is taken out of the pad words for that one call only [233d96], so
+   R2 still reaches everything else - the pause, camp and other menus (2026-11-16: hiding it from the pad words
+   during play took it from those too).  L2 is left as it is.  TargetButton=L1: as before. */
 #include "mod.h"
 #include <stdio.h>
 #include <string.h>
@@ -165,7 +166,6 @@ static void pad_frame(void) {
     u32 held = PAD_OFF ? 0 : PAD_HELD;
     {   int r2 = (held & B_R2) != 0;
         g_r2_press = c_target_r2 && r2 && !g_r2_prev;
-        if (c_target_r2 && (r2 || g_r2_prev) && can_show()) hide_face(B_R2);   /* not the command menu's */
         g_r2_prev = r2;
     }
     u32 mine = B_FACE | (c_sets > 1 ? B_DPAD : 0);                     /* the buttons the list takes while it is up */
@@ -207,6 +207,15 @@ static int MSABI cam_reset_pad(u8 *pad) {
     if (*(float*)(pad + 0x24) != 0.0f) return 0;                        /* R1 held */
     return g_tap && (fl & 1) && *(float*)(pad + 0x54) <= 0.0f;
 }
+/* 233d96: the deck scroll test (272580) without R2 */
+static int MSABI deck_scroll_pad(u8 *pad) {
+    if (!c_target_r2) return FN(int, 0x272580, u8*)(pad);
+    u32 h = PAD_HELD, e = PAD_EDGE, c = PAD_CHG, r = PAD_REP;
+    PAD_HELD &= ~B_R2; PAD_EDGE &= ~B_R2; PAD_CHG &= ~B_R2; PAD_REP &= ~B_R2;
+    int v = FN(int, 0x272580, u8*)(pad);
+    PAD_HELD = h; PAD_EDGE = e; PAD_CHG = c; PAD_REP = r;
+    return v;
+}
 /* 2650d4: "next lock-on target" */
 static int MSABI target_pad(u8 *pad, u32 *a, u32 *b) {
     *a = 0; *b = 0;
@@ -238,7 +247,7 @@ int shortcut_check(void) {
     if (c_buffer < 1) c_buffer = 1;
     load();
     if (!c_on) return 1;
-    if (!call_ok(0xe3716, 0xed040) || !call_ok(0x22b5df, 0x2729c0) || !call_ok(0x2650d4, 0x272b80)) { LOG("shortcuts: pad call sites do not match"); return 0; }
+    if (!call_ok(0xe3716, 0xed040) || !call_ok(0x22b5df, 0x2729c0) || !call_ok(0x2650d4, 0x272b80) || !call_ok(0x233d96, 0x272580)) { LOG("shortcuts: pad call sites do not match"); return 0; }
     return 1;
 }
 void shortcut_apply(void) {
@@ -246,6 +255,7 @@ void shortcut_apply(void) {
     hook_call(0xe3716, 0xed040, pad_hook, "pad state");
     hook_call(0x22b5df, 0x2729c0, cam_reset_pad, "camera reset pad");
     hook_call(0x2650d4, 0x272b80, target_pad, "target pad");
+    hook_call(0x233d96, 0x272580, deck_scroll_pad, "deck scroll pad (no R2)");
     LOG("shortcuts: L1 + face buttons (file %s)", g_file);
 }
 

@@ -2494,21 +2494,32 @@ static void t_shortcut(void) {
         pad(0, 0); CHECK(!test_sc_tap(), "a long hold is not a tap");
         pad(PAD_R2, PAD_R2); CHECK(tgt(mgr + 0x58, &a, &b) == 0 && (G(u32, 0x8f64930) & PAD_R2), "TargetButton=L1: R2 is the game's (command menu)");
         pad(0, 0);
-        /* R2: the next target on a press, and hidden from the command menu while it is on screen */
+        /* R2: the next target on a press; the deck scroll test does not see it, everything else does */
         *test_sc_target_r2() = 1;
         pad(PAD_R2, PAD_R2);
-        CHECK(!(G(u32, 0x8f64930) & PAD_R2) && !(G(u32, 0x8f64934) & PAD_R2) && !(G(u32, 0x8f6493c) & PAD_R2), "R2: hidden from the game during play (%x %x)", G(u32, 0x8f64930), G(u32, 0x8f64934));
+        CHECK((G(u32, 0x8f64930) & PAD_R2) && (G(u32, 0x8f64934) & PAD_R2), "R2: still in the pad words (other menus) (%x %x)", G(u32, 0x8f64930), G(u32, 0x8f64934));
+        {   site = RVA(0x233d96); memcpy(&rel, site + 1, 4);
+            int MSABI (*scroll)(u8*) = (void*)(site + 5 + rel);
+            int MSABI (*scroll0)(u8*) = (void*)RVA(0x272580);
+            u8 *pd = mgr + 0x58; u32 fl0 = *(u32*)(pd + 0xa0);
+            *(u32*)(pd + 0xa0) = (fl0 & ~6u) | 4u | 1u;              /* control scheme 2: R2 / L2 scroll the deck */
+            G(u32, 0x8f6493c) = PAD_R2;
+            int v0 = scroll0(pd), v1 = scroll(pd);
+            CHECK(v0 != 0 && v1 == 0 && G(u32, 0x8f6493c) == PAD_R2, "deck scroll: R2 scrolls in the game's test (%d), not through the mod's (%d); the pad words put back", v0, v1);
+            G(u32, 0x8f6493c) = 0x100; int l2 = scroll(pd);
+            G(u32, 0x8f6493c) = 0x10; int up = scroll(pd);
+            CHECK(l2 != 0 && up != 0, "L2 (%d) and up (%d) still scroll", l2, up);
+            G(u32, 0x8f6493c) = PAD_R2;
+            *test_sc_target_r2() = 0; CHECK(scroll(pd) != 0, "TargetButton=L1: R2 scrolls again"); *test_sc_target_r2() = 1;
+            G(u32, 0x8f6493c) = 0; *(u32*)(pd + 0xa0) = fl0; }
         *(u32*)(mgr + 0x58 + 0x38) = 7; a = 9;
         CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && *(u32*)(mgr + 0x58 + 0x38) == 0, "R2 pressed: the next target, as the game's own test");
         CHECK(tgt(mgr + 0x58, &a, &b) == 0, "... once per press");
-        pad(PAD_R2, 0); CHECK(tgt(mgr + 0x58, &a, &b) == 0 && !(G(u32, 0x8f64930) & PAD_R2), "held: no more, still hidden");
-        pad(0, PAD_R2); CHECK(!(G(u32, 0x8f64938) & PAD_R2), "let go: the release hidden too");
+        pad(PAD_R2, 0); CHECK(tgt(mgr + 0x58, &a, &b) == 0, "held: no more");
         pad(PAD_L1, PAD_L1); pad(0, 0); CHECK(test_sc_tap() == 1 && cam(mgr + 0x58) == 1 && tgt(mgr + 0x58, &a, &b) == 0, "an L1 tap: the camera as before, no target change");
         pad(0x100, 0x100); CHECK((G(u32, 0x8f64930) & 0x100) && (G(u32, 0x8f64934) & 0x100), "L2 is the game's");
         pad(0, 0);
-        sc_set_hud(0); pad(PAD_R2, PAD_R2);
-        CHECK((G(u32, 0x8f64930) & PAD_R2) && (G(u32, 0x8f64934) & PAD_R2) && tgt(mgr + 0x58, &a, &b) == 1, "command menu not up (a menu): R2 is the game's too; a target change still on the press");
-        pad(0, 0); sc_set_hud(1); }
+        pad(0, 0); }
     /* busy character: the press waits, then goes through when the game allows a command */
     *(u32*)(pl + 0x318) = 0;
     pad(PAD_L1, PAD_L1); pad(PAD_L1 | PAD_CIR, PAD_CIR);
