@@ -2511,6 +2511,14 @@ static void t_shortcut(void) {
             CHECK(l2 != 0 && up != 0, "L2 (%d) and up (%d) still scroll", l2, up);
             G(u32, 0x8f6493c) = PAD_R2;
             *test_sc_target_r2() = 0; CHECK(scroll(pd) != 0, "TargetButton=L1: R2 scrolls again"); *test_sc_target_r2() = 1;
+            /* the mod's command menu asks the same test itself (not through 233d96) */
+            int *mc = test_menu_cur(), m0 = *mc;
+            G(u32, 0x8f64930) = 0; G(u32, 0x8f64934) = 0; G(u32, 0x8f64938) = 0; G(u32, 0x8f6493c) = PAD_R2;
+            test_menu_step(cmd); int mr2 = *mc;
+            G(u32, 0x8f6493c) = 0x100; test_menu_step(cmd); int ml2 = *mc;
+            *mc = m0; *test_sc_target_r2() = 0; G(u32, 0x8f6493c) = PAD_R2; test_menu_step(cmd); int mr2b = *mc; *test_sc_target_r2() = 1;
+            CHECK(mr2 == m0 && ml2 != m0 && mr2b != m0, "command menu: R2 does not move the cursor (%d -> %d), L2 does (%d), and R2 with TargetButton=L1 (%d)", m0, mr2, ml2, mr2b);
+            *mc = m0;
             G(u32, 0x8f6493c) = 0; *(u32*)(pd + 0xa0) = fl0; }
         *(u32*)(mgr + 0x58 + 0x38) = 7; a = 9;
         CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && *(u32*)(mgr + 0x58 + 0x38) == 0, "R2 pressed: the next target, as the game's own test");

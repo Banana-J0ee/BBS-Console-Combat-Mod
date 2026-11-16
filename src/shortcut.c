@@ -207,8 +207,8 @@ static int MSABI cam_reset_pad(u8 *pad) {
     if (*(float*)(pad + 0x24) != 0.0f) return 0;                        /* R1 held */
     return g_tap && (fl & 1) && *(float*)(pad + 0x54) <= 0.0f;
 }
-/* 233d96: the deck scroll test (272580) without R2 */
-static int MSABI deck_scroll_pad(u8 *pad) {
+/* the deck scroll test (272580) without R2: the game's deck (233d96) and the mod's command menu (menu.c) */
+int MSABI sc_scroll_pad(u8 *pad) {
     if (!c_target_r2) return FN(int, 0x272580, u8*)(pad);
     u32 h = PAD_HELD, e = PAD_EDGE, c = PAD_CHG, r = PAD_REP;
     PAD_HELD &= ~B_R2; PAD_EDGE &= ~B_R2; PAD_CHG &= ~B_R2; PAD_REP &= ~B_R2;
@@ -255,7 +255,7 @@ void shortcut_apply(void) {
     hook_call(0xe3716, 0xed040, pad_hook, "pad state");
     hook_call(0x22b5df, 0x2729c0, cam_reset_pad, "camera reset pad");
     hook_call(0x2650d4, 0x272b80, target_pad, "target pad");
-    hook_call(0x233d96, 0x272580, deck_scroll_pad, "deck scroll pad (no R2)");
+    hook_call(0x233d96, 0x272580, sc_scroll_pad, "deck scroll pad (no R2)");
     LOG("shortcuts: L1 + face buttons (file %s)", g_file);
 }
 
