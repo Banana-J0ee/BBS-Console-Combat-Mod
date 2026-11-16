@@ -2297,6 +2297,7 @@ extern u8 *test_slot_plate(u8 *cmd, int slot);
 extern int sc_held(void), sc_want(void), sc_slot(int row), sc_assign(int row, int slot); extern void sc_set_hud(int on);
 #define PAD_L1 0x400
 #define PAD_R1 0x800
+#define PAD_R2 0x200
 #define PAD_TRI 0x1000
 #define PAD_CIR 0x2000
 #define PAD_SQU 0x8000
@@ -2456,11 +2457,31 @@ static void t_shortcut(void) {
         site = RVA(0x2650d4); memcpy(&rel, site + 1, 4);
         int MSABI (*tgt)(u8*, u32*, u32*) = (void*)(site + 5 + rel);
         u32 a = 9, b = 9; *(u32*)(mgr + 0x58 + 0x38) = 7;
-        CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && b == 0 && *(u32*)(mgr + 0x58 + 0x38) == 0, "target switch pad test fires on the tap");
+        extern int *test_sc_target_r2(void);
+        CHECK(*test_sc_target_r2() == 1 && tgt(mgr + 0x58, &a, &b) == 0 && a == 0, "TargetButton=R2 (default): the L1 tap does not change the target");
+        *test_sc_target_r2() = 0;
+        CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && b == 0 && *(u32*)(mgr + 0x58 + 0x38) == 0, "TargetButton=L1: the target switch pad test fires on the tap");
         pad(0, 0); CHECK(!test_sc_tap() && cam(mgr + 0x58) == 0 && tgt(mgr + 0x58, &a, &b) == 0 && a == 0, "only for that frame");
         pad(PAD_L1, PAD_L1); CHECK(cam(mgr + 0x58) == 0, "not on the press itself");
         for (int i = 0; i < 30; i++) pad(PAD_L1, 0);
-        pad(0, 0); CHECK(!test_sc_tap(), "a long hold is not a tap"); }
+        pad(0, 0); CHECK(!test_sc_tap(), "a long hold is not a tap");
+        pad(PAD_R2, PAD_R2); CHECK(tgt(mgr + 0x58, &a, &b) == 0 && (G(u32, 0x8f64930) & PAD_R2), "TargetButton=L1: R2 is the game's (command menu)");
+        pad(0, 0);
+        /* R2: the next target on a press, and hidden from the command menu while it is on screen */
+        *test_sc_target_r2() = 1;
+        pad(PAD_R2, PAD_R2);
+        CHECK(!(G(u32, 0x8f64930) & PAD_R2) && !(G(u32, 0x8f64934) & PAD_R2) && !(G(u32, 0x8f6493c) & PAD_R2), "R2: hidden from the game during play (%x %x)", G(u32, 0x8f64930), G(u32, 0x8f64934));
+        *(u32*)(mgr + 0x58 + 0x38) = 7; a = 9;
+        CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && *(u32*)(mgr + 0x58 + 0x38) == 0, "R2 pressed: the next target, as the game's own test");
+        CHECK(tgt(mgr + 0x58, &a, &b) == 0, "... once per press");
+        pad(PAD_R2, 0); CHECK(tgt(mgr + 0x58, &a, &b) == 0 && !(G(u32, 0x8f64930) & PAD_R2), "held: no more, still hidden");
+        pad(0, PAD_R2); CHECK(!(G(u32, 0x8f64938) & PAD_R2), "let go: the release hidden too");
+        pad(PAD_L1, PAD_L1); pad(0, 0); CHECK(test_sc_tap() == 1 && cam(mgr + 0x58) == 1 && tgt(mgr + 0x58, &a, &b) == 0, "an L1 tap: the camera as before, no target change");
+        pad(0x100, 0x100); CHECK((G(u32, 0x8f64930) & 0x100) && (G(u32, 0x8f64934) & 0x100), "L2 is the game's");
+        pad(0, 0);
+        sc_set_hud(0); pad(PAD_R2, PAD_R2);
+        CHECK((G(u32, 0x8f64930) & PAD_R2) && (G(u32, 0x8f64934) & PAD_R2) && tgt(mgr + 0x58, &a, &b) == 1, "command menu not up (a menu): R2 is the game's too; a target change still on the press");
+        pad(0, 0); sc_set_hud(1); }
     /* busy character: the press waits, then goes through when the game allows a command */
     *(u32*)(pl + 0x318) = 0;
     pad(PAD_L1, PAD_L1); pad(PAD_L1 | PAD_CIR, PAD_CIR);
