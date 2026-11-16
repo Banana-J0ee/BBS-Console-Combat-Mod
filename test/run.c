@@ -2519,6 +2519,11 @@ static void t_shortcut(void) {
             *mc = m0; *test_sc_target_r2() = 0; G(u32, 0x8f6493c) = PAD_R2; test_menu_step(cmd); int mr2b = *mc; *test_sc_target_r2() = 1;
             CHECK(mr2 == m0 && ml2 != m0 && mr2b != m0, "command menu: R2 does not move the cursor (%d -> %d), L2 does (%d), and R2 with TargetButton=L1 (%d)", m0, mr2, ml2, mr2b);
             *mc = m0;
+            {   u8 *ls = RVA(0x23343a); int lr; memcpy(&lr, ls + 1, 4);
+                int MSABI (*lscroll)(u8*) = (void*)(ls + 5 + lr);
+                G(u32, 0x8f6493c) = PAD_R2; int d0 = lscroll(pd);
+                G(u32, 0x8f6493c) = 0x100; int d1 = lscroll(pd);
+                CHECK((void*)lscroll != (void*)scroll0 && d0 == 0 && d1 != 0 && G(u32, 0x8f6493c) == 0x100, "D-Link list: R2 does not scroll it (%d), L2 does (%d)", d0, d1); }
             G(u32, 0x8f6493c) = 0; *(u32*)(pd + 0xa0) = fl0; }
         *(u32*)(mgr + 0x58 + 0x38) = 7; a = 9;
         CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && *(u32*)(mgr + 0x58 + 0x38) == 0, "R2 pressed: the next target, as the game's own test");
