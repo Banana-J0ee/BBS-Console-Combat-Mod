@@ -740,7 +740,8 @@ static void t_retry(void) {
         static const u16 ids[] = { 0x5b, 0xbc, 0x83 };
         world(3, ids);
         stub_jmp(0x2394f0, s_restock);
-        CHECK(*test_retry_items() == 1, "RetryRefillsItems on by default");
+        CHECK(*test_retry_items() == 2, "RetryRefillsItems=2 (fight start) by default");
+        *test_retry_items() = 1;                                            /* 1: the inventory restock */
         g_restock_n = 0; g_restock_cmd = NULL;
         test_go_choice(2);
         CHECK(*test_items_due() == 1 && g_restock_n == 0, "Retry: marked, nothing done yet");
@@ -758,6 +759,53 @@ static void t_retry(void) {
         *test_retry_refill() = 0; *test_fresh() = 0; test_go_choice(2);
         CHECK(*test_fresh() == 0 && *test_items_due() == 1, "RetryRefillsMP=0: the bar left alone, the items still marked");
         test_tick(gauge); *test_retry_refill() = 1;
+        /* 2: back to the counts at the fight's start, from PlayerData's deck slots; the inventory restock not used */
+        {   extern int *test_snap_ok(void); extern void test_battle_reset(void);
+            static const u16 ids2[] = { 0x83, 0xbc, 0xbd };               /* Fire, Potion, Hi-Potion */
+            world(3, ids2); test_battle_reset(); g_restock_n = 0;
+            *test_retry_items() = 2;
+            u8 *PDp = RVA(0x10f9eeb0);
+            #define SID(i) (*(u16*)(PDp + 0x48 + (i) * 8))
+            #define SN(i)  (PDp[0x4a + (i) * 8])
+            #define WD(i)  (((u8*)&deck[i])[2])
+            for (int i = 0; i < 8; i++) { SID(i) = i < 3 ? ids2[i] : 0; SN(i) = 0; }
+            SN(0) = 0; SN(1) = 3; SN(2) = 2; WD(1) = 3; WD(2) = 2;
+            int mx = G(u8, 0x811083 + 0xbc * 0x1e);
+            CHECK(G(u8, 0x814901 + 0xbc * 0x18) == 3 && G(u8, 0x814901 + 0xbd * 0x18) == 3 && G(u8, 0x814901 + 0x83 * 0x18) != 3 && mx >= 3,
+                  "Potion and Hi-Potion are items, Fire is not; a Potion slot holds %d", mx);
+            *(u32*)(cmd + 0x60) &= ~0x80000000u; test_tick(gauge);
+            CHECK(!*test_snap_ok(), "out of battle: nothing noted");
+            test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == 3 && SN(2) == 2 && g_restock_n == 0, "a retry with no fight noted: items left as they are");
+            *(u32*)(cmd + 0x60) |= 0x80000000u; test_tick(gauge);       /* the fight begins */
+            CHECK(*test_snap_ok(), "the fight's start is noted");
+            SN(1) = 1; WD(1) = 1; SN(2) = 0; WD(2) = 0;                  /* two Potions and both Hi-Potions used */
+            FLG(1) |= 2; FLG(2) |= 2; PCT(2) = 0;
+            test_tick(gauge); CHECK(SN(1) == 1, "still in the fight: no new note, nothing changed");
+            test_go_choice(2);
+            CHECK(SN(1) == 3 && SN(2) == 2 && SN(0) == 0 && *test_items_due() == 1, "retry: PlayerData's slots back to 3 and 2 at once (Fire's slot untouched)");
+            test_tick(gauge);
+            CHECK(WD(1) == 3 && WD(2) == 2 && !(FLG(1) & 2) && !(FLG(2) & 2) && PCT(2) == 100 && *test_items_due() == 0 && g_restock_n == 0,
+                  "the next update: the plates show 3 and 2, ready (flags %x %x), no inventory restock", FLG(1), FLG(2));
+            SN(1) = 0; WD(1) = 0;
+            *(u32*)(cmd + 0x60) &= ~0x80000000u; test_tick(gauge);
+            *(u32*)(cmd + 0x60) |= 0x80000000u; test_go_choice(0); test_tick(gauge);
+            CHECK(SN(1) == 3 && WD(1) == 3, "the room loaded again in battle: the note is not taken from the used-up count; choice 0 restores too");
+            SN(1) = 5 < mx ? 5 : mx; WD(1) = SN(1); int big = SN(1); test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == big, "more than at the start: never lowered");
+            SN(1) = 0; test_go_choice(1); test_go_choice(3); test_tick(gauge);
+            CHECK(SN(1) == 0, "load / title: nothing");
+            SID(1) = 0xbd; test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == 0, "another item in the slot: left alone");
+            SID(1) = 0xbc; *test_retry_items() = 0; test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == 0, "RetryRefillsItems=0: nothing");
+            *test_retry_items() = 2;
+            #undef SID
+            #undef SN
+            #undef WD
+            for (int i = 0; i < 8; i++) { *(u16*)(PDp + 0x48 + i * 8) = 0; PDp[0x4a + i * 8] = 0; }
+            test_battle_reset(); *(u32*)(cmd + 0x60) &= ~0x80000000u;
+        }
     }
     printf("t_retry done\n");
 }

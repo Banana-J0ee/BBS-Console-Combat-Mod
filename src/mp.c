@@ -68,7 +68,7 @@ static int   c_link_in_burn = 1;       /* a D-Link can be started during MP char
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
 static int   c_retry_refill = 1;       /* Continue / Retry (any Game Over choice): the bar starts full again */
-static int   c_retry_items = 1;        /* Continue / Retry in place: the deck's item slots restocked from the inventory */
+static int   c_retry_items = 2;        /* Continue / Retry in place: 2 = the deck's item slots back to their counts at the fight's start, 1 = restocked from the inventory */
 /* MP bar: right end and top edge in the game's screen units (480 x 272), thickness, length of the bar itself at
    100 MP, and the share of any extra MP that lengthens it */
 /* The bar hangs under the Focus bar, whose outline ends at about y 253.9: 0.7 below that, 4.5 high, and 57.6 long at
@@ -767,7 +767,74 @@ static void items_restock(void) {
         }
     if (g_debug && !k) LOG("mp: retry - no item slots");
 }
-static void go_items(void) { if (c_retry_items) { g_items_due = 1; if (g_debug) LOG("mp: game over, restart in place: item slots restocked at the next update"); } }
+/* RetryRefillsItems=2: the item slots go back to what they held when the fight began.  The game marks that moment
+   itself: entering battle [2320e0] sets the command menu's flag cmd+0x60 bit 31 and puts every plate in its battle
+   mode (no restock on use); leaving battle clears it and restocks from the inventory.  On that flag's rise (or a new
+   command menu already in battle) the eight deck slots of PlayerData are noted: command id PD+0x48+i*8 and count
+   PD+0x4a+i*8 - the counts that last over a retry, as the experience does.  A restart in place then puts each slot
+   that still holds the same item back up to its noted count (never lower, never over the item's maximum, command data
+   +3) at once, before the room is loaded again; the inventory is not touched.  At the next update the plates of the
+   command menu get the same count in their working-deck entry (plate+0x58 -> +2) and are redrawn as the game's
+   restock does it [206c83]: ready, full, the number written.  The note stays until the next fight begins, so every
+   retry of the same fight gives the same counts. */
+#define PD_SLOT_ID(i)  (*(u16*)(PD + 0x48 + (i) * 8))
+#define PD_SLOT_N(i)   (PD[0x4a + (i) * 8])
+static u16 g_snap_id[8]; static u8 g_snap_n[8]; static int g_snap_ok;
+static u8 *g_btl_cmd; static int g_btl;
+static int is_item(u16 id) { return id && id < CMD_MAX && CMD_CAT(id) == 3; }
+static void items_snapshot(void) {
+    g_snap_ok = 1;
+    for (int i = 0; i < 8; i++) {
+        u16 id = PD_SLOT_ID(i);
+        g_snap_id[i] = is_item(id) ? id : 0; g_snap_n[i] = g_snap_id[i] ? PD_SLOT_N(i) : 0;
+        if (g_debug && g_snap_id[i]) LOG("mp: fight start - item slot %d (%x): %d", i, id, g_snap_n[i]);
+    }
+}
+static void battle_watch(void) {
+    u8 *cmd = CMD;
+    int b = cmd && (*(u32*)(cmd + 0x60) & 0x80000000u);
+    if (b && (!g_btl || cmd != g_btl_cmd) && !g_items_due) items_snapshot();
+    g_btl = b; g_btl_cmd = cmd;
+}
+static void items_back(void) {          /* at the Game Over choice: PlayerData */
+    if (!g_snap_ok) { if (g_debug) LOG("mp: retry - no fight start noted, items left as they are"); return; }
+    for (int i = 0; i < 8; i++) {
+        u16 id = g_snap_id[i];
+        if (!id || PD_SLOT_ID(i) != id) continue;
+        int want = g_snap_n[i], max = CMD_RELOAD(id), now = PD_SLOT_N(i);
+        if (want > max) want = max;
+        if (now >= want) continue;
+        PD_SLOT_N(i) = (u8)want;
+        if (g_debug) LOG("mp: retry - item slot %d (%x): %d -> %d (fight start)", i, id, now, want);
+    }
+}
+static void items_plates(void) {        /* the next update with a command menu: the plates */
+    u8 *cmd = CMD;
+    if (!cmd) return;
+    g_items_due = 0;
+    int n = *(u16*)(cmd + 0x220);
+    if (n > 32) n = 32;
+    for (int i = 0; i < n; i++) {
+        u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+        if (!P || P[0x30] != 2 || !(*(u32*)(P + 0x60) & 0x800)) continue;
+        u8 *rec = *(u8**)(P + 0x58);
+        u8 slot = G(u8, 0x8187a8 + (s8)P[0x33]);           /* 235130: working-deck entry -> deck slot */
+        if (!rec || slot >= 8 || *(u16*)rec != PD_SLOT_ID(slot)) continue;
+        u8 c = PD_SLOT_N(slot);
+        if (rec[2] >= c) continue;
+        rec[2] = c;
+        *(u32*)(P + 0x60) &= ~2u; *(float*)(P + 0x64) = 100.0f;
+        if (P[0x31] > 1) FN(int, 0x1a7520, int, int)(*(int*)(P + 0x4c), 3);
+        else FN(void, 0x2060d0, u8*, int)(P, (s8)P[0x6c]);
+        char b[8]; snprintf(b, sizeof b, "%d", c);
+        FN(int, 0x1a8330, int, u16, const char*, int, void*)(*(int*)(P + 0x4c), 0x5b, b, 0, NULL);
+        if (g_debug) LOG("mp: retry - item plate %d: %d", i, c);
+    }
+}
+static void go_items(void) {
+    if (c_retry_items == 2) { items_back(); g_items_due = 1; }
+    else if (c_retry_items) { g_items_due = 1; if (g_debug) LOG("mp: game over, restart in place: item slots restocked at the next update"); }
+}
 static void MSABI go_hook_0(void) { go_refill(); go_items(); FN(void, GO_FN_0, void)(); }
 static void MSABI go_hook_1(void) { go_refill(); FN(void, GO_FN_1, void)(); }
 static void MSABI go_hook_2(void) { go_refill(); go_items(); FN(void, GO_FN_2, void)(); }
@@ -776,6 +843,8 @@ void test_go_refill(void) { go_refill(); }
 void test_go_choice(int i) { go_refill(); if (i == 0 || i == 2) go_items(); }
 int *test_retry_items(void) { return &c_retry_items; }
 int *test_items_due(void) { return &g_items_due; }
+int *test_snap_ok(void) { return &g_snap_ok; }
+void test_battle_reset(void) { g_btl = 0; g_btl_cmd = NULL; g_snap_ok = 0; }
 int *test_retry_refill(void) { return &c_retry_refill; }
 
 /* 285780: PlayerData is reset (new game / load) */
@@ -1187,7 +1256,8 @@ static void tick(u8 *g) {
     g_time += dt;
     g_mpmax = max_mp();
     if (g_fresh) { g_fresh = 0; g_mp = g_mpmax; g_burn = 0; g_charge = 0; }
-    if (g_items_due) items_restock();
+    if (g_items_due) { if (c_retry_items == 2) items_plates(); else items_restock(); }
+    if (c_retry_items == 2) battle_watch();
     if (g_mp > g_mpmax) g_mp = g_mpmax;
     u8 *cmd = CMD, *pl = player();
     rage(pl);
