@@ -1134,7 +1134,7 @@ static void t_shake(void) {
     CHECK(FN(int, 0x1a6e50, void*, const char*, int)(img, "gauge_01.l2d", 0) > 0, "register gauge_01");
     draw_stubs();
     pl = calloc(1, 0x800); mgr = calloc(1, 0x200); gauge = calloc(1, 0xc8);
-    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9f540) = mgr; G(u8*, 0x10f9f360) = gauge; *(float*)(gauge + 0x20) = 1.0f;
+    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9f540) = mgr; G(u8*, 0x10f9f368) = gauge; *(float*)(gauge + 0x20) = 1.0f;
     G(u8, 0x8f88728) = 1;
     int hg = FN(int, 0x1a4e80, const char*, u16, int, void*)("gauge_01.l2d", 2, 0, NULL);      /* as the gauge does [207a00] */
     *(int*)(gauge + 0x8c) = hg;
@@ -1182,7 +1182,7 @@ static void t_shake(void) {
     { int ok = 1; for (int k = 0; k < 20; k++) { FRAME(); ok &= NEAR(BARX(), x0); } CHECK(ok, "Shake=0: the bar keeps still"); }
     *test_bar_shake() = 1;
     /* the gauge gone: the bar is placed as set */
-    G(u8*, 0x10f9f360) = NULL; FRAME();
+    G(u8*, 0x10f9f368) = NULL; FRAME();
     CHECK(NEAR(BARX(), x0), "no gauge: placed as set");
     #undef FRAME
     #undef BARX

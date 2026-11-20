@@ -967,7 +967,7 @@ static float g_shake_rx, g_shake_ry;    /* the window's position at rest */
 static int g_shake_rest;                /* ... known */
 static u64 (MSABI *o_bar_draw)(u8 *self, u64 a, u64 b, u64 c);
 static u8 *gauge_window(void) {
-    u8 *g = G(u8*, 0x10f9f360);
+    u8 *g = GAUGE;
     u8 *lc = g ? FN(u8*, 0x1a6460, int)(*(int*)(g + 0x8c)) : NULL;
     u8 *nodes = lc ? *(u8**)(lc + 0x98) : NULL;
     if (!nodes) return NULL;
