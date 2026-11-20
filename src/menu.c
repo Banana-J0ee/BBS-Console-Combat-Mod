@@ -451,7 +451,7 @@ static int MSABI menu_input(u8 *cmd) {
         }
         return 0;
     }
-    int dir = FN(int, 0x272580, u8*)(pad);          /* +1 up, -1 down, with repeat */
+    int dir = sc_scroll_pad(pad);                    /* +1 up, -1 down, with repeat (272580; R2 left out when it changes the target) */
     int left = FN(int, 0x272d30, u8*)(pad);
     int ok = g_swallow ? o_confirm(pad) : 0;        /* on Attack the game handles the button itself */
 
