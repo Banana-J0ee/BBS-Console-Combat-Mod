@@ -25,7 +25,14 @@
 
    L1 alone.  In the default control type a press of L1 turns the camera behind the character (pad test 1402729c0,
    called at 22b5df) and, while locked on, changes the target (140272b80, called at 2650d4).  Both now happen on a
-   short tap, when L1 is let go without a shortcut having been used. */
+   short tap, when L1 is let go without a shortcut having been used.
+
+   R2 (TargetButton=R2, the default).  The next lock-on target is on R2 instead: a press of R2 (as the pad gives it,
+   frame to frame) makes the 2650d4 test true for that frame, and the L1 tap no longer changes the target.  The game
+   has R2 (with L2 the other way) scroll the command menu, in control scheme 2: the deck scroll test 272580 takes
+   0x210 (up / R2) and 0x140 (down / L2).  R2 is taken out of the pad words for that one call only [233d96], so
+   R2 still reaches everything else - the pause, camp and other menus (2026-11-16: hiding it from the pad words
+   during play took it from those too).  L2 is left as it is.  TargetButton=L1: as before. */
 #include "mod.h"
 #include <stdio.h>
 #include <string.h>
@@ -41,6 +48,7 @@ extern int g_debug;
 #define PAD_OFF   G(u32, 0x8f6509c)
 #define B_L1   0x400u
 #define B_R1   0x800u
+#define B_R2   0x200u
 #define B_FACE 0xf000u
 #define B_DPAD 0x00f0u                  /* up, right, down, left */
 #define CMD     G(u8*, 0x10f9f440)
@@ -57,6 +65,8 @@ static const char *const row_key[SC_SETS][SC_ROWS] = { { "Circle", "Triangle", "
 
 static int c_on = 1;
 static int c_tap = 18;                  /* frames: a press of L1 shorter than this is a tap */
+static int c_target_r2 = 1;             /* the next lock-on target on R2 (1) or on an L1 tap (0) */
+static int g_r2_prev, g_r2_press;       /* R2 down last frame / pressed this frame */
 static int c_buffer = 12;               /* frames a shortcut press waits for the character to be free */
 static int c_sets = 2;                  /* 1 = one set, as before (the d-pad is then left alone) */
 static s8  g_bind[3][SC_SETS][SC_ROWS]; /* deck slot 0..7, -1 = none */
@@ -98,6 +108,13 @@ int sc_assign_in(int set, int row, int slot) {
     return changed;
 }
 int sc_assign(int row, int slot) { return sc_assign_in(sc_page(), row, slot); }
+/* Both sets back to the default slots (set 1: 1..4, set 2: 5..8, in the rows' order), as numbers rather than "never
+   set", so the old bbskh2_shortcuts.ini is not consulted.  The four bytes are written whole: anything else another
+   mod may have left in them goes.  The rest of each ability's u32 is not touched. */
+void sc_reset_defaults(void) {
+    for (int i = 0; i < SC_SETS * SC_ROWS / 2; i++) SAVE_SC(i) = (u8)((2 * i + 1) | (2 * i + 2) << 4);
+    if (g_debug) LOG("shortcuts: reset to the default slots");
+}
 static void load(void) {
     static const char *const sec[3] = { "Character0", "Character1", "Character2" };
     snprintf(g_file, sizeof g_file, "%sbbskh2_shortcuts.ini", g_dir);
@@ -147,6 +164,10 @@ static void hide_face(u32 m) {
 static void pad_frame(void) {
     g_tap = 0;
     u32 held = PAD_OFF ? 0 : PAD_HELD;
+    {   int r2 = (held & B_R2) != 0;
+        g_r2_press = c_target_r2 && r2 && !g_r2_prev;
+        g_r2_prev = r2;
+    }
     u32 mine = B_FACE | (c_sets > 1 ? B_DPAD : 0);                     /* the buttons the list takes while it is up */
     u32 face = PAD_HELD & mine, press = face & ~g_face_prev;
     g_face_prev = face;
@@ -186,9 +207,26 @@ static int MSABI cam_reset_pad(u8 *pad) {
     if (*(float*)(pad + 0x24) != 0.0f) return 0;                        /* R1 held */
     return g_tap && (fl & 1) && *(float*)(pad + 0x54) <= 0.0f;
 }
+/* the deck scroll test (272580) without R2: the game's deck (233d96), the D-Link list (23343a) and the mod's command menu (menu.c) */
+int MSABI sc_scroll_pad(u8 *pad) {
+    if (!c_target_r2) return FN(int, 0x2722a0, u8*)(pad);
+    u32 h = PAD_HELD, e = PAD_EDGE, c = PAD_CHG, r = PAD_REP;
+    PAD_HELD &= ~B_R2; PAD_EDGE &= ~B_R2; PAD_CHG &= ~B_R2; PAD_REP &= ~B_R2;
+    int v = FN(int, 0x2722a0, u8*)(pad);
+    PAD_HELD = h; PAD_EDGE = e; PAD_CHG = c; PAD_REP = r;
+    return v;
+}
 /* 2650d4: "next lock-on target" */
 static int MSABI target_pad(u8 *pad, u32 *a, u32 *b) {
     *a = 0; *b = 0;
+    if (c_target_r2) {                                                  /* R2 */
+        if ((*(u32*)(pad + 0xa0) & 0x400) || !g_r2_press) return 0;
+        g_r2_press = 0;
+        if (g_debug) LOG("shortcuts: R2 - next target");
+        *a = 0x40000000;
+        *(u32*)(pad + 0x38) = 0;
+        return 1;
+    }
     if ((*(u32*)(pad + 0xa0) & 0x400) || *(float*)(pad + 0x24) != 0.0f || !g_tap) return 0;
     *a = 0x40000000;                                                    /* 2.0f, as the game */
     *(u32*)(pad + 0x38) = 0;
@@ -205,10 +243,11 @@ int shortcut_check(void) {
     GetPrivateProfileStringA("Shortcuts", "TapFrames", "18", b, sizeof b, g_ini); c_tap = atoi(b);
     GetPrivateProfileStringA("Shortcuts", "BufferFrames", "12", b, sizeof b, g_ini); c_buffer = atoi(b);
     GetPrivateProfileStringA("Shortcuts", "Sets", "2", b, sizeof b, g_ini); c_sets = atoi(b) == 1 ? 1 : 2;
+    GetPrivateProfileStringA("Shortcuts", "TargetButton", "R2", b, sizeof b, g_ini); c_target_r2 = !(b[0] == 'L' || b[0] == 'l');
     if (c_buffer < 1) c_buffer = 1;
     load();
     if (!c_on) return 1;
-    if (!call_ok(0xe3696, 0xecfb0) || !call_ok(0x22b2ff, 0x2726e0) || !call_ok(0x264df4, 0x2728a0)) { LOG("shortcuts: pad call sites do not match"); return 0; }
+    if (!call_ok(0xe3696, 0xecfb0) || !call_ok(0x22b2ff, 0x2726e0) || !call_ok(0x264df4, 0x2728a0) || !call_ok(0x233ab6, 0x2722a0) || !call_ok(0x23315a, 0x2722a0)) { LOG("shortcuts: pad call sites do not match"); return 0; }
     return 1;
 }
 void shortcut_apply(void) {
@@ -216,12 +255,15 @@ void shortcut_apply(void) {
     hook_call(0xe3696, 0xecfb0, pad_hook, "pad state");
     hook_call(0x22b2ff, 0x2726e0, cam_reset_pad, "camera reset pad");
     hook_call(0x264df4, 0x2728a0, target_pad, "target pad");
+    hook_call(0x233ab6, 0x2722a0, sc_scroll_pad, "deck scroll pad (no R2)");
+    hook_call(0x23315a, 0x2722a0, sc_scroll_pad, "D-Link list scroll pad (no R2)");
     LOG("shortcuts: L1 + face buttons (file %s)", g_file);
 }
 
 #ifndef _WIN32      /* offline test access */
 void test_sc_pad_frame(void) { pad_frame(); }
 int test_sc_tap(void) { return g_tap; }
+int *test_sc_target_r2(void) { return &c_target_r2; }
 void test_sc_reload(void) { load(); }
 s8 *test_sc_bind(void) { return g_bind[0][0]; }
 int *test_sc_page(void) { return &g_page; }

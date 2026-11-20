@@ -40,7 +40,7 @@ static float c_max_base_crit = 20.0f;  /* ... on Critical */
 static float c_max_per_slot = 10.0f;   /* extra MP per command deck slot the character has (filled or not) */
 static float c_max_per_level = 0.0f;   /* extra MP per level above 1 */
 static float c_cost_scale = 1.0f;      /* MP cost = command's reload seconds x this */
-static int   c_cure_all = 1;           /* Cure/Cura/Curaga use all remaining MP (KH2 rule) */
+static int   c_cure_all = 1;           /* Cure/Cura/Curaga and the Group cures use all remaining MP (KH2 rule) */
 static int   c_rebalance = 1;          /* the strongest commands cost by their strength (see k_rebalance) */
 static float c_charge_seconds = 25.0f; /* MP charge: seconds to recharge from empty (KH2: 50) */
 static float c_haste_bonus = 0.10f;    /* ... divided by 1 + this for every Magic Haste ("MP Haste") installed */
@@ -68,13 +68,14 @@ static int   c_link_in_burn = 1;       /* a D-Link can be started during MP char
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
 static int   c_retry_refill = 1;       /* Continue / Retry (any Game Over choice): the bar starts full again */
+static int   c_retry_items = 2;        /* Continue / Retry in place: 2 = the deck's item slots back to their counts at the fight's start, 1 = restocked from the inventory */
 /* MP bar: right end and top edge in the game's screen units (480 x 272), thickness, length of the bar itself at
    100 MP, and the share of any extra MP that lengthens it */
 /* The bar hangs under the Focus bar, whose outline ends at about y 253.9: 0.7 below that, 4.5 high, and 57.6 long at
    100 MP (the plate adds 11.7: 69.5 in all, as long as the first bar, so its left end is where that one's was).  Before that it was 7.5 high and 50 long at y 255.5. */
 static float c_bar_right = 425.0f, c_bar_top = 254.6f, c_bar_height = 4.5f;
 static float c_bar_len = 57.6f, c_bar_grow = 0.4f;
-static int   c_bar = 1, c_bar_art = 1, c_bar_round = 1, c_bar_exact = 1;
+static int   c_bar = 1, c_bar_art = 1, c_bar_round = 1, c_bar_exact = 1, c_bar_shake = 1;
 /* colours AABBGGRR; 80 = the art's own colour, ff = twice as bright */
 static u32 c_col_fill = 0x80808080, c_col_label = 0x80ff9030, c_col_empty = 0x80381810, c_col_frame = 0x80808080;
 static u32 c_col_burn_fill = 0x80b860ff, c_col_burn_label = 0x80c060ff, c_col_burn_empty = 0x80280c20;
@@ -246,6 +247,7 @@ static void load_ini(void) {
     c_ether = (int)ini_f("MP", "EtherRestoresMP", (float)c_ether);
     c_save_seconds = ini_f("MP", "SavePointSeconds", c_save_seconds);
     c_retry_refill = (int)ini_f("MP", "RetryRefillsMP", (float)c_retry_refill);
+    c_retry_items = (int)ini_f("MP", "RetryRefillsItems", (float)c_retry_items);
     c_tiered = (int)ini_f("MP", "TieredMagic", (float)c_tiered);
     c_dlink_cost = (int)ini_f("MP", "DLinkCostByClass", (float)c_dlink_cost);
     c_link_in_burn = (int)ini_f("MP", "DLinkDuringCharge", (float)c_link_in_burn);
@@ -265,6 +267,7 @@ static void load_ini(void) {
     c_bar_art = (int)ini_f("Bar", "KH2Art", (float)c_bar_art);
     c_bar_round = (int)ini_f("Bar", "RoundEnd", (float)c_bar_round);
     c_bar_exact = (int)ini_f("Bar", "ExactSize", (float)c_bar_exact);
+    c_bar_shake = (int)ini_f("Bar", "Shake", (float)c_bar_shake);
     c_bar_right = ini_f("Bar", "Right", c_bar_right);
     c_bar_top = ini_f("Bar", "Top", c_bar_top);
     c_bar_height = ini_f("Bar", "Height", c_bar_height);
@@ -317,7 +320,11 @@ static s16 g_cost_over[CMD_MAX];        /* 0 = none */
    (~15 x 140) at 25, the mines (3..8 x 360), Quake (4 x 500), the long chains (Chaos Blade 9 dashes + finisher, Time
    Splicer 3..8 slashes + finisher, Ars Arcanum 7 steps), and the two that heal as they hit - Faith (300 per hit and
    50..100 % of max HP) and Salvation (40..90 %).  Faith counts as a cure: all remaining SP (50 with CureUsesAllMP=0).
-   Deep Freeze (one 350 hit) stays at 25, as asked.  [Cost] still overrides any of these. */
+   Deep Freeze (one 350 hit) stays at 25, as asked.  2026-11-10, asked, by shop price against commands priced
+   alike: the three Surges 30 (were 20, 15, 20), Ars Solum 45, Transcendence / Tornado Strike / Meteor Crash /
+   Magic Hour 35, Raging Storm 30, Brutal Blast / Zantetsuken / Dark Haze 25 (were 25, 25, 25, 25, 25, 25, 20,
+   20, 15).  Mini and Break Time stay.
+   [Cost] still overrides any of these. */
 #define FAITH 0xa6
 static const struct { u8 id, cost; } k_rebalance[] = {
     { 0x7c, 50 },  /* Salvation */        { 0xaf, 50 },  /* Meteor */           { 0xaa, 50 },  /* Firaga Burst */
@@ -327,7 +334,11 @@ static const struct { u8 id, cost; } k_rebalance[] = {
     { 0x68, 30 },  /* Spark Raid */       { 0x81, 30 },  /* Sacrifice */        { 0x89, 30 },  /* Crawling Fire */
     { 0xa5, 30 },  /* Warp */             { 0xa8, 30 },  /* Glacier */          { 0x88, 25 },  /* Triple Firaga */
     { 0x8d, 25 },  /* Triple Blizzaga */  { 0x7f, 25 },  /* Collision Magnet */ { 0x7b, 25 },  /* Magnet Spiral */
-    { 0x5c, 20 },  /* Blitz */            { 0x6a, 20 },  /* Fire Surge */       { 0x6c, 20 },  /* Thunder Surge */
+    { 0x6a, 30 },  /* Fire Surge */       { 0x6b, 30 },  /* Barrier Surge */    { 0x6c, 30 },  /* Thunder Surge */
+    { 0x6e, 45 },  /* Ars Solum */        { 0xab, 30 },  /* Raging Storm */     { 0xb0, 35 },  /* Transcendence */
+    { 0x79, 35 },  /* Tornado Strike */   { 0x5e, 35 },  /* Meteor Crash */     { 0x5d, 35 },  /* Magic Hour */
+    { 0x7a, 25 },  /* Brutal Blast */     { 0x64, 25 },  /* Zantetsuken */      { 0x61, 25 },  /* Dark Haze */
+    { 0x5c, 20 },  /* Blitz */
     { FAITH, 50 }, /* Faith: all remaining SP under CureUsesAllMP */
 };
 static int rebalanced(int id) {
@@ -362,11 +373,12 @@ float mp_cost(int id) {
     float c = (float)base_cost(id) * c_cost_scale;
     return c < 1.0f ? 1.0f : c;
 }
-/* Cure, Cura, Curaga, the D-Link decks' two heals and (Rebalanced) Faith: what CureUsesAllMP is about.  A command with a cost of its
+/* Cure, Cura, Curaga, Group Cure / Cura / Curaga (d3..d5, 40 MP each before 2026-11-08), the D-Link decks' two heals
+   and (Rebalanced) Faith: what CureUsesAllMP is about.  A command with a cost of its
    own in [Cost] is not one of them: that cost is what it costs, as the ini says. */
 static int is_cure(int id) {
     if (id <= 0 || id >= CMD_MAX || g_cost_over[id] > 0) return 0;
-    return (id >= 0x92 && id <= 0x94) || (c_dlink_cost && is_dlink_cure(id)) || (c_rebalance && id == FAITH);
+    return (id >= 0x92 && id <= 0x94) || (id >= 0xd3 && id <= 0xd5) || (c_dlink_cost && is_dlink_cure(id)) || (c_rebalance && id == FAITH);
 }
 
 /* would using this command now end in MP burn?  (what the menu marks) */
@@ -725,12 +737,114 @@ static void MSABI item_effect_hook(u8 *pl) {
 #define GO_FN_2   0x1daed0
 #define GO_SITE_3 0x3ee831
 #define GO_FN_3   0x1daa20
-static void go_refill(void) { g_fresh = 1; g_burn = 0; g_charge = 0; owe_clear(); if (g_debug) LOG("mp: game over choice, the bar fills"); }
-static void MSABI go_hook_0(void) { go_refill(); FN(void, GO_FN_0, void)(); }
+static void go_refill(void) { if (!c_retry_refill) return; g_fresh = 1; g_burn = 0; g_charge = 0; owe_clear(); if (g_debug) LOG("mp: game over choice, the bar fills"); }
+/* Items on a restart in place (0, 2; 2026-11-16, asked for): the deck's item slots used up in the failed attempt are
+   topped up from the inventory, as when a fight ends.  The game never restocks in battle - that test is in the
+   use-an-item path [206cf0], not in the restock itself: 2394f0(cmd) runs 206c10 on every plate, which for a deck
+   plate (+0x30 == 2) with an item (+0x60 & 0x800) moves stock from the inventory into the slot up to its maximum
+   [41d640(slot, 0)], writes the count (PlayerData and the plate), makes it ready and redraws its number - what a
+   pick-up outside battle does.  Nothing free: no stock, nothing moved.  Done at the next gauge update, once the
+   command menu is there. */
+#define FN_RESTOCK_ALL 0x239210u
+static int g_items_due;
+static void items_restock(void) {
+    u8 *cmd = CMD;
+    if (!cmd) return;
+    g_items_due = 0;
+    int n = *(u16*)(cmd + 0x220), before[32], k = 0;
+    if (n > 32) n = 32;
+    for (int i = 0; i < n; i++) {
+        u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+        before[i] = (P && P[0x30] == 2 && (*(u32*)(P + 0x60) & 0x800) && *(u8**)(P + 0x58)) ? (*(u8**)(P + 0x58))[2] : -1;
+    }
+    FN(void, FN_RESTOCK_ALL, u8*)(cmd);
+    if (g_debug)
+        for (int i = 0; i < n; i++) {
+            u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+            if (before[i] < 0 || !P || !*(u8**)(P + 0x58)) continue;
+            int now = (*(u8**)(P + 0x58))[2];
+            LOG("mp: retry - item slot %d (%x): %d -> %d", i, *(u16*)*(u8**)(P + 0x58), before[i], now); k++;
+        }
+    if (g_debug && !k) LOG("mp: retry - no item slots");
+}
+/* RetryRefillsItems=2: the item slots go back to what they held when the fight began.  The game marks that moment
+   itself: entering battle [2320e0] sets the command menu's flag cmd+0x60 bit 31 and puts every plate in its battle
+   mode (no restock on use); leaving battle clears it and restocks from the inventory.  On that flag's rise (or a new
+   command menu already in battle) the eight deck slots of PlayerData are noted: command id PD+0x48+i*8 and count
+   PD+0x4a+i*8 - the counts that last over a retry, as the experience does.  A restart in place then puts each slot
+   that still holds the same item back up to its noted count (never lower, never over the item's maximum, command data
+   +3) at once, before the room is loaded again; the inventory is not touched.  At the next update the plates of the
+   command menu get the same count in their working-deck entry (plate+0x58 -> +2) and are redrawn as the game's
+   restock does it [206c83]: ready, full, the number written.  The note stays until the next fight begins, so every
+   retry of the same fight gives the same counts. */
+#define PD_SLOT_ID(i)  (*(u16*)(PD + 0x48 + (i) * 8))
+#define PD_SLOT_N(i)   (PD[0x4a + (i) * 8])
+static u16 g_snap_id[8]; static u8 g_snap_n[8]; static int g_snap_ok;
+static u8 *g_btl_cmd; static int g_btl;
+static int is_item(u16 id) { return id && id < CMD_MAX && CMD_CAT(id) == 3; }
+static void items_snapshot(void) {
+    g_snap_ok = 1;
+    for (int i = 0; i < 8; i++) {
+        u16 id = PD_SLOT_ID(i);
+        g_snap_id[i] = is_item(id) ? id : 0; g_snap_n[i] = g_snap_id[i] ? PD_SLOT_N(i) : 0;
+        if (g_debug && g_snap_id[i]) LOG("mp: fight start - item slot %d (%x): %d", i, id, g_snap_n[i]);
+    }
+}
+static void battle_watch(void) {
+    u8 *cmd = CMD;
+    int b = cmd && (*(u32*)(cmd + 0x60) & 0x80000000u);
+    if (b && (!g_btl || cmd != g_btl_cmd) && !g_items_due) items_snapshot();
+    g_btl = b; g_btl_cmd = cmd;
+}
+static void items_back(void) {          /* at the Game Over choice: PlayerData */
+    if (!g_snap_ok) { if (g_debug) LOG("mp: retry - no fight start noted, items left as they are"); return; }
+    for (int i = 0; i < 8; i++) {
+        u16 id = g_snap_id[i];
+        if (!id || PD_SLOT_ID(i) != id) continue;
+        int want = g_snap_n[i], max = CMD_RELOAD(id), now = PD_SLOT_N(i);
+        if (want > max) want = max;
+        if (now >= want) continue;
+        PD_SLOT_N(i) = (u8)want;
+        if (g_debug) LOG("mp: retry - item slot %d (%x): %d -> %d (fight start)", i, id, now, want);
+    }
+}
+static void items_plates(void) {        /* the next update with a command menu: the plates */
+    u8 *cmd = CMD;
+    if (!cmd) return;
+    g_items_due = 0;
+    int n = *(u16*)(cmd + 0x220);
+    if (n > 32) n = 32;
+    for (int i = 0; i < n; i++) {
+        u8 *P = *(u8**)(cmd + 0x1e0 + i * 8);
+        if (!P || P[0x30] != 2 || !(*(u32*)(P + 0x60) & 0x800)) continue;
+        u8 *rec = *(u8**)(P + 0x58);
+        u8 slot = G(u8, 0x8197a8 + (s8)P[0x33]);           /* 235130: working-deck entry -> deck slot */
+        if (!rec || slot >= 8 || *(u16*)rec != PD_SLOT_ID(slot)) continue;
+        u8 c = PD_SLOT_N(slot);
+        if (rec[2] >= c) continue;
+        rec[2] = c;
+        *(u32*)(P + 0x60) &= ~2u; *(float*)(P + 0x64) = 100.0f;
+        if (P[0x31] > 1) FN(int, 0x1a73c0, int, int)(*(int*)(P + 0x4c), 3);
+        else FN(void, 0x205df0, u8*, int)(P, (s8)P[0x6c]);
+        char b[8]; snprintf(b, sizeof b, "%d", c);
+        FN(int, 0x1a81d0, int, u16, const char*, int, void*)(*(int*)(P + 0x4c), 0x5b, b, 0, NULL);
+        if (g_debug) LOG("mp: retry - item plate %d: %d", i, c);
+    }
+}
+static void go_items(void) {
+    if (c_retry_items == 2) { items_back(); g_items_due = 1; }
+    else if (c_retry_items) { g_items_due = 1; if (g_debug) LOG("mp: game over, restart in place: item slots restocked at the next update"); }
+}
+static void MSABI go_hook_0(void) { go_refill(); go_items(); FN(void, GO_FN_0, void)(); }
 static void MSABI go_hook_1(void) { go_refill(); FN(void, GO_FN_1, void)(); }
-static void MSABI go_hook_2(void) { go_refill(); FN(void, GO_FN_2, void)(); }
+static void MSABI go_hook_2(void) { go_refill(); go_items(); FN(void, GO_FN_2, void)(); }
 static void MSABI go_hook_3(void) { go_refill(); FN(void, GO_FN_3, void)(); }
 void test_go_refill(void) { go_refill(); }
+void test_go_choice(int i) { go_refill(); if (i == 0 || i == 2) go_items(); }
+int *test_retry_items(void) { return &c_retry_items; }
+int *test_items_due(void) { return &g_items_due; }
+int *test_snap_ok(void) { return &g_snap_ok; }
+void test_battle_reset(void) { g_btl = 0; g_btl_cmd = NULL; g_snap_ok = 0; }
 int *test_retry_refill(void) { return &c_retry_refill; }
 
 /* 285780: PlayerData is reset (new game / load) */
@@ -838,6 +952,45 @@ static void set_quad(Pair *q, int x0, int y0, int x1, int y1, int u0, int v0, in
 }
 static void no_quad(Pair *q) { set_quad(q, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
 
+/* The hit shake.  When the player is hit the game plays a one-shot control on node 0x14 (p_wind_alart) of the HP
+   gauge's layout, the window every other gauge node hangs under [20b050]: 5 for most hits, 6 for damage type 2, 7 for
+   types 1, 24 and 50 (none for 34 and 42).  They only move it sideways (about 3.3, 5.4 and 9.3 screen units at most,
+   fading out over 30 to 60 frames; no scale or rotation).  The bar is not part of that layout, so it is moved by the
+   same amount: just before the bar is drawn (CD2SeqCtrl draw, vtable slot), by how far the window is from where it
+   rests.  The window's position is the one the game worked out when it drew the gauge, which in the same draw
+   priority comes first (the gauge is the older instance).  Only those three controls count, so the HUD's slide-in
+   (control 1) and the low-HP flash (4) leave the bar where it is set. */
+#define VT_SEQ_DRAW_SLOT 0x641f08u      /* CD2SeqCtrl vtable slot 3 */
+#define FN_SEQ_DRAW_ORIG 0x1aacc0u
+static float g_bar_x, g_bar_y;          /* where bar_update put the bar this frame */
+static float g_shake_rx, g_shake_ry;    /* the window's position at rest */
+static int g_shake_rest;                /* ... known */
+static u64 (MSABI *o_bar_draw)(u8 *self, u64 a, u64 b, u64 c);
+static u8 *gauge_window(void) {
+    u8 *g = G(u8*, 0x10f9f360);
+    u8 *lc = g ? FN(u8*, 0x1a6460, int)(*(int*)(g + 0x8c)) : NULL;
+    u8 *nodes = lc ? *(u8**)(lc + 0x98) : NULL;
+    if (!nodes) return NULL;
+    for (int i = 0; i < *(s16*)(lc + 0xa8); i++) if (*(u16*)(nodes + i * 0xb8 + 0xb0) == 0x14) return nodes + i * 0xb8;
+    return NULL;
+}
+static void bar_shake(void) {
+    float dx = 0, dy = 0;
+    u8 *w = gauge_window();
+    if (w) {
+        int ctl = (s8)w[0x82];
+        float x = *(float*)(w + 0x44), y = *(float*)(w + 0x48);
+        if (ctl >= 5 && ctl <= 7) { if (g_shake_rest) dx = x - g_shake_rx, dy = y - g_shake_ry; }
+        else if (ctl == 0 || ctl == 4) { g_shake_rx = x; g_shake_ry = y; g_shake_rest = 1; }
+        if (dx > 20 || dx < -20 || dy > 20 || dy < -20) dx = dy = 0;      /* not a shake: leave the bar alone */
+    } else g_shake_rest = 0;
+    FN(int, 0x1a7500, int, float, float)(g_bar, g_bar_x + dx, g_bar_y + dy);
+}
+static u64 MSABI bar_draw_hook(u8 *self, u64 a, u64 b, u64 c) {
+    if (g_bar > 0 && c_bar_shake && *(s32*)(self + 0x18) == g_bar) bar_shake();
+    return o_bar_draw(self, a, b, c);
+}
+
 static void bar_update(u8 *g) {
     if (!c_bar) { if (g_bar) bar_destroy(); return; }
     if (!bar_alive()) { bar_create(); if (!g_bar) return; }
@@ -913,7 +1066,8 @@ static void bar_update(u8 *g) {
     }
     root_scale(h, &g_root_bar, se);
     /* the sprite sits at (-77, +1) from the instance origin, in sprite units */
-    FN(int, 0x1a7500, int, float, float)(h, c_bar_right - (right_sx - 77.0f) * se, c_bar_top - (top_sy + 1.0f) * se);
+    g_bar_x = c_bar_right - (right_sx - 77.0f) * se; g_bar_y = c_bar_top - (top_sy + 1.0f) * se;
+    FN(int, 0x1a7500, int, float, float)(h, g_bar_x, g_bar_y);
     int vis = FN(int, 0x1a5f00, int)(*(int*)(g + 0x8c)) != 0;                         /* follow the HP gauge */
     FN(int, 0x1a59d0, int, int)(h, vis);
 }
@@ -1102,6 +1256,8 @@ static void tick(u8 *g) {
     g_time += dt;
     g_mpmax = max_mp();
     if (g_fresh) { g_fresh = 0; g_mp = g_mpmax; g_burn = 0; g_charge = 0; }
+    if (g_items_due) { if (c_retry_items == 2) items_plates(); else items_restock(); }
+    if (c_retry_items == 2) battle_watch();
     if (g_mp > g_mpmax) g_mp = g_mpmax;
     u8 *cmd = CMD, *pl = player();
     rage(pl);
@@ -1177,7 +1333,7 @@ int mod_install(void) {
     if (G(u64, VT_CTD_READY) != (u64)(g_base + FN_CTD_READY)) { LOG("message file vtable does not match"); bad++; }
     if (c_berserk_pct > 0 && !call_ok(DMG_CALL, DMG_FN)) { LOG("damage site does not match"); bad++; }
     if (c_link_keep < 100.0f && (!call_ok(LINK_END_A, LINK_END) || !call_ok(LINK_END_B, LINK_END))) { LOG("D-Link end sites do not match"); bad++; }
-    if (c_retry_refill && (!call_ok(GO_SITE_0, GO_FN_0) || !call_ok(GO_SITE_1, GO_FN_1) || !call_ok(GO_SITE_2, GO_FN_2) || !call_ok(GO_SITE_3, GO_FN_3))) {
+    if ((c_retry_refill || c_retry_items) && (!call_ok(GO_SITE_0, GO_FN_0) || !call_ok(GO_SITE_1, GO_FN_1) || !call_ok(GO_SITE_2, GO_FN_2) || !call_ok(GO_SITE_3, GO_FN_3))) {
         LOG("game over sites do not match"); bad++;
     }
     if (!bundle_check()) bad++;
@@ -1192,6 +1348,7 @@ int mod_install(void) {
     if (!combomaster_check()) bad++;
     if (!worldmap_check()) bad++;
     if (!sporb_check()) bad++;
+    if (c_bar && c_bar_shake && G(u64, VT_SEQ_DRAW_SLOT) != (u64)(g_base + FN_SEQ_DRAW_ORIG)) { LOG("2D draw vtable slot does not match (MP bar shake)"); bad++; }
     if (bad) { LOG("this is not the game build the mod was written for: nothing changed"); g_patch_errors += bad; return 0; }
     if (c_desc_cost || c_ether) hook_call(DESC_CALL, MSG_FIND, desc_hook, "descriptions (MP cost, MP items)");
     if (c_floor) {
@@ -1228,6 +1385,11 @@ int mod_install(void) {
     combomaster_apply();
     worldmap_apply();
     sporb_apply();
+    if (c_bar && c_bar_shake) {     /* after the texture guard, which may have taken the same slot: call on to whatever is there */
+        u64 old = G(u64, VT_SEQ_DRAW_SLOT), f = (u64)bar_draw_hook;
+        o_bar_draw = (void*)old;
+        if (patch_bytes(VT_SEQ_DRAW_SLOT, (u8*)&old, (u8*)&f, 8, "MP bar shake (2D draw)")) LOG("MP bar: follows the HP gauge's hit shake");
+    }
 
     o_gauge_update = hook_fn(&S_gauge_update, gauge_update_hook, "gauge_update");
     o_gauge_dtor   = hook_fn(&S_gauge_dtor, gauge_dtor_hook, "gauge_dtor");
@@ -1238,7 +1400,7 @@ int mod_install(void) {
     o_cmd_start    = hook_fn(&S_cmd_start, cmd_start_hook, "command start (SP charged)");
     hook_call(0x233a60, 0x2060e0, use_hook, "deck_use");
     hook_call(0x20678e, 0x1ce370, reload_hook, "reload");
-    if (c_retry_refill) {
+    if (c_retry_refill || c_retry_items) {
         hook_call(GO_SITE_0, GO_FN_0, go_hook_0, "game over: continue");
         hook_call(GO_SITE_1, GO_FN_1, go_hook_1, "game over: choice 1");
         hook_call(GO_SITE_2, GO_FN_2, go_hook_2, "game over: retry");
@@ -1307,6 +1469,8 @@ u8 *test_use(u8 *P) { return use_hook(P); }
 #endif
 #ifndef _WIN32
 void test_bar_update(u8 *g) { bar_update(g); }
+u64 test_bar_draw(u8 *self, u64 (MSABI *orig)(u8*, u64, u64, u64)) { o_bar_draw = orig; return bar_draw_hook(self, 0, 0, 0); }
+int *test_bar_shake(void) { return &c_bar_shake; }
 int *test_bar_round(void) { return &c_bar_round; }
 int *test_bar_exact(void) { return &c_bar_exact; }
 void test_bar_geom(float *io, int set) {      /* right, top, height, length */

@@ -249,7 +249,59 @@ local vanitasArmor = { SuccessionAttack1 = true, SuccessionAttack2 = true, DarkF
 -- bbskh2_boss.ini [Vanitas]: his armour windows, gaps and cooldowns; his Idling waits with Entity.SetTimer, and his
 -- back-handspring / cartwheel go back through his stack
 local vanitasTempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } }
-local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = rideSetup,
+local function withXehanort(self)
+  local ok, x = pcall(Enemy.SearchEnemy, self.myHandle, "b40ex00", SEARCH_TYPE_NEAR)
+  return ok and x ~= nil and x ~= NULL_HANDLE
+end
+-- Debug only (bbskh2_debug.txt): with Master Xehanort, how long Vanitas waits for his turn.  Each time he goes
+-- back to Idling he gives up his turn and may not attack until Xehanort's end message; a wait over 4 s is
+-- logged once while it lasts (with what Xehanort is doing and his last few states), and again when it ends.
+-- Nothing is changed: the wrappers only look.
+local function vanitasWatch(ent)
+  if not RV.debug then return end
+  local go, msg, search = ent.GotoState, ent.OnMessage, ent.SearchTarget
+  if type(go) ~= "function" or type(msg) ~= "function" or type(search) ~= "function" then return end
+  local function now(self) local st = rawget(self, "__rv") return st ~= nil and st.t or 0 end
+  local function xeh()
+    local x = rawget(RV, "xehanort")
+    if x == nil then return "Xehanort: not seen" end
+    local ok, s = pcall(x.GetState, x)
+    return string.format("Xehanort: %s, StateParam %s, AttackPattern %s, AttackParam %s, phase %s, last: %s",
+      ok and tostring(s) or "?", tostring(x.StateParam), tostring(x.AttackPattern), tostring(x.AttackParam), tostring(x.phase),
+      table.concat(rawget(x, "__watchLast") or {}, " > "))
+  end
+  local function log(...) local st = rawget(ent, "__rv") RV.log(st ~= nil and st.name or "vanitas", ...) end
+  rawset(ent, "GotoState", function(self, s, a, b)
+    if s == "Idling" and rawget(self, "__waitFrom") == nil and withXehanort(self) then
+      rawset(self, "__waitFrom", now(self)); rawset(self, "__waitLogged", false)
+    end
+    return go(self, s, a, b)
+  end)
+  rawset(ent, "SearchTarget", function(self, a, b)
+    local w = rawget(self, "__waitFrom")
+    if w ~= nil and self.attackPermission == false and not rawget(self, "__waitLogged") and now(self) - w > 240 then
+      rawset(self, "__waitLogged", true)
+      log("team watch: waiting " .. string.format("%.1f", (now(self) - w) / 60) .. " s for Xehanort's turn to end -", xeh())
+    end
+    return search(self, a, b)
+  end)
+  rawset(ent, "OnMessage", function(self, m, from, a, b)
+    local r = msg(self, m, from, a, b)
+    if m == B40EX_MES_B40EX_ATTACK_END then
+      local w = rawget(self, "__waitFrom")
+      if w ~= nil and now(self) - w > 240 then
+        log("team watch: his turn back after " .. string.format("%.1f", (now(self) - w) / 60) .. " s -", xeh())
+      end
+      rawset(self, "__waitFrom", nil)
+    end
+    return r
+  end)
+end
+local function vanitasSetup(ent)
+  rideSetup(ent)
+  vanitasWatch(ent)
+end
+local vanitas = { limit = 9, fire = 0.5, armorStates = vanitasArmor, answer = maskedAnswer, pre = dmgCountPre, counter = vanitasCounter, vanilla = rideHit, setup = vanitasSetup,
                   tempo = vanitasTempo }
 cfg.b10ex00 = vanitas
 cfg.b10ex01 = vanitas
@@ -1340,8 +1392,69 @@ cfg.b80vs00 = hadesArena
 -- Master Xehanort.  vanilla: never leaves a ground combo - his script's escape (a quick
 -- warp, from idle into a warp attack) is still there but switched off at the first line
 -- of OnDamageBefore.  At the limit he uses it.
+-- His idle voice lines: each time he enters Idling he says line 27 or 28 (10 % each).  With Vanitas (his phase
+-- 100) a refusal sends him back into Idling to wait 300 frames before he asks again; the tempo makes that wait
+-- 2 frames, so he enters Idling ~100x as often and talked almost non-stop.  There the chance is scaled by how
+-- much the wait was shortened (2 / 300), so the lines come about as often per second as in the game.
+local function xehanortVoice(ent)
+  local pv = ent.PlayVoice
+  if type(pv) ~= "function" then return end
+  rawset(ent, "PlayVoice", function(self, n, a, b, c)
+    local st = rawget(self, "__rv")
+    local k = st ~= nil and st.waitRatio or nil
+    if self.phase == 100 and (n == 27 or n == 28) and type(k) == "number" and k < 1 and Script.Random() >= k then return end
+    return pv(self, n, a, b, c)
+  end)
+end
+-- His close-range warp: with Vanitas, when his wait after a refusal is over and you are close, his script
+-- warps away (50 %) or attacks (50 %).  That wait is 2 frames instead of 300 here, so he checked ~20 times a
+-- second and teleported away almost as soon as you came near.  The warp is let through with the chance x
+-- (wait given / wait asked), 2/300; otherwise he goes on idling (and checks again).  The attack half is his
+-- own, unchanged.  Only that warp: Idling entered with his param 101, warping with 101 - not the break-out
+-- (his team param 102) nor his other warps.
+local function xehanortSetup(ent)
+  xehanortVoice(ent)
+  local go = ent.GotoState
+  if type(go) ~= "function" then return end
+  if RV.debug then rawset(RV, "xehanort", ent) end     -- (debug: Vanitas's team watch reports on him)
+  rawset(ent, "GotoState", function(self, s, a, b)
+    -- With Vanitas: his Idling update, close to you after a refusal, starts a team attack pattern and then
+    -- carries on to its timer check; the pattern start set StateParam 0, so with the timer over (the tempo's
+    -- 2 frames instead of his 300) it also sends him to Move - his attack is cut, and Move starts a solo
+    -- pattern, which never sends Vanitas his turn back.  That Move, asked in the same frame he left Idling for
+    -- an attack, is dropped; any other Move is his own.
+    local now = rawget(self, "__rv") ~= nil and rawget(self, "__rv").t or nil
+    local cur = type(self.GetState) == "function" and self:GetState() or nil
+    if self.phase == 100 then
+      if cur == "Idling" and s ~= "Idling" and s ~= "Move" then rawset(self, "__leftIdleT", now)
+      elseif s == "Move" and cur ~= "Idling" and now ~= nil and rawget(self, "__leftIdleT") == now then
+        local st = rawget(self, "__rv")
+        if st ~= nil and RV.log ~= nil then RV.log(st.name, "team: Move after starting " .. tostring(cur) .. " in the same frame - dropped") end
+        return
+      end
+    end
+    if RV.debug then
+      local last = rawget(self, "__watchLast") or {}
+      last[#last + 1] = tostring(s) .. "(" .. tostring(self.StateParam) .. ")"
+      if #last > 6 then table.remove(last, 1) end
+      rawset(self, "__watchLast", last)
+    end
+    if s == "Idling" then rawset(self, "__idleParam", self.StateParam)
+    elseif s == "Warp" and self.phase == 100 and self.StateParam == 101 and rawget(self, "__idleParam") == 101
+       and type(self.GetState) == "function" and self:GetState() == "Idling" then
+      local st = rawget(self, "__rv")
+      local k = st ~= nil and st.idleRatio or nil
+      if type(k) == "number" and k < 1 and Script.Random() >= k then
+        if st ~= nil and RV.log ~= nil then RV.log(st.name, "close-range warp held back (chance x " .. k .. ")") end
+        return go(self, "Idling", a, b)
+      end
+    end
+    return go(self, s, a, b)
+  end)
+end
 cfg.b40ex00 = {
-  limit = 7,
+  limit = 9,
+  setup = xehanortSetup,
   tempo = { idle = { Idling = "timer" } },
   armorStates = { Warp = true, UltimateFreeze = true, BladeTornado = true, RisingGround = true,
                   Attack0 = true, Attack1 = true, Thundaga = true, Blizzaga = true },
@@ -1356,9 +1469,11 @@ cfg.b40ex00 = {
   counter = function(self)
     if type(self.QuickWarpStart) ~= "function" or type(self.GetState) ~= "function" then return 0 end
     local s = self:GetState()
-    if s == "Warp" or s == "UltimateFreeze" or s == "Dead" or s == "Appear" or self.phase == 100 then return 0 end
-    -- with an answer the quick warp lands in Idling (his param 101) and the answer picks the attack
-    if answers(self) and type(self.DamageWarpParam) == "number" then self.DamageWarpParam = 101 end
+    if s == "Warp" or s == "UltimateFreeze" or s == "Dead" or s == "Appear" then return 0 end
+    -- with an answer the quick warp lands in Idling (his param 101) and the answer picks the attack.  With
+    -- Vanitas (phase 100) his own team param stays (102: after the warp he goes on with his team pattern,
+    -- still taking turns with Vanitas); the answer has nothing to pick there.
+    if self.phase ~= 100 and answers(self) and type(self.DamageWarpParam) == "number" then self.DamageWarpParam = 101 end
     self:QuickWarpStart()
     self.damageCombo = 0
     return 1

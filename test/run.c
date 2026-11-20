@@ -548,8 +548,11 @@ static void t_ether(void) {
       CHECK(mp_cost(0xaf) == 50 && mp_cost(0xaa) == 50 && mp_cost(0x7c) == 50 && mp_cost(0x63) == 50 && mp_cost(0x70) == 50 && mp_cost(0x6f) == 50, "Rebalanced: Meteor, Firaga Burst, Salvation, Chaos Blade, Time Splicer, Ars Arcanum 50");
       CHECK(mp_cost(0xad) == 45 && mp_cost(0x98) == 45 && mp_cost(0x97) == 40 && mp_cost(0x96) == 35 && mp_cost(0x80) == 35, "Quake / Seeker Mine 45, Mine Square 40, Mine Shield / Geo Impact 35");
       CHECK(mp_cost(0x62) == 30 && mp_cost(0x68) == 30 && mp_cost(0x81) == 30 && mp_cost(0x89) == 30 && mp_cost(0xa5) == 30 && mp_cost(0xa8) == 30, "30: Sonic Blade, Spark Raid, Sacrifice, Crawling Fire, Warp, Glacier");
-      CHECK(mp_cost(0x88) == 25 && mp_cost(0x8d) == 25 && mp_cost(0x7f) == 25 && mp_cost(0x7b) == 25 && mp_cost(0x5c) == 20 && mp_cost(0x6a) == 20 && mp_cost(0x6c) == 20, "25 Triples / magnets, 20 Blitz / Surges");
-      CHECK(mp_cost(0xa7) == 25 && mp_cost(0xac) == 50 && mp_cost(0x85) == 20 && mp_cost(0x83) == 10 && mp_cost(0x6b) == 15, "unchanged: Deep Freeze 25, Mega Flare 50, Firaga 20, Fire 10, Barrier Surge 15");
+      CHECK(mp_cost(0x88) == 25 && mp_cost(0x8d) == 25 && mp_cost(0x7f) == 25 && mp_cost(0x7b) == 25 && mp_cost(0x5c) == 20 && mp_cost(0x6a) == 30 && mp_cost(0x6b) == 30 && mp_cost(0x6c) == 30, "25 Triples / magnets, 20 Blitz, 30 the three Surges");
+      CHECK(mp_cost(0x6e) == 45 && mp_cost(0xb0) == 35 && mp_cost(0x79) == 35 && mp_cost(0x5e) == 35 && mp_cost(0x5d) == 35 && mp_cost(0xab) == 30
+            && mp_cost(0x7a) == 25 && mp_cost(0x64) == 25 && mp_cost(0x61) == 25 && mp_cost(0xb1) == 10 && mp_cost(0x82) == 20,
+            "by price: Ars Solum 45; Transcendence, Tornado Strike, Meteor Crash, Magic Hour 35; Raging Storm 30; Brutal Blast, Zantetsuken, Dark Haze 25; Mini 10, Break Time 20 kept");
+      CHECK(mp_cost(0xa7) == 25 && mp_cost(0xac) == 50 && mp_cost(0x85) == 20 && mp_cost(0x83) == 10, "unchanged: Deep Freeze 25, Mega Flare 50, Firaga 20, Fire 10");
       CHECK(mp_would_burn(0xa6) == 1 && mp_would_burn(0xaf) == 0, "Faith uses all remaining SP like the cures; Meteor does not");
       mp_cost_overrides()[0xa6] = 40; mp_cost_overrides()[0xaf] = 33;
       CHECK(mp_cost(0xa6) == 40 && mp_would_burn(0xa6) == 0 && mp_cost(0xaf) == 33, "[Cost] still wins: a6=40, af=33");
@@ -575,8 +578,10 @@ static void t_ether(void) {
       CHECK(mp_cost(0xe4) == 5 && mp_cost(0xe9) == 5 && mp_cost(0xf1) == 5 && mp_would_burn(0xe9) == 0, "DLinkCostByClass = 0: 5 each, as before");
       *test_dlink_cost() = 1; }
     /* which commands would empty the bar */
-    { extern int mp_would_burn(int id);
+    { extern int mp_would_burn(int id); extern s16 *mp_cost_overrides(void);
       CHECK(!mp_would_burn(0x83) && mp_would_burn(0x92), "full MP: Fire is fine, Cure always ends in MP charge");
+      CHECK(mp_would_burn(0xd3) && mp_would_burn(0xd4) && mp_would_burn(0xd5) && !mp_would_burn(0xd6), "Group Cure, Cura, Curaga take everything too; Group Esuna does not");
+      { s16 *ov = mp_cost_overrides(); ov[0xd4] = 40; CHECK(!mp_would_burn(0xd4) && mp_cost(0xd4) == 40, "[Cost] d4=40: Group Cura back to 40"); ov[0xd4] = 0; }
       *test_mp() = 10; CHECK(mp_would_burn(0x83), "10 MP left: Fire (10) would empty the bar");
       *test_mp() = 11; CHECK(!mp_would_burn(0x83) && mp_would_burn(0x85), "11 MP left: Fire fits, Firaga (20) does not"); }
     /* a save point (its Save prompt up) refills MP within a second and finishes a recharge */
@@ -718,6 +723,8 @@ static void t_link_end(void) {
 /* Game Over: every choice (Continue / Retry / the other two) refills the bar at the next gauge update */
 extern void test_go_refill(void); extern int *test_retry_refill(void); extern int *test_fresh(void); extern float *test_mp(void);
 static u8 *go_target(u32 site) { u8 *p = RVA(site); return p + 5 + *(s32*)(p + 1); }
+static int g_restock_n; static u8 *g_restock_cmd;
+static void MSABI s_restock(u8 *cmd) { g_restock_n++; g_restock_cmd = cmd; }
 static void t_retry(void) {
     static const u32 site[4] = { 0x3ee846, 0x3ee83f, 0x3ee838, 0x3ee831 }, fn[4] = { 0x1da890, 0x1dad80, 0x1daed0, 0x1daa20 };
     CHECK(*test_retry_refill() == 1, "RetryRefillsMP on by default");
@@ -727,6 +734,79 @@ static void t_retry(void) {
     test_go_refill();
     CHECK(*test_fresh() == 1, "a game over choice marks the bar for a full fill at the next update");
     *test_fresh() = 0;
+    /* items: a restart in place (choices 0 and 2) restocks the deck's item slots from the inventory at the next update,
+       with the game's own "restock every plate" (2394f0) */
+    {   extern void test_go_choice(int i); extern int *test_retry_items(void), *test_items_due(void);
+        static const u16 ids[] = { 0x5b, 0xbc, 0x83 };
+        world(3, ids);
+        stub_jmp(0x239210, s_restock);
+        CHECK(*test_retry_items() == 2, "RetryRefillsItems=2 (fight start) by default");
+        *test_retry_items() = 1;                                            /* 1: the inventory restock */
+        g_restock_n = 0; g_restock_cmd = NULL;
+        test_go_choice(2);
+        CHECK(*test_items_due() == 1 && g_restock_n == 0, "Retry: marked, nothing done yet");
+        test_tick(gauge);
+        CHECK(g_restock_n == 1 && g_restock_cmd == G(u8*, 0x10f9f440) && *test_items_due() == 0, "the next update: the game's restock, once, on the command menu");
+        test_tick(gauge); CHECK(g_restock_n == 1, "... and only once");
+        test_go_choice(0); test_tick(gauge); CHECK(g_restock_n == 2, "choice 0 (restart in place): restocked too");
+        test_go_choice(1); test_go_choice(3); test_tick(gauge); CHECK(g_restock_n == 2, "load / title: not (a new PlayerData anyway)");
+        u8 *c0 = G(u8*, 0x10f9f440); G(u8*, 0x10f9f440) = NULL;
+        test_go_choice(2); test_tick(gauge); CHECK(g_restock_n == 2 && *test_items_due() == 1, "no command menu yet: it waits");
+        G(u8*, 0x10f9f440) = c0; test_tick(gauge); CHECK(g_restock_n == 3 && *test_items_due() == 0, "... and restocks once it is there");
+        *test_retry_items() = 0; test_go_choice(2); test_tick(gauge);
+        CHECK(g_restock_n == 3 && *test_items_due() == 0, "RetryRefillsItems=0: nothing");
+        *test_retry_items() = 1;
+        *test_retry_refill() = 0; *test_fresh() = 0; test_go_choice(2);
+        CHECK(*test_fresh() == 0 && *test_items_due() == 1, "RetryRefillsMP=0: the bar left alone, the items still marked");
+        test_tick(gauge); *test_retry_refill() = 1;
+        /* 2: back to the counts at the fight's start, from PlayerData's deck slots; the inventory restock not used */
+        {   extern int *test_snap_ok(void); extern void test_battle_reset(void);
+            static const u16 ids2[] = { 0x83, 0xbc, 0xbd };               /* Fire, Potion, Hi-Potion */
+            world(3, ids2); test_battle_reset(); g_restock_n = 0;
+            *test_retry_items() = 2;
+            u8 *PDp = RVA(0x10f9f5b0);
+            #define SID(i) (*(u16*)(PDp + 0x48 + (i) * 8))
+            #define SN(i)  (PDp[0x4a + (i) * 8])
+            #define WD(i)  (((u8*)&deck[i])[2])
+            for (int i = 0; i < 8; i++) { SID(i) = i < 3 ? ids2[i] : 0; SN(i) = 0; }
+            SN(0) = 0; SN(1) = 3; SN(2) = 2; WD(1) = 3; WD(2) = 2;
+            int mx = G(u8, 0x812083 + 0xbc * 0x1e);
+            CHECK(G(u8, 0x815901 + 0xbc * 0x18) == 3 && G(u8, 0x815901 + 0xbd * 0x18) == 3 && G(u8, 0x815901 + 0x83 * 0x18) != 3 && mx >= 3,
+                  "Potion and Hi-Potion are items, Fire is not; a Potion slot holds %d", mx);
+            *(u32*)(cmd + 0x60) &= ~0x80000000u; test_tick(gauge);
+            CHECK(!*test_snap_ok(), "out of battle: nothing noted");
+            test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == 3 && SN(2) == 2 && g_restock_n == 0, "a retry with no fight noted: items left as they are");
+            *(u32*)(cmd + 0x60) |= 0x80000000u; test_tick(gauge);       /* the fight begins */
+            CHECK(*test_snap_ok(), "the fight's start is noted");
+            SN(1) = 1; WD(1) = 1; SN(2) = 0; WD(2) = 0;                  /* two Potions and both Hi-Potions used */
+            FLG(1) |= 2; FLG(2) |= 2; PCT(2) = 0;
+            test_tick(gauge); CHECK(SN(1) == 1, "still in the fight: no new note, nothing changed");
+            test_go_choice(2);
+            CHECK(SN(1) == 3 && SN(2) == 2 && SN(0) == 0 && *test_items_due() == 1, "retry: PlayerData's slots back to 3 and 2 at once (Fire's slot untouched)");
+            test_tick(gauge);
+            CHECK(WD(1) == 3 && WD(2) == 2 && !(FLG(1) & 2) && !(FLG(2) & 2) && PCT(2) == 100 && *test_items_due() == 0 && g_restock_n == 0,
+                  "the next update: the plates show 3 and 2, ready (flags %x %x), no inventory restock", FLG(1), FLG(2));
+            SN(1) = 0; WD(1) = 0;
+            *(u32*)(cmd + 0x60) &= ~0x80000000u; test_tick(gauge);
+            *(u32*)(cmd + 0x60) |= 0x80000000u; test_go_choice(0); test_tick(gauge);
+            CHECK(SN(1) == 3 && WD(1) == 3, "the room loaded again in battle: the note is not taken from the used-up count; choice 0 restores too");
+            SN(1) = 5 < mx ? 5 : mx; WD(1) = SN(1); int big = SN(1); test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == big, "more than at the start: never lowered");
+            SN(1) = 0; test_go_choice(1); test_go_choice(3); test_tick(gauge);
+            CHECK(SN(1) == 0, "load / title: nothing");
+            SID(1) = 0xbd; test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == 0, "another item in the slot: left alone");
+            SID(1) = 0xbc; *test_retry_items() = 0; test_go_choice(2); test_tick(gauge);
+            CHECK(SN(1) == 0, "RetryRefillsItems=0: nothing");
+            *test_retry_items() = 2;
+            #undef SID
+            #undef SN
+            #undef WD
+            for (int i = 0; i < 8; i++) { *(u16*)(PDp + 0x48 + i * 8) = 0; PDp[0x4a + i * 8] = 0; }
+            test_battle_reset(); *(u32*)(cmd + 0x60) &= ~0x80000000u;
+        }
+    }
     printf("t_retry done\n");
 }
 /* MP Rage: Attack Haste renamed; HP lost gives lost / max HP x max MP x 25% x copies / 5, never during the MP charge */
@@ -843,6 +923,7 @@ static void t_berserk(void) {
 }
 /* the MP bar on the real 2D-layout runtime, with the real gauge_01.l2d (needs BBS_GAUGE_L2D=<file>) */
 extern void test_bar_update(u8 *g);
+extern u64 test_bar_draw(u8 *self, u64 (MSABI *orig)(u8*, u64, u64, u64)); extern int *test_bar_shake(void);
 typedef struct { s16 x0, y0, x1, y1; u16 part, attr; } Grp;
 typedef struct { s16 u0, v0, u1, v1; u32 col[4]; } Part;
 typedef struct { Grp *g; Part *p; } Pair;
@@ -1025,6 +1106,89 @@ static void t_draw(void) {
       CHECK(v && NEAR(fr[1], 255.5f) && NEAR(fr[3], 263.0f), "the MP bar is unchanged by it"); }
     #undef NEAR
     printf("t_draw done\n");
+}
+
+/* Dark Impulse's combo camera shot (bundle.c): the call that plays "xcs13te2" on record 644 no longer reaches the game's
+   camera player, and the rest of that attack start is as it was */
+static void t_stylecam(void) {
+    u8 *p = RVA(0x21e46c); s32 d; memcpy(&d, p + 1, 4);
+    u32 to = (u32)(0x21e46c + 5 + d);
+    CHECK(p[0] == 0xE8 && to != 0x22daa0, "the camera call is taken over (now to %x)", to);
+    CHECK(!memcmp(RVA(0x21e465), "\x48\x8d\x0d", 3) && !memcmp(RVA(0x21e442), "\x66\x39\x86\xa8\x05\x00\x00", 7), "the record test and the name before it untouched");
+    printf("t_stylecam done\n");
+}
+static u8 *t_node_ctl(int h, u16 node);
+/* The MP bar follows the HP gauge's hit shake (mp.c bar_shake), on the real 2D-layout runtime with the real
+   gauge_01.l2d: the game's gauge layout (index 2) is drawn as the game draws it, node 0x14 is given the hit controls
+   the game gives it [20b050], and the bar is drawn through the mod's draw hook. */
+static u64 MSABI bar_draw_orig(u8 *s, u64 a, u64 b, u64 c) { return 0; }
+static void t_shake(void) {
+    const char *fn = getenv("BBS_GAUGE_L2D");
+    if (!fn) { printf("  (skipped: BBS_GAUGE_L2D not set)\n"); return; }
+    FILE *f = fopen(fn, "rb"); if (!f) { printf("  cannot open %s\n", fn); fails++; return; }
+    u8 *img = memalign(16, 0x20000); fread(img, 1, 0x20000, f); fclose(f);
+    PD[0x31] = 1; PD[0x36] = 4;
+    *(u8*)RVA(0x1115c0) = 0xC3; *(u8*)RVA(0x10c540) = 0xC3; memcpy(RVA(0x11a800), "\x31\xc0\xc3", 3);
+    *(u8*)RVA(0x1aa440) = 0xC3;
+    FN(void, 0x1a6c10, void)();
+    CHECK(FN(int, 0x1a6e50, void*, const char*, int)(img, "gauge_01.l2d", 0) > 0, "register gauge_01");
+    draw_stubs();
+    pl = calloc(1, 0x800); mgr = calloc(1, 0x200); gauge = calloc(1, 0xc8);
+    *(u8**)(mgr + 0x118) = pl; G(u8*, 0x10f9f540) = mgr; G(u8*, 0x10f9f360) = gauge; *(float*)(gauge + 0x20) = 1.0f;
+    G(u8, 0x8f88728) = 1;
+    int hg = FN(int, 0x1a4e80, const char*, u16, int, void*)("gauge_01.l2d", 2, 0, NULL);      /* as the gauge does [207a00] */
+    *(int*)(gauge + 0x8c) = hg;
+    u8 *lc = FN(u8*, 0x1a6460, int)(hg), *win = t_node_ctl(hg, 0x14);
+    CHECK(lc && win, "the gauge layout and its window node 0x14");
+    if (!lc || !win) return;
+    G(float, 0x8f88710) = 1.0f; G(u8, 0x8f88720) = 1; G(u8, 0x8f8872c) = 1;
+    #define FRAME() do { for (int ni = 0; ni < *(s16*)(lc + 0xa8); ni++) FN(void, 0x1aacc0, u8*, int)(*(u8**)(lc + 0x98) + ni * 0xb8, 0); \
+                         test_bar_update(gauge); test_bar_draw(FN(u8*, 0x1a5e70, int)(*test_bar()), bar_draw_orig); } while (0)
+    #define BARX() (*(float*)(FN(u8*, 0x1a5e70, int)(*test_bar()) + 0x50))
+    #define BARY() (*(float*)(FN(u8*, 0x1a5e70, int)(*test_bar()) + 0x54))
+    #define NEAR(a, b) ((a) - (b) < 0.002f && (b) - (a) < 0.002f)
+    for (int k = 0; k < 5; k++) FRAME();
+    CHECK(*test_bar() > 0, "bar made");
+    float x0 = BARX(), y0 = BARY(), wx = *(float*)(win + 0x44);
+    printf("  bar at rest (%.3f, %.3f), window x %.3f\n", x0, y0, wx);
+    /* each hit control: the bar moves with the window, frame by frame, and is back where it was set at the end */
+    static const float peak[8] = { 0, 0, 0, 0, 0, 3.333f, 5.364f, 9.292f };
+    for (int st = 5; st <= 7; st++) {
+        FN(int, 0x1a7cc0, int, u16, int, int, int, int)(hg, 0x14, st, 1, 0, -1);
+        int same = 1, frames = 0; float big = 0;
+        for (int k = 0; k < 80; k++) {
+            FRAME();
+            float d = *(float*)(win + 0x44) - wx, b = BARX() - x0;
+            if (!NEAR(d, b) || !NEAR(BARY(), y0)) same = 0;
+            if (d > big) big = d; if (-d > big) big = -d;
+            if (FN(int, 0x1a6630, int, u16)(hg, 0x14) != st) break;
+            frames++;
+        }
+        CHECK(same && NEAR(big, peak[st]), "control %d: the bar moves with the gauge, up to %.3f, for %d frames", st, big, frames);
+        CHECK(NEAR(BARX(), x0) && NEAR(BARY(), y0), "control %d: and is back at (%.3f, %.3f)", st, BARX(), BARY());
+    }
+    /* low HP (control 4, the flash) and the slide-in (control 1) leave the bar alone */
+    FN(int, 0x1a7c50, int, u16, int)(hg, 0x14, 4);
+    { int ok = 1; for (int k = 0; k < 40; k++) { FRAME(); ok &= NEAR(BARX(), x0); } CHECK(ok, "low-HP flash: the bar stays put"); }
+    FN(int, 0x1a7cc0, int, u16, int, int, int, int)(hg, 0x14, 7, 1, 4, -1);      /* a hit at low HP, back to the flash */
+    { float big = 0; for (int k = 0; k < 70; k++) { FRAME(); float b = BARX() - x0; if (b < 0) b = -b; if (b > big) big = b; }
+      CHECK(NEAR(big, peak[7]) && NEAR(BARX(), x0) && FN(int, 0x1a6630, int, u16)(hg, 0x14) == 4, "a hit at low HP: shakes (%.3f), then back to the flash", big); }
+    FN(int, 0x1a7c50, int, u16, int)(hg, 0x14, 1);
+    { int ok = 1; for (int k = 0; k < 40; k++) { FRAME(); ok &= NEAR(BARX(), x0); } CHECK(ok, "the HUD's slide-in: the bar stays put"); }
+    /* Shake=0: no shake */
+    FN(int, 0x1a7c50, int, u16, int)(hg, 0x14, 0); FRAME();
+    *test_bar_shake() = 0;
+    FN(int, 0x1a7cc0, int, u16, int, int, int, int)(hg, 0x14, 7, 1, 0, -1);
+    { int ok = 1; for (int k = 0; k < 20; k++) { FRAME(); ok &= NEAR(BARX(), x0); } CHECK(ok, "Shake=0: the bar keeps still"); }
+    *test_bar_shake() = 1;
+    /* the gauge gone: the bar is placed as set */
+    G(u8*, 0x10f9f360) = NULL; FRAME();
+    CHECK(NEAR(BARX(), x0), "no gauge: placed as set");
+    #undef FRAME
+    #undef BARX
+    #undef BARY
+    #undef NEAR
+    printf("t_shake done\n");
 }
 /* the texture guard (src/guard.c): a node whose block points at a texture that is gone */
 extern int test_guard_seq(u8 *self);
@@ -2178,7 +2342,7 @@ static void t_desc(void) {
     CHECK(t && strstr(t, "live. " GREEN "SP "), "three lines: the cost stays on the third");
     /* colour codes and icons in the text: "(Uses two slots.)" is yellow in the original */
     t = test_desc(0xb0, "Create an anti-gravity field no enemy can\nescape, then deal damage by sending them\nhurtling in all directions. \xf9Y(Uses two slots.)");
-    CHECK(t && strstr(t, "slots.) " GREEN "SP 25" BACK), "after the yellow note: %s", t ? strrchr(t, '\n') + 1 : "-");
+    CHECK(t && strstr(t, "slots.) " GREEN "SP 35" BACK), "after the yellow note (Transcendence 35): %s", t ? strrchr(t, '\n') + 1 : "-");
     t = test_desc(0x83, "Punish faraway enemies with a charging attack.");    /* 52 with its cost: off the box (2026-10-29) */
     CHECK(t && strstr(t, "attack.\n" GREEN "SP "), "52 characters with the cost: on a second line (%s)", t ? t : "-");
     t = test_desc(0x83, "Fire. \n"); CHECK(t && !strcmp(t, "Fire. " GREEN "SP 10" BACK), "trailing blanks are dropped");
@@ -2209,6 +2373,7 @@ extern u8 *test_slot_plate(u8 *cmd, int slot);
 extern int sc_held(void), sc_want(void), sc_slot(int row), sc_assign(int row, int slot); extern void sc_set_hud(int on);
 #define PAD_L1 0x400
 #define PAD_R1 0x800
+#define PAD_R2 0x200
 #define PAD_TRI 0x1000
 #define PAD_CIR 0x2000
 #define PAD_SQU 0x8000
@@ -2368,11 +2533,55 @@ static void t_shortcut(void) {
         site = RVA(0x264df4); memcpy(&rel, site + 1, 4);
         int MSABI (*tgt)(u8*, u32*, u32*) = (void*)(site + 5 + rel);
         u32 a = 9, b = 9; *(u32*)(mgr + 0x58 + 0x38) = 7;
-        CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && b == 0 && *(u32*)(mgr + 0x58 + 0x38) == 0, "target switch pad test fires on the tap");
+        extern int *test_sc_target_r2(void);
+        CHECK(*test_sc_target_r2() == 1 && tgt(mgr + 0x58, &a, &b) == 0 && a == 0, "TargetButton=R2 (default): the L1 tap does not change the target");
+        *test_sc_target_r2() = 0;
+        CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && b == 0 && *(u32*)(mgr + 0x58 + 0x38) == 0, "TargetButton=L1: the target switch pad test fires on the tap");
         pad(0, 0); CHECK(!test_sc_tap() && cam(mgr + 0x58) == 0 && tgt(mgr + 0x58, &a, &b) == 0 && a == 0, "only for that frame");
         pad(PAD_L1, PAD_L1); CHECK(cam(mgr + 0x58) == 0, "not on the press itself");
         for (int i = 0; i < 30; i++) pad(PAD_L1, 0);
-        pad(0, 0); CHECK(!test_sc_tap(), "a long hold is not a tap"); }
+        pad(0, 0); CHECK(!test_sc_tap(), "a long hold is not a tap");
+        pad(PAD_R2, PAD_R2); CHECK(tgt(mgr + 0x58, &a, &b) == 0 && (G(u32, 0x8f65030) & PAD_R2), "TargetButton=L1: R2 is the game's (command menu)");
+        pad(0, 0);
+        /* R2: the next target on a press; the deck scroll test does not see it, everything else does */
+        *test_sc_target_r2() = 1;
+        pad(PAD_R2, PAD_R2);
+        CHECK((G(u32, 0x8f65030) & PAD_R2) && (G(u32, 0x8f65034) & PAD_R2), "R2: still in the pad words (other menus) (%x %x)", G(u32, 0x8f65030), G(u32, 0x8f65034));
+        {   site = RVA(0x233ab6); memcpy(&rel, site + 1, 4);
+            int MSABI (*scroll)(u8*) = (void*)(site + 5 + rel);
+            int MSABI (*scroll0)(u8*) = (void*)RVA(0x2722a0);
+            u8 *pd = mgr + 0x58; u32 fl0 = *(u32*)(pd + 0xa0);
+            *(u32*)(pd + 0xa0) = (fl0 & ~6u) | 4u | 1u;              /* control scheme 2: R2 / L2 scroll the deck */
+            G(u32, 0x8f6503c) = PAD_R2;
+            int v0 = scroll0(pd), v1 = scroll(pd);
+            CHECK(v0 != 0 && v1 == 0 && G(u32, 0x8f6503c) == PAD_R2, "deck scroll: R2 scrolls in the game's test (%d), not through the mod's (%d); the pad words put back", v0, v1);
+            G(u32, 0x8f6503c) = 0x100; int l2 = scroll(pd);
+            G(u32, 0x8f6503c) = 0x10; int up = scroll(pd);
+            CHECK(l2 != 0 && up != 0, "L2 (%d) and up (%d) still scroll", l2, up);
+            G(u32, 0x8f6503c) = PAD_R2;
+            *test_sc_target_r2() = 0; CHECK(scroll(pd) != 0, "TargetButton=L1: R2 scrolls again"); *test_sc_target_r2() = 1;
+            /* the mod's command menu asks the same test itself (not through 233d96) */
+            int *mc = test_menu_cur(), m0 = *mc;
+            G(u32, 0x8f65030) = 0; G(u32, 0x8f65034) = 0; G(u32, 0x8f65038) = 0; G(u32, 0x8f6503c) = PAD_R2;
+            test_menu_step(cmd); int mr2 = *mc;
+            G(u32, 0x8f6503c) = 0x100; test_menu_step(cmd); int ml2 = *mc;
+            *mc = m0; *test_sc_target_r2() = 0; G(u32, 0x8f6503c) = PAD_R2; test_menu_step(cmd); int mr2b = *mc; *test_sc_target_r2() = 1;
+            CHECK(mr2 == m0 && ml2 != m0 && mr2b != m0, "command menu: R2 does not move the cursor (%d -> %d), L2 does (%d), and R2 with TargetButton=L1 (%d)", m0, mr2, ml2, mr2b);
+            *mc = m0;
+            {   u8 *ls = RVA(0x23315a); int lr; memcpy(&lr, ls + 1, 4);
+                int MSABI (*lscroll)(u8*) = (void*)(ls + 5 + lr);
+                G(u32, 0x8f6503c) = PAD_R2; int d0 = lscroll(pd);
+                G(u32, 0x8f6503c) = 0x100; int d1 = lscroll(pd);
+                CHECK((void*)lscroll != (void*)scroll0 && d0 == 0 && d1 != 0 && G(u32, 0x8f6503c) == 0x100, "D-Link list: R2 does not scroll it (%d), L2 does (%d)", d0, d1); }
+            G(u32, 0x8f6503c) = 0; *(u32*)(pd + 0xa0) = fl0; }
+        *(u32*)(mgr + 0x58 + 0x38) = 7; a = 9;
+        CHECK(tgt(mgr + 0x58, &a, &b) == 1 && a == 0x40000000 && *(u32*)(mgr + 0x58 + 0x38) == 0, "R2 pressed: the next target, as the game's own test");
+        CHECK(tgt(mgr + 0x58, &a, &b) == 0, "... once per press");
+        pad(PAD_R2, 0); CHECK(tgt(mgr + 0x58, &a, &b) == 0, "held: no more");
+        pad(PAD_L1, PAD_L1); pad(0, 0); CHECK(test_sc_tap() == 1 && cam(mgr + 0x58) == 1 && tgt(mgr + 0x58, &a, &b) == 0, "an L1 tap: the camera as before, no target change");
+        pad(0x100, 0x100); CHECK((G(u32, 0x8f65030) & 0x100) && (G(u32, 0x8f65034) & 0x100), "L2 is the game's");
+        pad(0, 0);
+        pad(0, 0); }
     /* busy character: the press waits, then goes through when the game allows a command */
     *(u32*)(pl + 0x318) = 0;
     pad(PAD_L1, PAD_L1); pad(PAD_L1 | PAD_CIR, PAD_CIR);
@@ -2859,7 +3068,10 @@ static void t_sccamp(void) {
     STEP(0, 0); STEP(0x40, 0x40); STEP(0, 0); STEP(0x40, 0x40); STEP(0, 0); STEP(0x40, 0x40); STEP(0, 0); STEP(0x40, 0x40);
     CHECK(ST(1) == 3, "back on slot 4");
     /* assign */
-    STEP(0, 0); STEP(PAD_TRI, PAD_TRI); CHECK(ST(0) == 2 && sc_slot(1) == 1, "a face button alone does nothing");
+    STEP(0, 0); STEP(PAD_TRI, PAD_TRI); CHECK(ST(0) == 4 && sc_slot(1) == 1, "triangle alone: asks whether to reset, nothing changed yet");
+    STEP(0, 0); STEP(0x40, 0x40); CHECK(ST(0) == 2 && ST(1) == 3 && sc_slot(1) == 1 && sc_slot(0) == 0, "a direction: kept, still on slot 4");
+    STEP(0, 0); STEP(PAD_TRI, PAD_TRI); STEP(0, 0); STEP(0x2000, 0x2000);
+    CHECK(ST(0) == 2 && sc_slot(1) == 1, "cancel while asked: kept, still picking a slot");
     STEP(0, 0); STEP(0x4000, 0x4000); CHECK(ST(0) == 3, "confirm: waiting for a button");
     STEP(0, 0); STEP(PAD_TRI, PAD_TRI);
     p1 = node_text(plate[1], 5); p3 = node_text(plate[3], 5);
@@ -2888,6 +3100,24 @@ static void t_sccamp(void) {
         q3 = node_text(plate[3], 5);
         CHECK(*test_sccamp_set() == 0 && q3 && !strcmp(q3, "\xf5\x7b\xf5\x7c"), "square again: set 1, as it was");
         b2[0] = 4; b2[1] = 5; b2[2] = 6; b2[3] = 7; }
+    /* triangle twice: both sets back to the default slots, the save's bytes written whole */
+    {   extern int sc_slot_in(int set, int row);
+        u32 *ab = &G(u32, 0x10fa4408 + 0x18cc + 4);                     /* abilities 1..4 */
+        static const u32 junk[4] = { 0xff012345, 0x0a6789ab, 0xe0cdef01, 0x5f234567 };
+        for (int i = 0; i < 4; i++) ab[i] = junk[i];
+        STEP(0, 0); STEP(PAD_TRI, PAD_TRI); CHECK(ST(0) == 4, "asked");
+        CHECK((ab[0] >> 24) == 0xff, "nothing written before the second press");
+        STEP(0, 0); STEP(PAD_TRI, PAD_TRI);
+        int ok = 1; for (int i = 0; i < 4; i++) ok &= ab[i] == ((junk[i] & 0x00ffffffu) | (u32)((2 * i + 1) | (2 * i + 2) << 4) << 24);
+        CHECK(ST(0) == 2 && ok, "reset: top bytes %02x %02x %02x %02x, the rest of each ability as it was", ab[0] >> 24, ab[1] >> 24, ab[2] >> 24, ab[3] >> 24);
+        int def = 1; for (int st = 0; st < 2; st++) for (int r = 0; r < 4; r++) def &= sc_slot_in(st, r) == st * 4 + r;
+        CHECK(def, "set 1: slots 1..4, set 2: slots 5..8 (circle, triangle, square, cross)");
+        const char *r0 = node_text(plate[0], 5), *r1 = node_text(plate[1], 5), *r2 = node_text(plate[2], 5), *r3 = node_text(plate[3], 5), *r4 = node_text(plate[4], 5);
+        CHECK(r0 && !strcmp(r0, "\xf5\x7b") && r1 && !strcmp(r1, "\xf5\x67") && r2 && !strcmp(r2, "\xf5\x66") && r3 && !strcmp(r3, "\xf5\x7c") && r4 && !*r4,
+              "the plates show it at once");
+        test_sc_bind()[0] = 5; CHECK(sc_slot_in(0, 0) == 0, "written as numbers: the old shortcuts file is not looked at");
+        test_sc_bind()[0] = 0;
+    }
     /* cancel: back to the list, then out */
     STEP(0, 0); STEP(0x2000, 0x2000);
     CHECK(ST(0) == 1 && top[0x11] == 1 && top[0x9b] == 2, "cancel: back on the Shortcuts entry");
@@ -3495,6 +3725,8 @@ int main(int argc, char **argv) {
     bad |= run("t_bar", t_bar);
     bad |= run("t_tex", t_tex);
     bad |= run("t_draw", t_draw);
+    bad |= run("t_shake", t_shake);
+    bad |= run("t_stylecam", t_stylecam);
     bad |= run("t_guard", t_guard);
     bad |= run("t_gone", t_gone);
     bad |= run("t_shadow", t_shadow);

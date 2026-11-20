@@ -44,10 +44,10 @@ do
   local st = BBS_REVENGE.ents.b40ex00
   pcall(e.GotoState, e, "Idling")
   local r
-  for i = 1, 6 do r = hit(h) end
-  check(r == nil and st.rv == 6 and e:GetState() == "Idling", "Xehanort: 6 hits land, he stays in the combo")
+  for i = 1, 8 do r = hit(h) end
+  check(r == nil and st.rv == 8 and e:GetState() == "Idling", "Xehanort: 8 hits land, he stays in the combo")
   r = hit(h)
-  check(r == "before" and e:GetState() == "Warp" and st.rv == 7 and e.defenseTimer > 0, "7th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
+  check(r == "before" and e:GetState() == "Warp" and st.rv == 9 and e.defenseTimer > 0, "9th hit: quick warp (state " .. e:GetState() .. "), hit negated, value kept (KH2)")
   local grace = BBS_REVENGE.grace
   check(st.idle >= grace, "... and it drains from now on, while he acts")
   check(hit(h) == nil and e:GetState() == "Warp", "while he is warping nothing more is triggered")
@@ -63,10 +63,149 @@ do
   check(st.rv > 6.9 and st.rv < 7.1, "a third of a second later: drained at KH2's pace, 9 -> " .. st.rv)
   local n = 0
   repeat n = n + 1 r = hit(h) until r == "before" or n > 12
-  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 7")
+  check(r == "before" and n <= 3, "straight back in: the next break-out after " .. n .. " hits, not 9")
   pcall(e.GotoState, e, "Idling")
   for i = 1, 200 do e:OnUpdate() end
   check(st.rv == 0, "left alone long enough it drains to nothing (" .. st.rv .. ")")
+end
+-- Master Xehanort with Vanitas: his idle voice lines scaled by how much shorter his refusal wait is (2 / 300)
+do
+  local e, h = M.create("b40ex00")
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  check(type(rawget(e, "PlayVoice")) == "function", "his voice lines go through the mod")
+  local said = 0
+  local old = M.num["Sound.PlayVoice"]
+  M.num["Sound.PlayVoice"] = function() said = said + 1 end
+  e.phase, e.DamageWarpParam = 100, 102
+  local refusals = 0
+  for k = 1, 3000 do
+    pcall(e.GotoState, e, "Attack0")
+    e.StateParam = 0
+    pcall(e.GotoState, e, "Idling")               -- after his attack: the Beat
+    e.StateParam = 101
+    local before = said
+    for j = 1, 9 do pcall(e.GotoState, e, "Idling") end   -- refused nine times: idle after idle, 2 of his 300
+    refusals = refusals + (said - before)
+  end
+  e.phase, said = 0, 0
+  for k = 1, 3000 do pcall(e.GotoState, e, "Attack0") e.StateParam = 0 pcall(e.GotoState, e, "Idling") end
+  M.num["Sound.PlayVoice"] = old
+  -- 27000 refusals at 20 % x 2/300: ~36 lines (unscaled ~5400)
+  check(refusals >= 10 and refusals <= 80, "with Vanitas: " .. refusals .. " lines in 27000 refused idles (~36; unscaled ~5400)")
+  check(said > 480 and said < 720, "alone: his lines as before (" .. said .. " in 3000 idles, ~600)")
+end
+-- Master Xehanort with Vanitas: his close-range warp after a refusal, scaled the same way (2 / 300)
+do
+  local e, h = M.create("b40ex00")
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  local st = BBS_REVENGE.ents.b40ex00
+  local function tries(phase, param, n)
+    e.phase, e.DamageWarpParam = phase, 102
+    local warps = 0
+    for k = 1, n do
+      pcall(e.GotoState, e, "Attack0"); e.StateParam = 0
+      pcall(e.GotoState, e, "Idling")
+      e.StateParam = 101
+      pcall(e.GotoState, e, "Idling")              -- refused: his wait made 2 frames
+      e.StateParam = param                         -- his script: close by, param 101 -> Warp
+      pcall(e.GotoState, e, "Warp")
+      if e:GetState() == "Warp" then warps = warps + 1 end
+    end
+    return warps
+  end
+  local w = tries(100, 101, 3000)
+  check(w >= 5 and w <= 45 and st.idleRatio ~= nil and st.idleRatio < 0.01, "with Vanitas: the close-range warp " .. w .. " times in 3000 (~20; it was every time)")
+  check(e:GetState() == "Idling" or e:GetState() == "Warp", "held back: he stays in Idling (" .. e:GetState() .. ")")
+  check(tries(100, 102, 200) == 200, "his warp with the team param (the break-out's) is never held back")
+  check(tries(0, 101, 200) == 200, "alone: never held back")
+end
+-- Debug only: Vanitas's team watch - a wait over 4 s for Xehanort's end message is logged; nothing changed
+do
+  M.script("b10ex00")
+  check(BBS_REVENGE.debug == false, "no debug file: the watch is not put on (" .. tostring(BBS_REVENGE.debug) .. ")")
+  local v0 = M.create("b10ex00")
+  check(rawget(v0, "SearchTarget") == nil and rawget(v0, "OnMessage") == nil, "... his functions are the script's own")
+  local lines = {}
+  local log0 = BBS_REVENGE.log
+  BBS_REVENGE.debug = true
+  BBS_REVENGE.log = function(...)
+    local t = { ... } for i = 1, #t do t[i] = tostring(t[i]) end
+    local l = table.concat(t, " ")
+    if l:find("team watch", 1, true) then lines[#lines + 1] = l end
+  end
+  local x = M.create("b40ex00")
+  rawset(x, "Update", function() end); rawset(x, "Debug", function() end)
+  x.phase, x.DamageWarpParam = 100, 102
+  pcall(x.GotoState, x, "Attack0"); x.StateParam = 3; pcall(x.GotoState, x, "Idling"); pcall(x.GotoState, x, "Move")
+  M.num["Enemy.SearchEnemy"] = function(h, name) if name == "b40ex00" then return 777 end return NULL_HANDLE end
+  local v, hv = M.create("b10ex00")
+  rawset(v, "Update", function() end); rawset(v, "Debug", function() end)
+  local st = rawget(v, "__rv")
+  pcall(v.GotoState, v, "Idling")
+  local perm0 = v.attackPermission
+  st.t = st.t + 200; v:SearchTarget()
+  local n200 = #lines
+  st.t = st.t + 100; v:SearchTarget(); v:SearchTarget()
+  check(perm0 == false and n200 == 0 and #lines == 1 and lines[1]:find("waiting 5.0 s", 1, true) and lines[1]:find("Xehanort: Move", 1, true)
+        and lines[1]:find("Idling(3)", 1, true), "waiting over 4 s: one line, with what Xehanort is doing: " .. tostring(lines[1]))
+  v:OnMessage(B40EX_MES_B40EX_ATTACK_END, 777)
+  check(#lines == 2 and lines[2]:find("his turn back after 5.0 s", 1, true) and v.attackPermission == true, "the end message: logged, his turn back as the game does: " .. tostring(lines[2]))
+  pcall(v.GotoState, v, "Idling"); st.t = st.t + 60; v:OnMessage(B40EX_MES_B40EX_ATTACK_END, 777)
+  check(#lines == 2, "a short wait: nothing logged")
+  BBS_REVENGE.debug, BBS_REVENGE.log = false, log0
+  M.num["Enemy.SearchEnemy"] = nil
+end
+-- Master Xehanort with Vanitas: close to you after a refusal his Idling update starts a team pattern and, with
+-- the timer over, also asks for Move in the same frame (his script carries on): that Move is dropped
+do
+  local function run(phase, over, param)
+    local e, h = M.create("b40ex00")
+    rawset(e, "Debug", function() end)
+    e.phase, e.DamageWarpParam = phase, 102
+    pcall(e.GotoState, e, "Idling")
+    e.StateParam = param
+    pcall(e.GotoState, e, "Idling")
+    M.num["Entity.CalcDistanceSq"] = 0.5
+    M.num["Entity.IsTimeOver"] = over
+    local r0 = M.rand
+    M.rand = function() return 0.9 end            -- the close branch's die: his attack pattern
+    pcall(e.OnUpdate, e)
+    M.rand = r0
+    M.num["Entity.CalcDistanceSq"] = 4; M.num["Entity.IsTimeOver"] = false
+    return e
+  end
+  local e = run(100, true, 101)
+  check(e:GetState() == "Attack1" and e.AttackPattern == 1 and e.AttackParam == 101, "with Vanitas: his team attack goes ahead (" .. e:GetState() .. ", pattern " .. tostring(e.AttackPattern) .. " / " .. tostring(e.AttackParam) .. ")")
+  e = run(100, false, 101)
+  check(e:GetState() == "Attack1", "timer not over (the game's 300 frames): the same, as before (" .. e:GetState() .. ")")
+  e = run(100, true, 0)
+  check(e:GetState() == "Move", "his own Move from Idling (path 0, timer over) is left alone (" .. e:GetState() .. ")")
+  e = run(0, true, 101)
+  check(e:GetState() == "Move", "alone: unchanged (" .. e:GetState() .. ")")
+end
+-- Master Xehanort with Vanitas: he breaks out at his limit too, with his team warp (param 102)
+do
+  local e, h = M.create("b40ex00")
+  local st = BBS_REVENGE.ents.b40ex00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  e.phase, e.DamageWarpParam = 100, 102
+  local r
+  for i = 1, 8 do r = hit(h) end
+  check(r == nil and st.rv == 8, "with Vanitas: 8 hits land")
+  r = hit(h)
+  check(r == "before" and e:GetState() == "Warp" and e.StateParam == 102 and e.DamageWarpParam == 102,
+        "9th hit: his quick warp, landing in his team pattern (state " .. e:GetState() .. ", param " .. tostring(e.StateParam) .. ")")
+  local e2, h2 = M.create("b40ex00")
+  local st2 = BBS_REVENGE.ents.b40ex00
+  rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
+  pcall(e2.GotoState, e2, "Idling"); pcall(e2.GotoState, e2, "Attack0")
+  e2.phase, e2.DamageWarpParam = 100, 102
+  M.num["Enemy.IsNoDamageReaction"] = function() return false end
+  for i = 1, 8 do hit(h2) end
+  r = hit(h2)
+  check(r == "before" and e2:IsQuickWarping() and e2.DamageWarpParam == 102, "... also when hit out of his slash (he vanishes, as alone)")
+  M.num["Enemy.IsNoDamageReaction"] = false
 end
 -- Zack
 M.script("b40he00")
@@ -318,7 +457,7 @@ do
   rawset(e2, "Update", function() end); rawset(e2, "Debug", function() end)
   M.num["Entity.IsGround"] = true
   local na, nd = 0, 0
-  for k = 1, 80 do
+  for k = 1, 1000 do   -- (about 54 : 46 - enough tries that chance cannot tie it)
     pcall(e2.GotoState, e2, "BattleIdling")
     st2.rv, st2.firing, st2.armor = 0, false, 0
     local nh = 12
@@ -328,7 +467,7 @@ do
     if s2 == "EvasionAction" then nd = nd + 1 elseif s2 == "Combo" or s2 == "SpecialCommandAttack0" or s2 == "ShortDistAttackCommand" then na = na + 1 end
   end
   M.num["Entity.IsGround"] = nil
-  check(na > nd and nd > 0, "Terra (practice, limit 3 +- 1): " .. na .. " attacks, " .. nd .. " dodges out of 80 break-outs")
+  check(na > nd and nd > 0, "Terra (practice, limit 3 +- 1): " .. na .. " attacks, " .. nd .. " dodges out of 1000 break-outs")
   -- bbskh2_boss.ini [Keyblade wielders]: the enemy wielders get the combo window and the gaps, the allies nothing
   local e6 = M.create("b82ex00")
   local st6 = BBS_REVENGE.ents.b82ex00
@@ -982,10 +1121,11 @@ do
     local d = M.create("m42ex00")
     check(d ~= nil and rawget(d, "__rvmob") ~= nil, "Darkball gets the pace")
     rawset(d, "Update", function() end)
-    M.num["Script.Random"] = 1.0
+    local rand0 = M.rand
+    M.rand = function() return 0.999 end           -- its longest drift (Script.Random comes from M.rand)
     set = {}; pcall(d.GotoState, d, "Move")
     local want = nil
-    M.num["Script.Random"] = nil
+    M.rand = rand0
     check(set[1] ~= nil and set[1] > 30, "Darkball Move (its drift between attacks): " .. tostring(set[1]))
     set = {}; pcall(d.GotoState, d, "Bite")
     check(#set == 0 or set[1] == nil or set[1] >= 0, "Darkball Bite (an attack): its own timer")
@@ -1302,8 +1442,9 @@ do
     local p0 = e.stack.ptr
     EntityManager:CallFunctionNoArg("OnReturnDamage", h)
     -- (Oboro is "no damage reaction" in his script: a flinch out of it only happens in this test, and
-    -- the mod's own handling adds an Idling there; he still does not restart it)
-    check(e:GetState() == "Idling" and (e.stack:get() == "Wander" or (a == "Oboro" and e.stack:get(2) == "Wander")),
+    -- the mod's own handling adds an Idling there; that can also happen in SuccessionAttack, depending on
+    -- the dice - about 1 run in 4.  Either way he does not restart it: Idling, then Wander)
+    check(e:GetState() == "Idling" and (e.stack:get() == "Wander" or (e.stack:get() == "Idling" and e.stack:get(2) == "Wander")),
           "Eraqus: out of a flinch in " .. a .. ": Idling, Wander next - not " .. a .. " again (" .. e:GetState() .. ")")
     while e.stack.ptr > p0 do e.stack:pop() end
   end
