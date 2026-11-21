@@ -258,6 +258,29 @@ static void t_fx(void) {
     *(u32*)(gauge + 0x84) |= 0x100000;
     CHECK(!mp_fx(0x65) && !mp_fx_any(cmd), "Focus gauge off: no Focus Exchange");
     *(u32*)(gauge + 0x84) &= ~0x100000u;
+    /* hits: the game's flat 2 Focus per hit (2319ae -> 208290, pending gain gauge+0x6c) */
+    {   extern void test_fx_hit(u8 *g, int n); extern int *test_fx_hit_focus(void);
+        u8 *s0 = RVA(0x2319ae); s32 rel; memcpy(&rel, s0 + 1, 4);
+        CHECK(s0[0] == 0xe8 && (u8*)(s0 + 5 + rel) != RVA(0x208290), "the hit's Focus call is hooked");
+        #define PEND (*(float*)(gauge + 0x6c))
+        #define RUN(id) (*(u16*)(pl + 0x312) = (id))
+        CHECK(*test_fx_hit_focus() == 0, "FocusExchangeHitFocus=0 by default");
+        PEND = 0; RUN(0x65); test_fx_hit(gauge, 2);
+        CHECK(PEND == 0, "a hit of Strike Raid (physical): no Focus (%.0f)", PEND);
+        RUN(0x83); test_fx_hit(gauge, 2);
+        CHECK(PEND == 2, "a hit of Fire (magic): +2 (%.0f)", PEND);
+        RUN(0); test_fx_hit(gauge, 2);
+        CHECK(PEND == 4, "a hit of the Attack combo (no deck command): +2 (%.0f)", PEND);
+        RUN(0x65); *(u32*)(gauge + 0x84) |= 0x100000; test_fx_hit(gauge, 2); *(u32*)(gauge + 0x84) &= ~0x100000u;
+        CHECK(PEND == 6, "Focus gauge off: the physical hit gives Focus (%.0f)", PEND);
+        *test_fx_hit_focus() = 1; test_fx_hit(gauge, 2); *test_fx_hit_focus() = 0;
+        CHECK(PEND == 8, "FocusExchangeHitFocus=1: the physical hit gives Focus (%.0f)", PEND);
+        test_fx_set(0); test_fx_hit(gauge, 2); test_fx_set(1);
+        CHECK(PEND == 10, "Focus Exchange off: the physical hit gives Focus (%.0f)", PEND);
+        RUN(0); PEND = 0;
+        #undef PEND
+        #undef RUN
+    }
     /* switched off again: SP */
     test_fx_set(0); for (int i = 0; i < 1600; i++) frame();
     CHECK(*test_burn() == 0 && !(FLG(0) & 2) && !(FLG(2) & 2), "off, after the charge: every plate ready");

@@ -196,7 +196,7 @@ static int call_ok(u32 rva, u32 target) {
 int combomaster_check(void) {
     static const char *names[3] = { "Combo Master", "Focus Exchange", "Link Charge" };
     static const char *helps[3] = { "Lets you keep your Attack combo going even when your\nattacks miss.",
-                                    "Physical commands use the Focus Gauge instead of SP.\nA command needs its full cost in Focus to be used.",
+                                    "Physical commands use the Focus Gauge instead of SP\nand need their full cost. Their hits give no Focus.",
                                     "Starting a D-Link fully restores your SP, but the\nD-Link Gauge drains twice as fast." };
     for (int i = 0; i < NAB; i++) {
         char k[64]; Extra *a = &g_ab[i];

@@ -68,6 +68,7 @@ static int   c_link_in_burn = 1;       /* a D-Link can be started during MP char
 static int   c_dlink_cost = 1;         /* the commands only D-Link decks have cost by their class, their two cures as Cure (see base_cost) */
 static float c_save_seconds = 1.0f;    /* standing on a save point: seconds for a full bar / a full recharge (0 = off) */
 static int   c_retry_refill = 1;       /* Continue / Retry (any Game Over choice): the bar starts full again */
+static int   c_fx_hit_focus = 0;       /* Focus Exchange on: 0 = hits of a physical deck command give no Focus, 1 = as the game does */
 static int   c_retry_items = 2;        /* Continue / Retry in place: 2 = the deck's item slots back to their counts at the fight's start, 1 = restocked from the inventory */
 /* MP bar: right end and top edge in the game's screen units (480 x 272), thickness, length of the bar itself at
    100 MP, and the share of any extra MP that lengthens it */
@@ -248,6 +249,7 @@ static void load_ini(void) {
     c_save_seconds = ini_f("MP", "SavePointSeconds", c_save_seconds);
     c_retry_refill = (int)ini_f("MP", "RetryRefillsMP", (float)c_retry_refill);
     c_retry_items = (int)ini_f("MP", "RetryRefillsItems", (float)c_retry_items);
+    c_fx_hit_focus = (int)ini_f("Combat", "FocusExchangeHitFocus", (float)c_fx_hit_focus);
     c_tiered = (int)ini_f("MP", "TieredMagic", (float)c_tiered);
     c_dlink_cost = (int)ini_f("MP", "DLinkCostByClass", (float)c_dlink_cost);
     c_link_in_burn = (int)ini_f("MP", "DLinkDuringCharge", (float)c_link_in_burn);
@@ -437,6 +439,23 @@ static void fx_spend(int id) {
     *(float*)(g + 0x6c) = pend;
     if (g_debug) LOG("focus exchange: command %x costs %.1f FP -> %.1f", id, mp_cost(id), *(float*)(g + 0x68));
 }
+/* Every hit the player lands goes through 231900 (the keyblade's hit [293e5a] and the hits of the shots and other
+   attacks: 21bb2e, 2d248c, 2d6432, 2fd68d, 2fd7af), which fills the style gauge and gives a flat 2 Focus per hit
+   [2319ae -> 208290, the Focus gauge's "pending gain += n"; the other gains - Focus orbs 25f66f, items 262640 /
+   2627a3, the damage-taken ability 23f194 - have their own calls].  So a physical command with many hits paid its
+   Focus back.  With Focus Exchange on (and the game's Focus gauge in use), a hit while the player runs a physical
+   deck command (pl+0x312, set by 21f9b0 at the start of every action) gives none; the base combo, magic, orbs and
+   items keep their Focus.  [Combat] FocusExchangeHitFocus=1 = as the game does. */
+#define FX_HIT_SITE 0x2319aeu
+#define FN_FOCUS_ADD 0x208290u
+static void MSABI fx_hit_hook(u8 *g, int n) {
+    u8 *pl = player();
+    int id = pl ? *(u16*)(pl + 0x312) : 0;
+    if (!c_fx_hit_focus && mp_fx(id)) { if (g_debug) LOG("focus exchange: hit of command %x - no Focus (%d)", id, n); return; }
+    FN(void, FN_FOCUS_ADD, u8*, int)(g, n);
+}
+void test_fx_hit(u8 *g, int n) { fx_hit_hook(g, n); }
+int *test_fx_hit_focus(void) { return &c_fx_hit_focus; }
 static int plate_id(u8 *P) { u16 *k = P ? *(u16**)(P + 0x58) : NULL; return k ? k[0] : 0; }
 static int text_width(const u8 *p, const u8 *end) {        /* characters shown, roughly */
     int n = 0;
@@ -1333,6 +1352,7 @@ int mod_install(void) {
     if (G(u64, VT_CTD_READY) != (u64)(g_base + FN_CTD_READY)) { LOG("message file vtable does not match"); bad++; }
     if (c_berserk_pct > 0 && !call_ok(DMG_CALL, DMG_FN)) { LOG("damage site does not match"); bad++; }
     if (c_link_keep < 100.0f && (!call_ok(LINK_END_A, LINK_END) || !call_ok(LINK_END_B, LINK_END))) { LOG("D-Link end sites do not match"); bad++; }
+    if (!call_ok(FX_HIT_SITE, FN_FOCUS_ADD)) { LOG("Focus gain on hits: call not found"); bad++; }
     if ((c_retry_refill || c_retry_items) && (!call_ok(GO_SITE_0, GO_FN_0) || !call_ok(GO_SITE_1, GO_FN_1) || !call_ok(GO_SITE_2, GO_FN_2) || !call_ok(GO_SITE_3, GO_FN_3))) {
         LOG("game over sites do not match"); bad++;
     }
@@ -1400,6 +1420,7 @@ int mod_install(void) {
     o_cmd_start    = hook_fn(&S_cmd_start, cmd_start_hook, "command start (SP charged)");
     hook_call(0x233d40, 0x2063c0, use_hook, "deck_use");
     hook_call(0x206a6e, 0x1ce550, reload_hook, "reload");
+    hook_call(FX_HIT_SITE, FN_FOCUS_ADD, fx_hit_hook, "Focus Exchange: no Focus from physical command hits");
     if (c_retry_refill || c_retry_items) {
         hook_call(GO_SITE_0, GO_FN_0, go_hook_0, "game over: continue");
         hook_call(GO_SITE_1, GO_FN_1, go_hook_1, "game over: choice 1");
