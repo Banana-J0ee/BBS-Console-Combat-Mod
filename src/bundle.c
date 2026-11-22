@@ -265,6 +265,16 @@ static int MSABI rv_atk(void *L) {
     FN(void, LUA_PUSHINT, void*, long long)(L, r);
     return 1;
 }
+/* BBS_StyleHit(): for the hit being taken now, a Command Style's step (speed.c speed_style_hit) - two numbers,
+   its revenge value x 100 and the step's token, or -1 and 0 when it is no style hit (the usual value then). */
+static int MSABI rv_style(void *L) {
+    extern int speed_style_hit(int *v100, int *tok);
+    int v = -1, tok = 0;
+    if (!speed_style_hit(&v, &tok)) { v = -1; tok = 0; }
+    FN(void, LUA_PUSHINT, void*, long long)(L, (long long)v);
+    FN(void, LUA_PUSHINT, void*, long long)(L, (long long)tok);
+    return 2;
+}
 static char boss_buf[32768];
 static int MSABI rv_boss_ini(void *L) {
     if (FN(int, LUA_GETTOP, void*)(L) < 1) return 0;
@@ -300,6 +310,10 @@ static int MSABI lua_load_hook(void *L, const char *buf, size_t n, const char *n
             if (pushint_ok() && atk_ok()) {           /* a boss's hit windows and shots (BBS_AtkState) */
                 FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_atk, 0);
                 FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_AtkState");
+            }
+            if (pushint_ok()) {                       /* Command Style steps (BBS_StyleHit) */
+                FN(void, LUA_PUSHCCL, void*, void*, int)(L, (void*)rv_style, 0);
+                FN(void, LUA_SETFIELD, void*, int, const char*)(L, -10002, "BBS_StyleHit");
             }
         } else if (g_debug) LOG("bundle: Lua API does not match: bbskh2_boss.ini not read (built-in values)");
         buf = (const char*)rv_buf; n = sizeof rv_buf;

@@ -354,8 +354,23 @@ end
 -- KH2's weights, from its attack data.  Magic is capped per cast: hits
 -- within magicWin frames of each other count as one cast of at most
 -- magicCast, the way KH2 gives multi-hit spells small per-tick values.
+-- Command Styles (BBS_StyleHit, from the C side): each step of a style's combo adds its value (1; the first step of
+-- some styles less) once - its first hit on this boss, the rest of that step's hits 0 - and a style finisher its
+-- value once: the way KH2 gives a multi-hit move's repeating part no revenge.  Other hits as below.
+local function styleValue(st, cat)
+  if cat == COMMAND_CATEGORY_MACIG or cat == COMMAND_CATEGORY_SHOOTLOCK then return nil end
+  local f = rawget(_G, "BBS_StyleHit")
+  if type(f) ~= "function" then return nil end
+  local ok, v, tok = pcall(f)
+  if not ok or type(v) ~= "number" or v < 0 then return nil end
+  if st.styleTok == tok then return 0 end
+  st.styleTok = tok
+  return v / 100
+end
 local function hitValue(st, kind, cat)
   local w = RV.weight
+  local sv = styleValue(st, cat)
+  if sv ~= nil then return sv end
   if cat == COMMAND_CATEGORY_FINISH then return w.finish end
   if cat == COMMAND_CATEGORY_SHOOTLOCK then return w.shootlock end
   if cat == COMMAND_CATEGORY_MACIG then

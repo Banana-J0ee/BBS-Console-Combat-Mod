@@ -672,6 +672,30 @@ static void t_comboplus(void) {
     *(u8**)(m + 0x118) = NULL; rec[0] = 0xf; CHECK(test_cp_count(pl, 0x1d3) == 3, "not the local player: as the game"); *(u8**)(m + 0x118) = lp;
     *(u8**)(cmd + 0x1b8) = keep; *(int*)(cmd + 0x1a8) = keeplv;
     pl[0x4a3 + G(u8, 0x814900 + 0x1d3 * 0x18 + 7)] = 0; pl[0x4a3 + G(u8, 0x814900 + 0x1d4 * 0x18 + 7)] = 0;
+    /* style steps for the revenge value: a new combo step (pl+0x5a2 changes) or a finisher = a new token */
+    {   extern void test_style_track(u8 *pl); extern int speed_style_hit(int *v100, int *tok); extern void test_style_ini(const char *s);
+        int v, t1, t2, t3;
+        static u8 plate2[0x80]; static u16 rec2[4]; *(u16**)(plate2 + 0x58) = rec2; rec2[0] = 0xd;
+        u8 *keep2 = *(u8**)(cmd + 0x1b0 + 2 * 8); int keeplv2 = *(int*)(cmd + 0x1a8);
+        *(u8**)(cmd + 0x1b0 + 2 * 8) = plate2; *(int*)(cmd + 0x1a8) = 2;
+        test_style_ini("d:0.5");
+        *(u16*)(pl + 0x304) = 0x10; *(s16*)(pl + 0x310) = 5; *(u16*)(pl + 0x5a2) = 1; test_style_track(pl);
+        CHECK(speed_style_hit(&v, &t1) && v == 50, "Rhythm Mixer, first step: 0.5 (%d)", v);
+        test_style_track(pl); speed_style_hit(&v, &t2);
+        CHECK(t2 == t1, "the same step later: the same token");
+        *(u16*)(pl + 0x5a2) = 2; test_style_track(pl); speed_style_hit(&v, &t2);
+        CHECK(v == 100 && t2 != t1, "the next step: 1, a new token (%d)", v);
+        *(u16*)(pl + 0x304) = 1; test_style_track(pl); speed_style_hit(&v, &t3);
+        CHECK(t3 == t2, "standing after the step: its shots still that step");
+        *(u16*)(pl + 0x304) = 0x14; test_style_track(pl); speed_style_hit(&v, &t3);
+        CHECK(v == 300 && t3 != t2, "a finisher: 3, new token (%d)", v);
+        *(u16*)(pl + 0x304) = 0x11; test_style_track(pl);
+        CHECK(!speed_style_hit(&v, &t3), "a spell: no style hit");
+        *(int*)(cmd + 0x1a8) = 0; *(u16*)(pl + 0x304) = 0x10; *(u16*)(pl + 0x5a2) = 1; test_style_track(pl);
+        CHECK(!speed_style_hit(&v, &t3), "the base combo: no style hit");
+        *(u8**)(cmd + 0x1b0 + 2 * 8) = keep2; *(int*)(cmd + 0x1a8) = keeplv2; *(u16*)(pl + 0x304) = 0; *(u16*)(pl + 0x5a2) = 0;
+        test_style_track(pl);
+    }
     printf("t_comboplus done\n");
 }
 static void t_haste(void) {

@@ -1538,5 +1538,30 @@ do
   M.rand = mr
   M.num["Entity.CalcDistanceXZSq"] = nil
 end
+-- Command Style hits (BBS_StyleHit): a step adds its value once however often it hits; finishers once; magic as usual
+do
+  local cur = { v = -1, tok = 0 }
+  rawset(_G, "BBS_StyleHit", function() return cur.v, cur.tok end)
+  M.script("b85vs00")
+  local e, h = M.create("b85vs00")
+  local st = BBS_REVENGE.ents.b85vs00
+  rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
+  pcall(e.GotoState, e, "Idling")
+  cur.v, cur.tok = 50, 1                                  -- Rhythm Mixer's first step: 0.5
+  for i = 1, 3 do hit(h) end
+  check(math.abs(st.rv - 0.5) < 1e-6, "style: first step, 3 hits: 0.5 once (" .. st.rv .. ")")
+  cur.v, cur.tok = 100, 2
+  for i = 1, 4 do hit(h) end
+  check(math.abs(st.rv - 1.5) < 1e-6, "style: next step, 4 hits: +1 once (" .. st.rv .. ")")
+  cur.tok = 3; hit(h); hit(h, nil, COMMAND_CATEGORY_MACIG)
+  check(math.abs(st.rv - 4.0) < 1e-6, "style: a third step +1, a spell between counts as magic, 1.5 (" .. st.rv .. ")")
+  cur.v, cur.tok = 300, 4
+  for i = 1, 30 do hit(h, nil, COMMAND_CATEGORY_FINISH) end
+  check(math.abs(st.rv - 7.0) < 1e-6, "style: a finisher with 30 hits: 3 once (" .. st.rv .. ")")
+  cur.v, cur.tok = -1, 0
+  hit(h); hit(h)
+  check(math.abs(st.rv - 9.0) < 1e-6, "no style: each hit 1 again (" .. st.rv .. ")")
+  rawset(_G, "BBS_StyleHit", nil)
+end
 io.write(fails == 0 and "ALL OK\n" or ("FAILED " .. fails .. "\n"))
 os.exit(fails == 0 and 0 or 1)
