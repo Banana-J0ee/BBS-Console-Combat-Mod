@@ -764,16 +764,21 @@ static int   c_style_once = 1;
 static float c_style_fin = 3.0f;
 static u16   g_sf_id[16]; static float g_sf_v[16]; static int g_sf_n;
 static u16   g_ss_id[16]; static float g_ss_v[16]; static int g_ss_n;     /* StyleStep: every step of that style */
-static int   g_st_kind, g_st_tok, g_st_step;        /* 0 none, 1 a combo step, 2 a finisher */
+static int   g_st_kind, g_st_tok, g_st_step, g_st_in;   /* g_st_in: last tick in a step (1) / finisher (2) */        /* 0 none, 1 a combo step, 2 a finisher */
 static u16   g_st_att;
 static void style_track(u8 *pl) {
     if (!pl || pl != local_player()) return;
     u16 st = *(u16*)(pl + 0x304); s16 part = *(s16*)(pl + 0x310);
+    int was = g_st_in; g_st_in = 0;
     if (st == 0x10 && part == 5) {
+        /* a new step: the combo counter moved, or the attack has just started (after a dodge, a jump, standing -
+           step 1, dodge, step 1 again is two steps) */
         int cnt = *(u16*)(pl + 0x5a2);
-        if (g_st_kind != 1 || cnt != g_st_step) { g_st_kind = 1; g_st_step = cnt; g_st_tok++; g_st_att = cur_style_attack(); }
+        if (g_st_kind != 1 || cnt != g_st_step || was != 1) { g_st_kind = 1; g_st_step = cnt; g_st_tok++; g_st_att = cur_style_attack(); }
+        g_st_in = 1;
     } else if (st == 0x14) {
-        if (g_st_kind != 2) { g_st_kind = 2; g_st_tok++; g_st_att = cur_style_attack(); }
+        if (g_st_kind != 2 || was != 2) { g_st_kind = 2; g_st_tok++; g_st_att = cur_style_attack(); }
+        g_st_in = 2;
     } else if ((st >= 0x10 && st <= 0x13) || (st >= 0x15 && st <= 0x19)) g_st_kind = 0;   /* another action */
     /* else (idle, moving, falling, landing ...): the last step's shots still count as that step */
 }

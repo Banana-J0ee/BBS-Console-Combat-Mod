@@ -687,6 +687,19 @@ static void t_comboplus(void) {
         CHECK(v == 1000 && t2 != t1, "the next step: 1, a new token (%d)", v);
         *(u16*)(pl + 0x304) = 1; test_style_track(pl); speed_style_hit(&v, &t3);
         CHECK(t3 == t2, "standing after the step: its shots still that step");
+        {   int t4, t5;
+            *(u16*)(pl + 0x304) = 0x10; *(u16*)(pl + 0x5a2) = 1; test_style_track(pl); speed_style_hit(&v, &t4);
+            *(u16*)(pl + 0x304) = 0x1a; test_style_track(pl);                       /* a dodge */
+            *(u16*)(pl + 0x304) = 0x10; test_style_track(pl); speed_style_hit(&v, &t5);
+            CHECK(t5 != t4, "step 1, dodge, step 1 again: two steps, a new token");
+            test_style_track(pl); speed_style_hit(&v, &t4); CHECK(t4 == t5, "... and the same step after that");
+            *(u16*)(pl + 0x304) = 0x14; test_style_track(pl); speed_style_hit(&v, &t4);
+            *(u16*)(pl + 0x304) = 1; test_style_track(pl);
+            *(u16*)(pl + 0x304) = 0x14; test_style_track(pl); speed_style_hit(&v, &t5);
+            CHECK(t5 != t4, "a finisher, standing, a finisher again: two");
+            *(u16*)(pl + 0x304) = 1; test_style_track(pl); speed_style_hit(&v, &t3);
+            *(u16*)(pl + 0x304) = 0x10; *(u16*)(pl + 0x5a2) = 2; test_style_track(pl); speed_style_hit(&v, &t2);
+            *(u16*)(pl + 0x304) = 1; test_style_track(pl); }
         *(u16*)(pl + 0x304) = 0x14; test_style_track(pl); speed_style_hit(&v, &t3);
         CHECK(v == 3000 && t3 != t2, "a finisher: 3, new token (%d)", v);
         *(u16*)(pl + 0x304) = 0x11; test_style_track(pl);
