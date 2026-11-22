@@ -1823,6 +1823,18 @@ static void t_speed(void) {
       other[5] = 0; other[4] = 0x1a; CHECK(test_hop_hit(p), "an air hit with RISE (Ventus' 17 18 19, Aqua's 302..305) hops (AirHopRise)");
       { extern int *test_hop_rise(void); *test_hop_rise() = 0; CHECK(!test_hop_hit(p), "AirHopRise=0: it does not"); *test_hop_rise() = 1; }
       other[4] = 0x18; CHECK(!test_hop_hit(p), "a RISE record without AERIAL (the ground launcher 16 / 301 / 582) does not");
+      /* reported: from above, a target below - the game's RISE hit drops and dashes to it; that one must not hop */
+      {   extern const u8 **test_hop_live(void);
+          u8 *rh = patk + 18 * 0x28; memcpy(rh, hit, 0x28); rh[4] = 0x1a;
+          *(u16*)(p + 0x304) = 5; test_hop_frame(p); *(u16*)(p + 0x304) = 0x10;
+          *(int*)(p + 0x600) = 1; *(float*)(p + 0x618) = -1.2f; *(u8**)(p + 0x5b8) = rh;
+          *(float*)(p + 0x50c) = -0.09f; *(float*)(p + 0x508) = g * 0.16f; FR(0); test_hop_frame(p);
+          CHECK(*(float*)(p + 0x50c) == -0.09f && !*test_hop_live(), "a RISE hit with the target below: the game's dive kept (vy %.4f)", *(float*)(p + 0x50c));
+          FR(3); test_hop_frame(p); CHECK(*(float*)(p + 0x50c) == -0.09f && !*test_hop_live(), "... for the whole hit");
+          *(float*)(p + 0x618) = 0.1f; FR(10); test_hop_frame(p); FR(0); *(u8**)(p + 0x5b8) = patk + 22 * 0x28; memcpy(patk + 22 * 0x28, rh, 0x28);
+          *(float*)(p + 0x50c) = 0.0f; test_hop_frame(p);
+          CHECK(*(float*)(p + 0x50c) > 0.01f && *test_hop_live() == patk + 22 * 0x28, "the same hit with the target level: a hop (vy %.4f)", *(float*)(p + 0x50c));
+          *(int*)(p + 0x600) = 0; *(float*)(p + 0x618) = 0.0f; *(u8**)(p + 0x5b8) = other; }
       other[4] = 0x2a; CHECK(!test_hop_hit(p), "a DOWN record (Terra's plunge) does not");
       other[4] = 0x08; CHECK(!test_hop_hit(p), "a record without AERIAL does not");
       *(u8**)(p + 0x5b8) = hit; *(s16*)(p + 0x310) = 3; CHECK(!test_hop_hit(p), "an attack command (part 3) does not");
