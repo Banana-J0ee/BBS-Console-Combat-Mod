@@ -645,6 +645,35 @@ static const char *ctd_find(const u8 *file, u32 id) {
     for (int i = 0, n = *(u16*)(file + 0xe); i < n; i++, rec += 3) if (rec[0] == id) return (const char*)file + rec[1];
     return NULL;
 }
+/* [Speed] ComboPlusOff: the combo length's Combo Plus / Air Combo Plus count (223a63 -> 221900) is 0 in the styles listed */
+static void t_comboplus(void) {
+    extern int test_cp_count(u8 *pl, int ability); extern void test_cp_list(const char *s);
+    static const u16 ids[] = { 0x5b, 0x83 };
+    world(2, ids);
+    u8 *s0 = RVA(0x223a63); s32 rel; memcpy(&rel, s0 + 1, 4);
+    CHECK(s0[0] == 0xe8 && (u8*)(s0 + 5 + rel) != RVA(0x221900), "the combo length's ability call is hooked");
+    pl[0x4a3 + G(u8, 0x814900 + 0x1d3 * 0x18 + 7)] = 3;                 /* 3 x Combo Plus */
+    pl[0x4a3 + G(u8, 0x814900 + 0x1d4 * 0x18 + 7)] = 2;                 /* 2 x Air Combo Plus */
+    CHECK(FN(u8, 0x221900, u8*, u16)(pl, 0x1d3) == 3 && FN(u8, 0x221900, u8*, u16)(pl, 0x1d4) == 2, "3 Combo Plus, 2 Air Combo Plus installed");
+    static u16 rec[4]; static u8 plate1[0x80]; *(u16**)(plate1 + 0x58) = rec;
+    u8 *keep = *(u8**)(cmd + 0x1b8); int keeplv = *(int*)(cmd + 0x1a8);
+    *(u8**)(cmd + 0x1b8) = plate1;
+    *(int*)(cmd + 0x1a8) = 0; rec[0] = 0xf;
+    CHECK(test_cp_count(pl, 0x1d3) == 3, "base combo (level 0): Combo Plus counts (3)");
+    *(int*)(cmd + 0x1a8) = 1;
+    CHECK(test_cp_count(pl, 0x1d3) == 0 && test_cp_count(pl, 0x1d4) == 0, "Wingblade (f): neither counts");
+    rec[0] = 0xd; CHECK(test_cp_count(pl, 0x1d4) == 0, "Rhythm Mixer (d): Air Combo Plus does not count");
+    rec[0] = 0x6; CHECK(test_cp_count(pl, 0x1d3) == 3 && test_cp_count(pl, 0x1d4) == 2, "Diamond Dust (6): both count");
+    test_cp_list(""); rec[0] = 0xf; CHECK(test_cp_count(pl, 0x1d3) == 3, "ComboPlusOff empty: Wingblade counts them");
+    test_cp_list("f, 8, d, c, 4, e");
+    rec[0] = 0x4; CHECK(test_cp_count(pl, 0x1d3) == 0, "Fever Pitch (4) off; list parsed");
+    rec[0] = 0x10; CHECK(test_cp_count(pl, 0x1d3) == 3, "Frozen Fortune (10) counts");
+    u8 *m = G(u8*, 0x10f9ee40), *lp = *(u8**)(m + 0x118);
+    *(u8**)(m + 0x118) = NULL; rec[0] = 0xf; CHECK(test_cp_count(pl, 0x1d3) == 3, "not the local player: as the game"); *(u8**)(m + 0x118) = lp;
+    *(u8**)(cmd + 0x1b8) = keep; *(int*)(cmd + 0x1a8) = keeplv;
+    pl[0x4a3 + G(u8, 0x814900 + 0x1d3 * 0x18 + 7)] = 0; pl[0x4a3 + G(u8, 0x814900 + 0x1d4 * 0x18 + 7)] = 0;
+    printf("t_comboplus done\n");
+}
 static void t_haste(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
     world(3, ids);
@@ -3750,6 +3779,7 @@ int main(int argc, char **argv) {
     bad |= run("t_orbse", t_orbse);
     bad |= run("t_orbtex", t_orbtex);
     bad |= run("t_ether", t_ether);
+    bad |= run("t_comboplus", t_comboplus);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);

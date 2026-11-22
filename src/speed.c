@@ -718,6 +718,51 @@ static void hop_frame(u8 *pl) {
 }
 /* ---- air log ---- */
 static int g_air_on; static float g_air_t, g_air_y, g_air_top;
+/* ---- Combo Plus / Air Combo Plus off for some Command Styles ([Speed] ComboPlusOff) ----
+   The next hit of a combo is picked by 2239b0: it counts the hits so far (pl+0x5a2) against the combo's length = the
+   keyblade's base length [1ce2f0] + the number of Combo Plus (ability 0x1d3; in the air Air Combo Plus, 0x1d4)
+   equipped [223a63: call 221900(pl, ability)]; at the length the next hit is the closing one.  Styles go through the
+   same code.  For the styles listed (by their attack command: the attack plate of the current style level,
+   cmd+0x1b0 + level * 8, whose record's command id is the style id - 0x150 - Wingblade f, Cyclone 8, Rhythm
+   Mixer d, Ghost Drive c, Fever Pitch 4, Dark Impulse e, the same number for every character) that call answers 0:
+   their combos are as long as with no Combo Plus at all.  The base combo and every other style keep the abilities. */
+#define CP_SITE 0x223a63u
+#define FN_ABILITY_COUNT 0x221900u
+static u16 g_cp_off[32]; static int g_cp_n;
+static u16 cur_style_attack(void) {
+    u8 *cmd = G(u8*, 0x10f9ed40);
+    if (!cmd) return 0;
+    int lv = *(int*)(cmd + 0x1a8);
+    if (lv <= 0 || lv > 2) return 0;
+    u8 *ap = *(u8**)(cmd + 0x1b0 + lv * 8);
+    u16 *k = ap ? *(u16**)(ap + 0x58) : NULL;
+    return k ? k[0] : 0;
+}
+static int MSABI cp_count(u8 *pl, int ability) {
+    int n = FN(int, FN_ABILITY_COUNT, u8*, int)(pl, ability);
+    if (n > 0 && pl == local_player()) {
+        u16 a = cur_style_attack();
+        for (int i = 0; a && i < g_cp_n; i++) if (g_cp_off[i] == a) {
+            static u16 last;
+            if (g_debug && a != last) LOG("combo plus: style attack %x - %s Combo Plus not counted (%d)", a, ability == 0x1d4 ? "Air" : "the", n);
+            last = a;
+            return 0;
+        }
+    }
+    return n;
+}
+int test_cp_count(u8 *pl, int ability) { return cp_count(pl, ability); }
+void test_cp_list(const char *s) {
+    g_cp_n = 0;
+    for (const char *q = s; *q && g_cp_n < 32; ) {
+        while (*q && !((*q >= '0' && *q <= '9') || (*q >= 'a' && *q <= 'f') || (*q >= 'A' && *q <= 'F'))) q++;
+        if (!*q) break;
+        char *e; long v = strtol(q, &e, 16);
+        if (e == q) break;
+        if (v > 0 && v < 0x240) g_cp_off[g_cp_n++] = (u16)v;
+        q = e;
+    }
+}
 /* debug only: each step of an Attack combo or a finisher (state 0x10 part 5, state 0x14) - the style level (cmd+0x1a8),
    the command, the PAtk record, ground / air and the hit windows of the body and the weapon (on - off frames, 1/30 s),
    one line on the step's second frame (the collision controllers are set up by then).  For counting the hits of the
@@ -973,6 +1018,12 @@ void speed_apply(void) {
     hook_ctx(&S_mag_anim, h_mag_anim, "magic animation end");
     hook_ctx(&S_mag_lock, h_mag_lock, "magic lock");
     hook_ctx(&S_gravity, h_gravity, "air gravity");
+    {   char b[256]; GetPrivateProfileStringA("Speed", "ComboPlusOff", "f, 8, d, c, 4, e", b, sizeof b, g_ini);
+        test_cp_list(b);
+        u8 *p = g_base + CP_SITE; s32 d; memcpy(&d, p + 1, 4);
+        if (g_cp_n && p[0] == 0xE8 && (u32)(CP_SITE + 5 + d) == FN_ABILITY_COUNT) hook_call(CP_SITE, FN_ABILITY_COUNT, cp_count, "Combo Plus off for some styles");
+        else if (g_cp_n) LOG("speed: Combo Plus site 223a63 does not match");
+        LOG("speed: Combo Plus / Air Combo Plus not counted for %d style attack(s)", g_cp_n); }
     hook_ctx(&S_fall_hover, h_hover, "fall hover");
     if (c_launch) hook_ctx(&S_launch, h_launch, "launch height");
     hook_call(0x220b1d, 0x23b3a0, tick_hook, "player tick");
