@@ -1547,15 +1547,15 @@ do
   local st = BBS_REVENGE.ents.b85vs00
   rawset(e, "Update", function() end); rawset(e, "Debug", function() end)
   pcall(e.GotoState, e, "Idling")
-  cur.v, cur.tok = 50, 1                                  -- Rhythm Mixer's first step: 0.5
+  cur.v, cur.tok = 500, 1                                  -- Rhythm Mixer's first step: 0.5
   for i = 1, 3 do hit(h) end
   check(math.abs(st.rv - 0.5) < 1e-6, "style: first step, 3 hits: 0.5 once (" .. st.rv .. ")")
-  cur.v, cur.tok = 100, 2
+  cur.v, cur.tok = 1000, 2
   for i = 1, 4 do hit(h) end
   check(math.abs(st.rv - 1.5) < 1e-6, "style: next step, 4 hits: +1 once (" .. st.rv .. ")")
   cur.tok = 3; hit(h); hit(h, nil, COMMAND_CATEGORY_MACIG)
   check(math.abs(st.rv - 4.0) < 1e-6, "style: a third step +1, a spell between counts as magic, 1.5 (" .. st.rv .. ")")
-  cur.v, cur.tok = 300, 4
+  cur.v, cur.tok = 3000, 4
   for i = 1, 30 do hit(h, nil, COMMAND_CATEGORY_FINISH) end
   check(math.abs(st.rv - 7.0) < 1e-6, "style: a finisher with 30 hits: 3 once (" .. st.rv .. ")")
   cur.v, cur.tok = -1, 0

@@ -365,7 +365,7 @@ local function styleValue(st, cat)
   if not ok or type(v) ~= "number" or v < 0 then return nil end
   if st.styleTok == tok then return 0 end
   st.styleTok = tok
-  return v / 100
+  return v / 1000
 end
 local function hitValue(st, kind, cat)
   local w = RV.weight

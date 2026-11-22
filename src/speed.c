@@ -770,11 +770,14 @@ void test_cp_list(const char *s) {
    finisher StyleFinisherRevenge once.  The step: a new combo hit picked by 2239b0 (pl+0x5a2, the combo counter,
    changes) or a finisher started (state 0x14); hits that land after the step - its shots - still belong to it until
    the player starts another action.  StyleFirstStep = "<attack>:<value>, ...": the first step of those styles'
-   combos (counter 1) adds that much instead (Rhythm Mixer d:0.5 and Frozen Fortune 10:0.5 - 7.5 for their 8 steps).  The boss script asks
+   combos (counter 1) adds that much instead (Rhythm Mixer d:0.5 and Frozen Fortune 10:0.5 - 7.5 for their 8 steps);
+   StyleStep = "<attack>:<value>, ...": every step of those styles adds that much (Wingblade f:1.875 - its 4 steps,
+   Combo Plus not counted, 7.5).  The boss script asks
    BBS_StyleHit() at each hit (bundle.c). */
 static int   c_style_once = 1;
 static float c_style_fin = 3.0f;
 static u16   g_sf_id[16]; static float g_sf_v[16]; static int g_sf_n;
+static u16   g_ss_id[16]; static float g_ss_v[16]; static int g_ss_n;     /* StyleStep: every step of that style */
 static int   g_st_kind, g_st_tok, g_st_step;        /* 0 none, 1 a combo step, 2 a finisher */
 static u16   g_st_att;
 static void style_track(u8 *pl) {
@@ -788,21 +791,40 @@ static void style_track(u8 *pl) {
     } else if ((st >= 0x10 && st <= 0x13) || (st >= 0x15 && st <= 0x19)) g_st_kind = 0;   /* another action */
     /* else (idle, moving, falling, landing ...): the last step's shots still count as that step */
 }
-int speed_style_hit(int *v100, int *tok) {
+int speed_style_hit(int *v1000, int *tok) {
     if (!c_style_once || !g_st_kind || !g_st_att) return 0;
     float v = 1.0f;
     if (g_st_kind == 2) v = c_style_fin;
-    else if (g_st_step == 1) for (int i = 0; i < g_sf_n; i++) if (g_sf_id[i] == g_st_att) v = g_sf_v[i];
-    *v100 = (int)(v * 100.0f + 0.5f); *tok = g_st_tok & 0xffffff;
+    else {
+        for (int i = 0; i < g_ss_n; i++) if (g_ss_id[i] == g_st_att) v = g_ss_v[i];
+        if (g_st_step == 1) for (int i = 0; i < g_sf_n; i++) if (g_sf_id[i] == g_st_att) v = g_sf_v[i];
+    }
+    *v1000 = (int)(v * 1000.0f + 0.5f); *tok = g_st_tok & 0xffffff;
     return 1;
 }
 void test_style_track(u8 *pl) { style_track(pl); }
 int *test_style_once(void) { return &c_style_once; }
+static int style_list(const char *src, u16 *ids, float *vals) {
+    char b[256]; snprintf(b, sizeof b, "%s", src);
+    int n = 0;
+    for (char *q = b; *q && n < 16; ) {
+        while (*q && !((*q >= '0' && *q <= '9') || (*q >= 'a' && *q <= 'f') || (*q >= 'A' && *q <= 'F'))) q++;
+        if (!*q) break;
+        char *e; long id = strtol(q, &e, 16);
+        if (e == q || *e != ':') break;
+        float v = (float)strtod(e + 1, &q);
+        if (id > 0 && id < 0x240 && v >= 0.0f) { ids[n] = (u16)id; vals[n] = v; n++; }
+    }
+    return n;
+}
+void test_style_steps(const char *s) { g_ss_n = style_list(s, g_ss_id, g_ss_v); }
 static void style_hit_ini(void) {
     char b[256];
     GetPrivateProfileStringA("Bundle", "StyleHitOnce", "1", b, sizeof b, g_ini); c_style_once = atoi(b);
     GetPrivateProfileStringA("Bundle", "StyleFinisherRevenge", "3", b, sizeof b, g_ini); c_style_fin = (float)atof(b);
     if (c_style_fin < 0.0f) c_style_fin = 0.0f;
+    GetPrivateProfileStringA("Bundle", "StyleStep", "f:1.875", b, sizeof b, g_ini);
+    g_ss_n = style_list(b, g_ss_id, g_ss_v);
     GetPrivateProfileStringA("Bundle", "StyleFirstStep", "d:0.5, 10:0.5", b, sizeof b, g_ini);
     g_sf_n = 0;
     for (char *q = b; *q && g_sf_n < 16; ) {

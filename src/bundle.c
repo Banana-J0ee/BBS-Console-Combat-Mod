@@ -266,9 +266,9 @@ static int MSABI rv_atk(void *L) {
     return 1;
 }
 /* BBS_StyleHit(): for the hit being taken now, a Command Style's step (speed.c speed_style_hit) - two numbers,
-   its revenge value x 100 and the step's token, or -1 and 0 when it is no style hit (the usual value then). */
+   its revenge value x 1000 and the step's token, or -1 and 0 when it is no style hit (the usual value then). */
 static int MSABI rv_style(void *L) {
-    extern int speed_style_hit(int *v100, int *tok);
+    extern int speed_style_hit(int *v1000, int *tok);
     int v = -1, tok = 0;
     if (!speed_style_hit(&v, &tok)) { v = -1; tok = 0; }
     FN(void, LUA_PUSHINT, void*, long long)(L, (long long)v);
