@@ -678,7 +678,7 @@ static void t_comboplus(void) {
         static u8 plate2[0x80]; static u16 rec2[4]; *(u16**)(plate2 + 0x58) = rec2; rec2[0] = 0xd;
         u8 *keep2 = *(u8**)(cmd + 0x1b0 + 2 * 8); int keeplv2 = *(int*)(cmd + 0x1a8);
         *(u8**)(cmd + 0x1b0 + 2 * 8) = plate2; *(int*)(cmd + 0x1a8) = 2;
-        test_style_ini("d:0.5");
+        test_style_ini("d:0.5"); { extern void test_style_steps(const char *s); test_style_steps(""); }
         *(u16*)(pl + 0x304) = 0x10; *(s16*)(pl + 0x310) = 5; *(u16*)(pl + 0x5a2) = 1; test_style_track(pl);
         CHECK(speed_style_hit(&v, &t1) && v == 500, "Rhythm Mixer, first step: 0.5 (%d)", v);
         test_style_track(pl); speed_style_hit(&v, &t2);
@@ -697,8 +697,10 @@ static void t_comboplus(void) {
             int sum = v;
             for (int k = 2; k <= 4; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
             CHECK(sum == 7500, "Wingblade (StyleStep f:1.875): its 4 steps add 7.5 (%d)", sum);
-            rec2[0] = 0xd; *(u16*)(pl + 0x5a2) = 3; test_style_track(pl); speed_style_hit(&v, &t3);
-            CHECK(v == 1000, "Rhythm Mixer's later steps: 1 (%d)", v); }
+            test_style_ini(""); test_style_steps("f:1.875, d:1.25"); rec2[0] = 0xd; sum = 0;
+            for (int k = 1; k <= 6; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
+            CHECK(sum == 7500, "Rhythm Mixer (StyleStep d:1.25): its 6 steps add 7.5 (%d)", sum);
+            test_style_steps(""); }
         *(int*)(cmd + 0x1a8) = 0; *(u16*)(pl + 0x304) = 0x10; *(u16*)(pl + 0x5a2) = 1; test_style_track(pl);
         CHECK(!speed_style_hit(&v, &t3), "the base combo: no style hit");
         *(u8**)(cmd + 0x1b0 + 2 * 8) = keep2; *(int*)(cmd + 0x1a8) = keeplv2; *(u16*)(pl + 0x304) = 0; *(u16*)(pl + 0x5a2) = 0;
