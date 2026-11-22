@@ -1820,7 +1820,9 @@ static void t_speed(void) {
       CHECK(test_hop_hit(p), "an Attack hit in the air hops");
       memcpy(other, hit, 0x28); *(u8**)(p + 0x5b8) = other;
       other[5] = 0x20; CHECK(!test_hop_hit(p), "a FLOAT record does not");
-      other[5] = 0; other[4] = 0x1a; CHECK(!test_hop_hit(p), "a RISE record (the launcher) does not");
+      other[5] = 0; other[4] = 0x1a; CHECK(test_hop_hit(p), "an air hit with RISE (Ventus' 17 18 19, Aqua's 302..305) hops (AirHopRise)");
+      { extern int *test_hop_rise(void); *test_hop_rise() = 0; CHECK(!test_hop_hit(p), "AirHopRise=0: it does not"); *test_hop_rise() = 1; }
+      other[4] = 0x18; CHECK(!test_hop_hit(p), "a RISE record without AERIAL (the ground launcher 16 / 301 / 582) does not");
       other[4] = 0x2a; CHECK(!test_hop_hit(p), "a DOWN record (Terra's plunge) does not");
       other[4] = 0x08; CHECK(!test_hop_hit(p), "a record without AERIAL does not");
       *(u8**)(p + 0x5b8) = hit; *(s16*)(p + 0x310) = 3; CHECK(!test_hop_hit(p), "an attack command (part 3) does not");

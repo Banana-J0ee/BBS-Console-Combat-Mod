@@ -37,7 +37,8 @@
       every aerial hit starts with vy = 0, no sinking at all before frMoveEnd, 16 % gravity after it, and the next
       hit starts again from vy = 0.  KH2 gives each air hit an upward speed instead (Sora: first hit 8, then 6, the
       finisher 12 - per 1/60 s, in units of about a centimetre) and leaves gravity on.  Here, for the hits of the
-      Attack button in the air (state 0x10 part 5, records with AERIAL and none of RISE / DOWN / FLOAT):
+      Attack button in the air (state 0x10 part 5, records with AERIAL and neither DOWN nor FLOAT; RISE ones - Ventus'
+      and Aqua's normal air hits - only with AirHopRise):
         - when a hit starts, vy = the speed that brings the player back to the height he started the hit at by the
           time the next hit can start (frChangeEnable, at the speed the animation plays): g * T / 2, times
           AirHopKeep (below 1 = a little lower after every hit), times AirHopFirst for the first hit in the air;
@@ -88,6 +89,7 @@ static float c_cast_max = 2.5f;
 static int   c_hop = 1, c_airlog = 0;
 static int   c_jump_hang = 0;           /* 1 = the game's 6-frame hang at the top of a jump (and any fall) */
 static float c_hop_keep = 0.9f, c_hop_first = 1.2f, c_hop_fin = 0.6f, c_hop_grav = 1.0f;
+static int   c_hop_rise = 1;            /* AERIAL + RISE records hop too (Ventus' and Aqua's normal air hits) */
 static int   c_reach = 1;
 static float c_reach_min = 0.5f, c_reach_max = 1.9f;
 static int   c_launch = 1;              /* KH2's height band for the rising attack (the launcher) */
@@ -98,14 +100,18 @@ static float c_launch_min = 1.1f, c_launch_max = 4.35f, c_launch_reach = 2.6f;
 #define P_FLOAT  0x2000
 static u8 *local_player(void) { u8 *m = G(u8*, 0x10f9ee40); return m ? *(u8**)(m + 0x118) : NULL; }
 static const u8 *g_hop_live;            /* the record of the hit that is hopping now (started in the air) */
-/* an Attack-button hit in the air that hops, KH2-style */
+/* an Attack-button hit in the air that hops, KH2-style.  RISE marks the hits the game pulls up towards a target
+   above (229fa0: in the air vy = (10 dy + 4) u, 0 for a target below); Ventus' and Aqua's normal air hits carry it
+   (Ventus 17 18 19 23, Aqua 302..305: AERIAL | RISE | EXMOVE), Terra's do not (583..585: AERIAL | EXMOVE), so only
+   Terra hopped.  With AirHopRise they hop as well (AirReach takes the place of the game's pull, as for the others);
+   the ground launchers (16 / 301 / 582) are RISE without AERIAL and stay the game's. */
 static int hop_hit(u8 *pl) {
     if (!c_hop || !pl || pl != local_player()) return 0;
     if (*(u16*)(pl + 0x304) != 0x10 || *(s16*)(pl + 0x310) != 5 || !(*(u32*)(pl + 0x318) & 0x800000)) return 0;
     const u8 *rec = *(u8**)(pl + 0x5b8);
     if (!rec) return 0;
     u16 fl = *(u16*)(rec + 4);
-    return (fl & P_AERIAL) && !(fl & (P_RISE | P_DOWN | P_FLOAT));
+    return (fl & P_AERIAL) && !(fl & (P_DOWN | P_FLOAT)) && (c_hop_rise || !(fl & P_RISE));
 }
 #define CMD_IDS 0x240
 static float g_cmd_speed[CMD_IDS];      /* [CommandSpeed]: speed of one command, 0 = not listed */
@@ -866,6 +872,7 @@ int speed_check(void) {
     c_as_lock = ini_f("AirSlideLock", c_as_lock); if (c_as_lock < 0.0f) c_as_lock = 0.0f; if (c_as_lock > 5.0f) c_as_lock = 5.0f;
     c_hop_keep = ini_f("AirHopKeep", c_hop_keep); c_hop_first = ini_f("AirHopFirst", c_hop_first);
     c_hop_fin = ini_f("AirHopFinisher", c_hop_fin); c_hop_grav = ini_f("AirHopGravity", c_hop_grav);
+    c_hop_rise = (int)ini_f("AirHopRise", (float)c_hop_rise);
     if (c_hop_grav < 0.1f) c_hop_grav = 0.1f;
     if (c_hop_grav > 3.0f) c_hop_grav = 3.0f;
     int listed = 0;
@@ -957,6 +964,7 @@ float *test_cmd_speed(void) { return g_cmd_speed; }
 void  test_hop_frame(u8 *pl) { hop_frame(pl); }
 int   test_hop_hit(u8 *pl) { return hop_hit(pl); }
 int   *test_hop_on(void) { return &c_hop; }
+int   *test_hop_rise(void) { return &c_hop_rise; }
 int   *test_jump_hang(void) { return &c_jump_hang; }
 float *test_hop_keep(void) { return &c_hop_keep; }
 int   *test_reach_on(void) { return &c_reach; }
