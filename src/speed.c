@@ -774,15 +774,25 @@ static void style_track(u8 *pl) {
         /* a new step: the combo counter moved, or the attack has just started (after a dodge, a jump, standing -
            step 1, dodge, step 1 again is two steps) */
         int cnt = *(u16*)(pl + 0x5a2);
-        if (g_st_kind != 1 || cnt != g_st_step || was != 1) { g_st_kind = 1; g_st_step = cnt; g_st_tok++; g_st_att = cur_style_attack(); }
+        if (g_st_kind != 1 || cnt != g_st_step || was != 1) {
+            g_st_kind = 1; g_st_step = cnt; g_st_tok++; g_st_att = cur_style_attack();
+            if (g_debug && g_st_att) { const u8 *r = *(u8**)(pl + 0x5b8);
+                LOG("style: count %d - step %d of style attack %x, record %ld", g_st_tok & 0xffffff, cnt, g_st_att, r ? (long)patk_index(r) : -1L); }
+        }
         g_st_in = 1;
     } else if (st == 0x14) {
-        if (g_st_kind != 2 || was != 2) { g_st_kind = 2; g_st_tok++; g_st_att = cur_style_attack(); }
+        if (g_st_kind != 2 || was != 2) {
+            g_st_kind = 2; g_st_tok++; g_st_att = cur_style_attack();
+            if (g_debug && g_st_att) LOG("style: count %d - finisher of style attack %x", g_st_tok & 0xffffff, g_st_att);
+        }
         g_st_in = 2;
     } else if ((st >= 0x10 && st <= 0x13) || (st >= 0x15 && st <= 0x19)) g_st_kind = 0;   /* another action */
     /* else (idle, moving, falling, landing ...): the last step's shots still count as that step */
 }
 int speed_style_hit(int *v1000, int *tok) {
+    /* the hit can come before the player's update in the frame a step starts (windows from frame 0: Aqua's 358,
+       Terra's 638): look at the player now, not only at the last update */
+    style_track(local_player());
     if (!c_style_once || !g_st_kind || !g_st_att) return 0;
     float v = 1.0f;
     if (g_st_kind == 2) v = c_style_fin;
@@ -791,6 +801,7 @@ int speed_style_hit(int *v1000, int *tok) {
         if (g_st_step == 1) for (int i = 0; i < g_sf_n; i++) if (g_sf_id[i] == g_st_att) v = g_sf_v[i];
     }
     *v1000 = (int)(v * 1000.0f + 0.5f); *tok = g_st_tok & 0xffffff;
+    if (g_debug) LOG("style: a hit with count %d, worth %.3f (the boss adds it once per count)", *tok, v);
     return 1;
 }
 void test_style_track(u8 *pl) { style_track(pl); }

@@ -697,6 +697,10 @@ static void t_comboplus(void) {
             *(u16*)(pl + 0x304) = 1; test_style_track(pl);
             *(u16*)(pl + 0x304) = 0x14; test_style_track(pl); speed_style_hit(&v, &t5);
             CHECK(t5 != t4, "a finisher, standing, a finisher again: two");
+            *(u16*)(pl + 0x304) = 0x10; *(u16*)(pl + 0x5a2) = 1; test_style_track(pl); speed_style_hit(&v, &t4);
+            *(u16*)(pl + 0x5a2) = 2; speed_style_hit(&v, &t5);                     /* before the player's update */
+            CHECK(t5 != t4, "a hit in the frame the next step starts, before the update: that step's count");
+            test_style_track(pl); speed_style_hit(&v, &t4); CHECK(t4 == t5, "... and the update keeps it");
             *(u16*)(pl + 0x304) = 1; test_style_track(pl); speed_style_hit(&v, &t3);
             *(u16*)(pl + 0x304) = 0x10; *(u16*)(pl + 0x5a2) = 2; test_style_track(pl); speed_style_hit(&v, &t2);
             *(u16*)(pl + 0x304) = 1; test_style_track(pl); }
