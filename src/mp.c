@@ -451,15 +451,25 @@ static void fx_spend(int id) {
 static void MSABI fx_hit_hook(u8 *g, int n) {
     u8 *pl = player();
     int id = pl ? *(u16*)(pl + 0x312) : 0;
-    if (g_debug && pl) {                 /* debug: every hit that lands (keyblade, shots, projectiles) - for counting combos */
-        u8 *m = MGR, *base = m ? *(u8**)(m + 0x128) : NULL, *rec = *(u8**)(pl + 0x5b8), *cmd = CMD;
-        LOG("hit: level %d command %x record %ld state %x/%d", cmd ? *(int*)(cmd + 0x1a8) : -1, id,
-            base && rec >= base ? (long)((rec - base) / 0x28) : -1L, *(u16*)(pl + 0x304), *(s16*)(pl + 0x310));
-    }
     if (!c_fx_hit_focus && mp_fx(id)) { if (g_debug) LOG("focus exchange: hit of command %x - no Focus (%d)", id, n); return; }
     FN(void, FN_FOCUS_ADD, u8*, int)(g, n);
 }
 void test_fx_hit(u8 *g, int n) { fx_hit_hook(g, n); }
+/* debug only: every hit the player lands, with its target.  231900 (cmd, power, target id, kind) is called once per
+   hit from the keyblade's hit handler [293e5a: r8 = the struck entity's +0x8c] and the hit code of shots and other
+   attacks; its six calls go through hit_log first when bbskh2_debug.txt is there.  For counting combos per enemy. */
+static const u32 k_hit_sites[] = { 0x21bb2e, 0x293e5a, 0x2d248c, 0x2d6432, 0x2fd68d, 0x2fd7af };
+#define FN_PLAYER_HIT 0x231900u
+static u64 MSABI hit_log(u8 *cmd, float power, u64 target, u32 kind) {
+    u8 *pl = player();
+    if (pl) {
+        u8 *m = MGR, *base = m ? *(u8**)(m + 0x128) : NULL, *rec = *(u8**)(pl + 0x5b8);
+        LOG("hit: target %llx level %d command %x record %ld state %x/%d", (unsigned long long)(u32)target,
+            cmd ? *(int*)(cmd + 0x1a8) : -1, *(u16*)(pl + 0x312), base && rec >= base ? (long)((rec - base) / 0x28) : -1L,
+            *(u16*)(pl + 0x304), *(s16*)(pl + 0x310));
+    }
+    return FN(u64, FN_PLAYER_HIT, u8*, float, u64, u32)(cmd, power, target, kind);
+}
 int *test_fx_hit_focus(void) { return &c_fx_hit_focus; }
 static int plate_id(u8 *P) { u16 *k = P ? *(u16**)(P + 0x58) : NULL; return k ? k[0] : 0; }
 static int text_width(const u8 *p, const u8 *end) {        /* characters shown, roughly */
@@ -1426,6 +1436,10 @@ int mod_install(void) {
     hook_call(0x233d40, 0x2063c0, use_hook, "deck_use");
     hook_call(0x206a6e, 0x1ce550, reload_hook, "reload");
     hook_call(FX_HIT_SITE, FN_FOCUS_ADD, fx_hit_hook, "Focus Exchange: no Focus from physical command hits");
+    if (g_debug)
+        for (unsigned i = 0; i < sizeof k_hit_sites / sizeof *k_hit_sites; i++)
+            if (call_ok(k_hit_sites[i], FN_PLAYER_HIT)) hook_call(k_hit_sites[i], FN_PLAYER_HIT, hit_log, "debug: hit log");
+            else LOG("debug: hit log site %x does not match", k_hit_sites[i]);
     if (c_retry_refill || c_retry_items) {
         hook_call(GO_SITE_0, GO_FN_0, go_hook_0, "game over: continue");
         hook_call(GO_SITE_1, GO_FN_1, go_hook_1, "game over: choice 1");

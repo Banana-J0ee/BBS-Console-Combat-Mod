@@ -2198,7 +2198,7 @@ static void t_bundle(void) {
             for (u32 k = 0; k < rs; k++) if (g_base[va + k] != d[ro + k]) diff++;
         }
         printf("  code bytes differing from the original exe: %ld (our own hooks)\n", diff);
-        CHECK(diff > 0 && diff < 450, "only our hook sites differ");
+        CHECK(diff > 0 && diff < 500, "only our hook sites differ");      /* 465 with the debug-only hit log */
         CHECK(!memcmp(RVA(0x62f080), d + 0x400 + 0x62e080, 349), "the old Combo Flow routines are not installed (speed.c has the walk-out)");
         CHECK(*(u8*)RVA(0x2291bf) == 0xe9 && *(u8*)RVA(0x26825f) == 0xe9 && *(u8*)RVA(0x26828a) == 0xe9, "its three sites carry our hooks");
     } else printf("  (code comparison skipped: BBS_EXE not set)\n");
