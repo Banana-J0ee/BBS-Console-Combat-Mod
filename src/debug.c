@@ -158,5 +158,6 @@ void dbg_start(void) {
     g_debug = 1;
     LOG("debug channel enabled");
     cam_trace_install();
+    { extern void mp_debug_hooks(void); mp_debug_hooks(); }
     CreateThread(NULL, 0, dbg_thread, NULL, 0, NULL);
 }

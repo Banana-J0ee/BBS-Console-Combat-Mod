@@ -470,6 +470,15 @@ static u64 MSABI hit_log(u8 *cmd, float power, u64 target, u32 kind) {
     }
     return FN(u64, FN_PLAYER_HIT, u8*, float, u64, u32)(cmd, power, target, kind);
 }
+/* from dbg_start (debug.c), which runs after the install - g_debug is not set yet while mp installs its hooks */
+static int call_ok(u32 rva, u32 target);
+void mp_debug_hooks(void) {
+    int n = 0;
+    for (unsigned i = 0; i < sizeof k_hit_sites / sizeof *k_hit_sites; i++)
+        if (call_ok(k_hit_sites[i], FN_PLAYER_HIT) && hook_call(k_hit_sites[i], FN_PLAYER_HIT, hit_log, "debug: hit log")) n++;
+        else LOG("debug: hit log site %x does not match", k_hit_sites[i]);
+    LOG("debug: hit log, %d call sites", n);
+}
 int *test_fx_hit_focus(void) { return &c_fx_hit_focus; }
 static int plate_id(u8 *P) { u16 *k = P ? *(u16**)(P + 0x58) : NULL; return k ? k[0] : 0; }
 static int text_width(const u8 *p, const u8 *end) {        /* characters shown, roughly */
@@ -1436,10 +1445,7 @@ int mod_install(void) {
     hook_call(0x233d40, 0x2063c0, use_hook, "deck_use");
     hook_call(0x206a6e, 0x1ce550, reload_hook, "reload");
     hook_call(FX_HIT_SITE, FN_FOCUS_ADD, fx_hit_hook, "Focus Exchange: no Focus from physical command hits");
-    if (g_debug)
-        for (unsigned i = 0; i < sizeof k_hit_sites / sizeof *k_hit_sites; i++)
-            if (call_ok(k_hit_sites[i], FN_PLAYER_HIT)) hook_call(k_hit_sites[i], FN_PLAYER_HIT, hit_log, "debug: hit log");
-            else LOG("debug: hit log site %x does not match", k_hit_sites[i]);
+
     if (c_retry_refill || c_retry_items) {
         hook_call(GO_SITE_0, GO_FN_0, go_hook_0, "game over: continue");
         hook_call(GO_SITE_1, GO_FN_1, go_hook_1, "game over: choice 1");
