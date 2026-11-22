@@ -770,7 +770,7 @@ void test_cp_list(const char *s) {
    finisher StyleFinisherRevenge once.  The step: a new combo hit picked by 2239b0 (pl+0x5a2, the combo counter,
    changes) or a finisher started (state 0x14); hits that land after the step - its shots - still belong to it until
    the player starts another action.  StyleFirstStep = "<attack>:<value>, ...": the first step of those styles'
-   combos (counter 1) adds that much instead (Rhythm Mixer d:0.5 - 7.5 for its 8 steps).  The boss script asks
+   combos (counter 1) adds that much instead (Rhythm Mixer d:0.5 and Frozen Fortune 10:0.5 - 7.5 for their 8 steps).  The boss script asks
    BBS_StyleHit() at each hit (bundle.c). */
 static int   c_style_once = 1;
 static float c_style_fin = 3.0f;
@@ -803,7 +803,7 @@ static void style_hit_ini(void) {
     GetPrivateProfileStringA("Bundle", "StyleHitOnce", "1", b, sizeof b, g_ini); c_style_once = atoi(b);
     GetPrivateProfileStringA("Bundle", "StyleFinisherRevenge", "3", b, sizeof b, g_ini); c_style_fin = (float)atof(b);
     if (c_style_fin < 0.0f) c_style_fin = 0.0f;
-    GetPrivateProfileStringA("Bundle", "StyleFirstStep", "d:0.5", b, sizeof b, g_ini);
+    GetPrivateProfileStringA("Bundle", "StyleFirstStep", "d:0.5, 10:0.5", b, sizeof b, g_ini);
     g_sf_n = 0;
     for (char *q = b; *q && g_sf_n < 16; ) {
         while (*q && !((*q >= '0' && *q <= '9') || (*q >= 'a' && *q <= 'f') || (*q >= 'A' && *q <= 'F'))) q++;
