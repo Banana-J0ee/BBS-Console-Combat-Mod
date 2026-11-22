@@ -756,8 +756,8 @@ void test_cp_list(const char *s) {
    finisher StyleFinisherRevenge once.  The step: a new combo hit picked by 2239b0 (pl+0x5a2, the combo counter,
    changes) or a finisher started (state 0x14); hits that land after the step - its shots - still belong to it until
    the player starts another action.  StyleFirstStep = "<attack>:<value>, ...": the first step of those styles'
-   combos (counter 1) adds that much instead (Frozen Fortune 10:0.5 - under 8);
-   StyleStep = "<attack>:<value>, ...": every step of those styles adds that much (Wingblade f:1.875 - its 4 steps, Rhythm Mixer d:1.5 - its 5 steps, Cyclone 8:1.875, Fever Pitch 4:1.875 and Ghost Drive c:1.875 - their 4 steps,
+   combos (counter 1) adds that much instead (Frozen Fortune 10:0.5 - under 8; Bladecharge 9:2 and Critical Impact 2:2 - 7 with Combo Plus, 4 without);
+   StyleStep = "<attack>:<value>, ...": every step of those styles adds that much (Wingblade f:1.875 - its 4 steps, Rhythm Mixer d:1.5 - its 5 steps, Cyclone 8:1.875, Fever Pitch 4:1.875, Ghost Drive c:1.875 and Dark Impulse e:1.875 - their 4 steps,
    Combo Plus not counted, 7.5).  The boss script asks
    BBS_StyleHit() at each hit (bundle.c). */
 static int   c_style_once = 1;
@@ -825,9 +825,9 @@ static void style_hit_ini(void) {
     GetPrivateProfileStringA("Bundle", "StyleHitOnce", "1", b, sizeof b, g_ini); c_style_once = atoi(b);
     GetPrivateProfileStringA("Bundle", "StyleFinisherRevenge", "3", b, sizeof b, g_ini); c_style_fin = (float)atof(b);
     if (c_style_fin < 0.0f) c_style_fin = 0.0f;
-    GetPrivateProfileStringA("Bundle", "StyleStep", "f:1.875, d:1.5, 8:1.875, 4:1.875, c:1.875", b, sizeof b, g_ini);
+    GetPrivateProfileStringA("Bundle", "StyleStep", "f:1.875, d:1.5, 8:1.875, 4:1.875, c:1.875, e:1.875", b, sizeof b, g_ini);
     g_ss_n = style_list(b, g_ss_id, g_ss_v);
-    GetPrivateProfileStringA("Bundle", "StyleFirstStep", "10:0.5", b, sizeof b, g_ini);
+    GetPrivateProfileStringA("Bundle", "StyleFirstStep", "10:0.5, 9:2, 2:2", b, sizeof b, g_ini);
     g_sf_n = 0;
     for (char *q = b; *q && g_sf_n < 16; ) {
         while (*q && !((*q >= '0' && *q <= '9') || (*q >= 'a' && *q <= 'f') || (*q >= 'A' && *q <= 'F'))) q++;

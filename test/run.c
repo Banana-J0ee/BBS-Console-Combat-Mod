@@ -726,6 +726,16 @@ static void t_comboplus(void) {
             test_style_steps("f:1.875, d:1.5, 8:1.875, 4:1.875, c:1.875"); rec2[0] = 0xc; sum = 0;
             for (int k = 1; k <= 4; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
             CHECK(sum == 7500, "Ghost Drive (StyleStep c:1.875): its 4 steps add 7.5 (%d)", sum);
+            test_style_steps("e:1.875"); rec2[0] = 0xe; sum = 0;
+            for (int k = 1; k <= 4; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
+            CHECK(sum == 7500, "Dark Impulse (StyleStep e:1.875): its 4 steps add 7.5 (%d)", sum);
+            test_style_steps(""); test_style_ini("10:0.5, 9:2, 2:2");
+            for (int st2 = 0; st2 < 2; st2++) {
+                rec2[0] = st2 ? 0x2 : 0x9;
+                for (int n = 3; n <= 6; n += 3) { sum = 0;
+                    for (int k = 1; k <= n; k++) { *(u16*)(pl + 0x5a2) = (u16)(k == n ? 0 : k); test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
+                    CHECK(sum == (n == 3 ? 4000 : 7000), "%s, %d steps (StyleFirstStep %x:2): %d", st2 ? "Critical Impact" : "Bladecharge", n, rec2[0], sum); } }
+            test_style_ini("d:0.5");
             test_style_steps(""); }
         *(int*)(cmd + 0x1a8) = 0; *(u16*)(pl + 0x304) = 0x10; *(u16*)(pl + 0x5a2) = 1; test_style_track(pl);
         CHECK(!speed_style_hit(&v, &t3), "the base combo: no style hit");
