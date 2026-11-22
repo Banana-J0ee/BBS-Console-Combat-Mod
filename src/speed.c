@@ -37,7 +37,9 @@
       every aerial hit starts with vy = 0, no sinking at all before frMoveEnd, 16 % gravity after it, and the next
       hit starts again from vy = 0.  KH2 gives each air hit an upward speed instead (Sora: first hit 8, then 6, the
       finisher 12 - per 1/60 s, in units of about a centimetre) and leaves gravity on.  Here, for the hits of the
-      Attack button in the air (state 0x10 part 5, records with AERIAL and none of RISE / DOWN / FLOAT):
+      Attack button in the air (state 0x10 part 5, records with AERIAL and none of RISE / DOWN; FLOAT ones only when
+      AirHopFloat and they are combo-length - frChangeEnable <= AirHopFloatMax - and not the finisher; AirHopAdd /
+      AirHopSkip name single records; a FLOAT record's gravity step is a quarter of pl+0x508, so its hop writes 4 x g):
         - when a hit starts, vy = the speed that brings the player back to the height he started the hit at by the
           time the next hit can start (frChangeEnable, at the speed the animation plays): g * T / 2, times
           AirHopKeep (below 1 = a little lower after every hit), times AirHopFirst for the first hit in the air;
@@ -88,6 +90,9 @@ static float c_cast_max = 2.5f;
 static int   c_hop = 1, c_airlog = 0;
 static int   c_jump_hang = 0;           /* 1 = the game's 6-frame hang at the top of a jump (and any fall) */
 static float c_hop_keep = 0.9f, c_hop_first = 1.2f, c_hop_fin = 0.6f, c_hop_grav = 1.0f;
+static int   c_hop_float = 1;           /* floating air hits (FLOAT) of combo length hop too */
+static float c_hop_float_max = 35.0f;   /* ... up to this frChangeEnable (frames of 1/30 s); longer ones keep hovering */
+static u8    g_hop_add[128], g_hop_skip[128];   /* [Speed] AirHopAdd / AirHopSkip: PAtk record numbers (bits) */
 static int   c_reach = 1;
 static float c_reach_min = 0.5f, c_reach_max = 1.9f;
 static int   c_launch = 1;              /* KH2's height band for the rising attack (the launcher) */
@@ -98,15 +103,32 @@ static float c_launch_min = 1.1f, c_launch_max = 4.35f, c_launch_reach = 2.6f;
 #define P_FLOAT  0x2000
 static u8 *local_player(void) { u8 *m = G(u8*, 0x10f9ee40); return m ? *(u8**)(m + 0x118) : NULL; }
 static const u8 *g_hop_live;            /* the record of the hit that is hopping now (started in the air) */
-/* an Attack-button hit in the air that hops, KH2-style */
+static long patk_index(const u8 *rec);
+static int is_finisher(const u8 *rec);
+static int bit_on(const u8 *m, long i) { return i >= 0 && i < 1024 && (m[i >> 3] >> (i & 7) & 1); }
+/* an Attack-button hit in the air that hops, KH2-style.  Plain air hits (AERIAL, no RISE / DOWN / FLOAT) hop; with
+   AirHopFloat the floating ones (FLOAT) too, when they are the length of a combo hit (frChangeEnable <= AirHopFloatMax)
+   and not the combo's last hit - Ventus and Aqua have many of them, Terra few.  AirHopAdd / AirHopSkip (PAtk record
+   numbers, as the air log prints them) make one record hop or not, over the rest. */
+static int hop_rec(const u8 *rec) {
+    u16 fl = *(u16*)(rec + 4);
+    if (!(fl & P_AERIAL)) return 0;
+    long i = patk_index(rec);
+    if (bit_on(g_hop_skip, i)) return 0;
+    if (bit_on(g_hop_add, i)) return 1;
+    if (fl & (P_RISE | P_DOWN)) return 0;
+    if (!(fl & P_FLOAT)) return 1;
+    int chg = rec[0x0d] ? rec[0x0d] : rec[0x0c];
+    return c_hop_float && chg > 0 && (float)chg <= c_hop_float_max && !is_finisher(rec);
+}
 static int hop_hit(u8 *pl) {
     if (!c_hop || !pl || pl != local_player()) return 0;
     if (*(u16*)(pl + 0x304) != 0x10 || *(s16*)(pl + 0x310) != 5 || !(*(u32*)(pl + 0x318) & 0x800000)) return 0;
     const u8 *rec = *(u8**)(pl + 0x5b8);
-    if (!rec) return 0;
-    u16 fl = *(u16*)(rec + 4);
-    return (fl & P_AERIAL) && !(fl & (P_RISE | P_DOWN | P_FLOAT));
+    return rec && hop_rec(rec);
 }
+/* a FLOAT record's gravity step is a quarter of pl+0x508 (21cb34: mode bit 13 -> x0.25): a hop on one gets 4 x g there */
+static float hop_g508(const u8 *rec) { return rec && (*(u16*)(rec + 4) & P_FLOAT) ? 4.0f : 1.0f; }
 #define CMD_IDS 0x240
 static float g_cmd_speed[CMD_IDS];      /* [CommandSpeed]: speed of one command, 0 = not listed */
 static float cmd_override(u8 *pl) {
@@ -562,9 +584,9 @@ static u64 MSABI h_mag_lock(Ctx *c) {
    before frMoveEnd, 16 % gravity), r9d = mode (0 = plain gravity, 0x2000 = FLOAT record) */
 static u64 MSABI h_gravity(Ctx *c) {
     u32 mode = (u32)c->r9;
-    if (mode && !(mode & 0x2000) && hop_hit((u8*)c->rcx) && g_hop_live && *(const u8**)((u8*)c->rcx + 0x5b8) == g_hop_live) {           /* a hop: plain gravity, nothing holds it up */
+    if (mode && hop_hit((u8*)c->rcx) && g_hop_live && *(const u8**)((u8*)c->rcx + 0x5b8) == g_hop_live) {           /* a hop: plain gravity, nothing holds it up */
         u8 *pl = (u8*)c->rcx;
-        float g = *(float*)(pl + 0x32c) * c_hop_grav, never = 1.0e9f;
+        float g = *(float*)(pl + 0x32c) * c_hop_grav * hop_g508(g_hop_live), never = 1.0e9f;
         memcpy(c->xmm[0], &g, 4);                                       /* written to pl+0x508 at 21cb7d */
         memcpy(c->xmm[4], &never, 4);                                     /* frMoveEnd: never reached, the rise is not cut */
         c->rax &= ~(u64)0x800000;                                       /* no no-sink clamp */
@@ -696,7 +718,7 @@ static void hop_frame(u8 *pl) {
         }
         if (v < 0.0f) v = 0.0f;
         *(float*)(pl + 0x50c) = v; *(float*)(pl + 0x510) = v;
-        *(float*)(pl + 0x508) = *(float*)(pl + 0x32c) * c_hop_grav;
+        *(float*)(pl + 0x508) = *(float*)(pl + 0x32c) * c_hop_grav * hop_g508(rec);
         if (g_debug || c_airlog) LOG("air: hop %d, record %d, vy %.4f", g_hop_n, (int)patk_index(rec), v);
         g_hop_n++;
     }
@@ -866,6 +888,19 @@ int speed_check(void) {
     c_as_lock = ini_f("AirSlideLock", c_as_lock); if (c_as_lock < 0.0f) c_as_lock = 0.0f; if (c_as_lock > 5.0f) c_as_lock = 5.0f;
     c_hop_keep = ini_f("AirHopKeep", c_hop_keep); c_hop_first = ini_f("AirHopFirst", c_hop_first);
     c_hop_fin = ini_f("AirHopFinisher", c_hop_fin); c_hop_grav = ini_f("AirHopGravity", c_hop_grav);
+    c_hop_float = (int)ini_f("AirHopFloat", (float)c_hop_float); c_hop_float_max = ini_f("AirHopFloatMax", c_hop_float_max);
+    {   static const char *keys[2] = { "AirHopAdd", "AirHopSkip" }; u8 *maps[2] = { g_hop_add, g_hop_skip };
+        for (int k = 0; k < 2; k++) {
+            char b[512]; memset(maps[k], 0, 128);
+            GetPrivateProfileStringA("Speed", keys[k], "", b, sizeof b, g_ini);
+            for (char *q = b; *q; ) {
+                while (*q && (*q < '0' || *q > '9')) q++;
+                if (!*q) break;
+                long v = strtol(q, &q, 10);
+                if (v >= 0 && v < 1024) maps[k][v >> 3] |= (u8)(1 << (v & 7));
+            }
+        }
+    }
     if (c_hop_grav < 0.1f) c_hop_grav = 0.1f;
     if (c_hop_grav > 3.0f) c_hop_grav = 3.0f;
     int listed = 0;
@@ -963,6 +998,8 @@ int   *test_reach_on(void) { return &c_reach; }
 int   *test_launch_on(void) { return &c_launch; }
 u64   test_h_launch(Ctx *c) { return h_launch(c); }
 const u8 **test_hop_live(void) { return &g_hop_live; }
+int *test_hop_float(void) { return &c_hop_float; }
+void test_hop_list(int skip, int rec, int on) { u8 *m = skip ? g_hop_skip : g_hop_add; if (on) m[rec >> 3] |= (u8)(1 << (rec & 7)); else m[rec >> 3] &= (u8)~(1 << (rec & 7)); }
 void  test_speed_frame(u8 *pl) { speed_frame(pl); }
 float test_done_frame(u8 *pl, const u8 *rec, int kind) { return done_frame(pl, rec, kind); }
 int   test_leave(u8 *pl, int kind) { return leave(pl, kind); }

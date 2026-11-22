@@ -1819,7 +1819,18 @@ static void t_speed(void) {
       *(u16*)(p + 0x304) = 0x10; *(s16*)(p + 0x310) = 5; *(u32*)(p + 0x318) = 0x800000 | 0x400000; *(u8**)(p + 0x5b8) = hit;
       CHECK(test_hop_hit(p), "an Attack hit in the air hops");
       memcpy(other, hit, 0x28); *(u8**)(p + 0x5b8) = other;
-      other[5] = 0x20; CHECK(!test_hop_hit(p), "a FLOAT record does not");
+      {   extern int *test_hop_float(void); extern void test_hop_list(int skip, int rec, int on);
+          other[5] = 0x20; CHECK(test_hop_hit(p), "a FLOAT record the length of a combo hit hops (AirHopFloat)");
+          *test_hop_float() = 0; CHECK(!test_hop_hit(p), "AirHopFloat=0: a FLOAT record does not"); *test_hop_float() = 1;
+          other[0x0d] = 53; CHECK(!test_hop_hit(p), "a long FLOAT move (frChangeEnable 53) keeps hovering");
+          test_hop_list(0, 30, 1); CHECK(test_hop_hit(p), "AirHopAdd 30: that one hops after all"); test_hop_list(0, 30, 0);
+          other[0x0d] = 15; test_hop_list(1, 30, 1); CHECK(!test_hop_hit(p), "AirHopSkip 30: that one does not"); test_hop_list(1, 30, 0);
+          memcpy(patk + 27 * 0x28, other, 0x28); *(u8**)(p + 0x5b8) = patk + 27 * 0x28;
+          CHECK(!test_hop_hit(p), "a FLOAT combo finisher (Ventus' record 27) keeps hovering");
+          *(u8**)(p + 0x5b8) = other;
+          other[4] = 0x0a; test_hop_list(1, 30, 1); CHECK(!test_hop_hit(p), "AirHopSkip works on a plain air hit too"); test_hop_list(1, 30, 0);
+          other[4] = 0x1a; test_hop_list(0, 30, 1); CHECK(test_hop_hit(p), "AirHopAdd works on a RISE record too"); test_hop_list(0, 30, 0);
+          other[4] = 0x0a; }
       other[5] = 0; other[4] = 0x1a; CHECK(!test_hop_hit(p), "a RISE record (the launcher) does not");
       other[4] = 0x2a; CHECK(!test_hop_hit(p), "a DOWN record (Terra's plunge) does not");
       other[4] = 0x08; CHECK(!test_hop_hit(p), "a record without AERIAL does not");
@@ -1853,6 +1864,20 @@ static void t_speed(void) {
       CHECK(top > 0.2f && top < 0.8f && y > -0.2f && y < 0.4f && vmin < -0.05f && (*(u32*)(p + 0x318) & 0x800000), "a hop: up %.2f, back near the start by the next hit (%+.2f)", top, y);
       *(float*)(p + 0x50c) = 0.05f; FN(void, 0x21cb00, u8*, float, float, int)(p, 10.0f, 8.0f, 1);
       CHECK(*(float*)(p + 0x50c) > 0.04f, "rising past frMoveEnd is not cut (vy %.4f)", *(float*)(p + 0x50c));
+      /* a FLOAT hit that hops: the integrator takes a quarter of pl+0x508 for FLOAT (mode 0x2000), so the hop writes
+         4 x g there; the hop then rises and falls as the plain one did */
+      {   u8 *fl = patk + 23 * 0x28; memcpy(fl, hit, 0x28); fl[5] = 0x20;
+          FR(10); test_hop_frame(p); FR(0); *(float*)(p + 0x50c) = 0.0f; *(u8**)(p + 0x5b8) = fl; test_hop_frame(p);
+          float vf = *(float*)(p + 0x50c), y2 = 0, top2 = 0;
+          CHECK(vf > 0.0f && *(float*)(p + 0x508) == g * 4.0f, "a FLOAT hop: vy %.4f, pl+0x508 = 4 x g (%.5f)", vf, *(float*)(p + 0x508));
+          for (int t = 1; t <= 30; t++) {
+              FN(void, 0x21cb00, u8*, float, float, int)(p, t * 0.5f, 8.0f, 0x2000);
+              y2 += *(float*)(p + 0x50c); if (y2 > top2) top2 = y2;
+          }
+          float dv = vf - *(float*)(p + 0x50c);
+          CHECK(top2 > 0.1f && top2 < 0.8f && y2 > -0.3f && y2 < 0.4f && dv > 30 * -g * 0.9f && dv < 30 * -g * 1.1f,
+                "... full gravity through the game's integrator: up %.2f, %+.2f after 30 ticks, vy fell by %.4f", top2, y2, dv);
+          *(u8**)(p + 0x5b8) = hit; }
       /* the next hit of the combo: no first-hit factor; with AirHopKeep 1 the height is kept */
       FR(10); test_hop_frame(p); FR(0); *(float*)(p + 0x50c) = -0.08f;
       *(u8**)(p + 0x5b8) = patk + 19 * 0x28; memcpy(patk + 19 * 0x28, hit, 0x28);
