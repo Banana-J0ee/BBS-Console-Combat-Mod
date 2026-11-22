@@ -718,6 +718,46 @@ static void hop_frame(u8 *pl) {
 }
 /* ---- air log ---- */
 static int g_air_on; static float g_air_t, g_air_y, g_air_top;
+/* debug only: each step of an Attack combo or a finisher (state 0x10 part 5, state 0x14) - the style level (cmd+0x1a8),
+   the command, the PAtk record, ground / air and the hit windows of the body and the weapon (on - off frames, 1/30 s),
+   one line on the step's second frame (the collision controllers are set up by then).  For counting the hits of the
+   Command Styles' combos against the revenge limits. */
+static const u8 *g_cl_rec; static float g_cl_fr; static int g_cl_due;
+static void win_list(u8 *ent, char *b, size_t sz, int *n) {
+    if (!ent) return;
+    u8 *ctl = *(u8**)(ent + 0x88); if (!ctl) return;
+    int cnt = *(s32*)(ctl + 0x20); u8 *e = *(u8**)(ctl + 0x28);
+    if (!e || cnt <= 0 || cnt > 64) return;
+    for (int i = 0; i < cnt; i++, e += 0x90) {
+        u8 *d = *(u8**)(e + 0x48); if (!d) continue;
+        for (int k = 0; k < 2; k++) {
+            if (k && *(s16*)(d + 0x30) < 0) break;
+            s16 on = *(s16*)(d + (k ? 0x30 : 0x24)), off = *(s16*)(d + (k ? 0x32 : 0x26));
+            size_t l = strlen(b);
+            if (l + 16 < sz) snprintf(b + l, sz - l, " %d-%d", on, off);
+            (*n)++;
+        }
+    }
+}
+static void combo_log(u8 *pl) {
+    if (!g_debug || pl != local_player()) return;
+    u16 st = *(u16*)(pl + 0x304);
+    const u8 *rec = *(u8**)(pl + 0x5b8);
+    if (!((st == 0x10 && *(s16*)(pl + 0x310) == 5) || st == 0x14) || !rec) { g_cl_rec = NULL; g_cl_due = 0; return; }
+    float fr = frame_of(pl);
+    if (rec != g_cl_rec || fr + 0.5f < g_cl_fr) { g_cl_due = 1; g_cl_rec = rec; g_cl_fr = fr; return; }
+    g_cl_fr = fr;
+    if (!g_cl_due) return;
+    g_cl_due = 0;
+    u8 *cmd = G(u8*, 0x10f9ed40);
+    char b[400] = ""; int n = 0;
+    win_list(pl, b, sizeof b, &n);
+    size_t l = strlen(b); if (l + 4 < sizeof b) snprintf(b + l, sizeof b - l, " |");
+    win_list(*(u8**)(pl + 0x378), b, sizeof b, &n);
+    LOG("combo: %s level %d command %x record %ld %s, %d hit windows:%s", st == 0x14 ? "finisher" : "step",
+        cmd ? *(int*)(cmd + 0x1a8) : -1, *(u16*)(pl + 0x312), patk_index(rec),
+        (*(u32*)(pl + 0x318) & 0x400000) ? "air" : "ground", n, b);
+}
 static void air_log(u8 *pl) {
     if (!c_airlog || pl != local_player()) return;
     int up = (*(u32*)(pl + 0x318) & 0x400000) != 0;
@@ -840,6 +880,7 @@ static void MSABI tick_hook(u8 *pl) {
     if (pl == local_player()) { g_tick++; air_slide_frame(pl); }
     if (c_on) speed_frame(pl);
     if (c_on) { hop_frame(pl); air_log(pl); }
+    combo_log(pl);
     g_fall = NULL;
     if (g_debug && pl == local_player()) {
         DWORD own = GetTickCount() - t0;
