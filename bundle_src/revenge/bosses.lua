@@ -309,7 +309,7 @@ cfg.b10ex02 = { limit = 8, fire = 0.5, armorStates = vanitasArmor, answer = mask
                 tempo = vanitasTempo }   -- the late one
 -- Aqua's final fight: at range the script can only cartwheel, so let it.
 cfg.b63ex00 = {
-  limit = 7.5,
+  limit = 8,                    -- (2026-11-21, asked for: 7.5 -> 8)
   tempo = { idle = { Idling = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true } },
   -- his specials are armoured in BBS already; his combo's opening is too here (it comes out,
   -- its end can be punished)
@@ -325,7 +325,8 @@ cfg.b63ex00 = {
 }
 
 -- Vanitas (Ventus's final fight): growing chance of Dark Splicer per hit.
-cfg.b11ex00 = { limit = 7.5, pre = dmgCountPre, counter = vanitasCounter,
+cfg.b11ex00 = { limit = 8,       -- (2026-11-21, asked for: 7.5 -> 8)
+                pre = dmgCountPre, counter = vanitasCounter,
   -- gaps: his Idling (ground) and Hovering (air phase) wait with SetTimer; repositions only on the ground
   tempo = { idle = { Idling = "timer", Hovering = "timer" }, pop = { BackhandsSpringJump = true, Cartwheel = true },
             repoAt = { Idling = true } },
