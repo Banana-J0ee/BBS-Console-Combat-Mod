@@ -714,16 +714,16 @@ static void t_comboplus(void) {
             int sum = v;
             for (int k = 2; k <= 4; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
             CHECK(sum == 7500, "Wingblade (StyleStep f:1.875): its 4 steps add 7.5 (%d)", sum);
-            test_style_ini(""); test_style_steps("f:1.875, d:1.25"); rec2[0] = 0xd; sum = 0;
-            for (int k = 1; k <= 6; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
-            CHECK(sum == 7500, "Rhythm Mixer (StyleStep d:1.25): its 6 steps add 7.5 (%d)", sum);
-            test_style_steps("f:1.875, d:1.25, 8:1.875"); rec2[0] = 0x8; sum = 0;
+            test_style_ini(""); test_style_steps("f:1.875, d:1.5"); rec2[0] = 0xd; sum = 0;
+            for (int k = 1; k <= 5; k++) { *(u16*)(pl + 0x5a2) = (u16)(k == 5 ? 0 : k); test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
+            CHECK(sum == 7500, "Rhythm Mixer (StyleStep d:1.5): its 5 steps add 7.5 (%d)", sum);
+            test_style_steps("f:1.875, d:1.5, 8:1.875"); rec2[0] = 0x8; sum = 0;
             for (int k = 1; k <= 4; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
             CHECK(sum == 7500, "Cyclone (StyleStep 8:1.875): its 4 steps add 7.5 (%d)", sum);
-            test_style_steps("f:1.875, d:1.25, 8:1.875, 4:1.875"); rec2[0] = 0x4; sum = 0;
+            test_style_steps("f:1.875, d:1.5, 8:1.875, 4:1.875"); rec2[0] = 0x4; sum = 0;
             for (int k = 1; k <= 4; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
             CHECK(sum == 7500, "Fever Pitch (StyleStep 4:1.875): its 4 steps add 7.5 (%d)", sum);
-            test_style_steps("f:1.875, d:1.25, 8:1.875, 4:1.875, c:1.875"); rec2[0] = 0xc; sum = 0;
+            test_style_steps("f:1.875, d:1.5, 8:1.875, 4:1.875, c:1.875"); rec2[0] = 0xc; sum = 0;
             for (int k = 1; k <= 4; k++) { *(u16*)(pl + 0x5a2) = (u16)k; test_style_track(pl); speed_style_hit(&v, &t3); sum += v; }
             CHECK(sum == 7500, "Ghost Drive (StyleStep c:1.875): its 4 steps add 7.5 (%d)", sum);
             test_style_steps(""); }
