@@ -100,12 +100,10 @@ static float c_launch_min = 1.1f, c_launch_max = 4.35f, c_launch_reach = 2.6f;
 #define P_FLOAT  0x2000
 static u8 *local_player(void) { u8 *m = G(u8*, 0x10f9ee40); return m ? *(u8**)(m + 0x118) : NULL; }
 static const u8 *g_hop_live;            /* the record of the hit that is hopping now (started in the air) */
-/* an Attack-button hit in the air that hops, KH2-style.  RISE marks the hits the game steers to the target's height
-   (229fa0, in the air: vy = (10 dy + 4) u for a target above, (10 dy - 4) u - a dive - for one below, within +-44 u);
-   Ventus' and Aqua's normal air hits carry it
+/* an Attack-button hit in the air that hops, KH2-style.  RISE marks the hits the game pulls up towards a target
+   above (229fa0: in the air vy = (10 dy + 4) u, 0 for a target below); Ventus' and Aqua's normal air hits carry it
    (Ventus 17 18 19 23, Aqua 302..305: AERIAL | RISE | EXMOVE), Terra's do not (583..585: AERIAL | EXMOVE), so only
-   Terra hopped.  With AirHopRise they hop as well (AirReach takes the place of the game's pull, as for the others),
-   except with the target below: then the game's dive (hop_frame);
+   Terra hopped.  With AirHopRise they hop as well (AirReach takes the place of the game's pull, as for the others);
    the ground launchers (16 / 301 / 582) are RISE without AERIAL and stay the game's. */
 static int hop_hit(u8 *pl) {
     if (!c_hop || !pl || pl != local_player()) return 0;
@@ -682,12 +680,6 @@ static void hop_frame(u8 *pl) {
        the air hop.  "In the air" here: pl+0x318 bit 22, set by the player's update when it ended airborne
        [220550 tail] - 264a10 itself is not called, it can play a landing effect (292350). */
     if (fresh && !(*(u32*)(pl + 0x318) & 0x400000)) { g_hop_live = NULL; g_hop_rec = rec; g_hop_fr = fr; return; }
-    /* A RISE air hit with its target below dives to it in the game (229fa0: vy = (10 dy - 4) u, down to -44 u - the
-       "drop and dash" of Ventus' and Aqua's air hits from above): that hit keeps the game's own movement, no hop. */
-    if (fresh && (*(u16*)(rec + 4) & P_RISE) && *(int*)(pl + 0x600) > 0 && *(float*)(pl + 0x618) < 0.0f) {
-        if (g_debug || c_airlog) LOG("air: record %d, target %.2f below - the game's dive, no hop", (int)patk_index(rec), -*(float*)(pl + 0x618));
-        g_hop_live = NULL; g_hop_rec = rec; g_hop_fr = fr; return;
-    }
     if (fresh) {                                                        /* a hit has started in the air */
         g_hop_live = rec;
         float g = -*(float*)(pl + 0x32c) * c_hop_grav, sp = *(float*)(pl + 0x1a8);
