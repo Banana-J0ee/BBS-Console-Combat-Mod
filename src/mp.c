@@ -451,6 +451,11 @@ static void fx_spend(int id) {
 static void MSABI fx_hit_hook(u8 *g, int n) {
     u8 *pl = player();
     int id = pl ? *(u16*)(pl + 0x312) : 0;
+    if (g_debug && pl) {                 /* debug: every hit that lands (keyblade, shots, projectiles) - for counting combos */
+        u8 *m = MGR, *base = m ? *(u8**)(m + 0x128) : NULL, *rec = *(u8**)(pl + 0x5b8), *cmd = CMD;
+        LOG("hit: level %d command %x record %ld state %x/%d", cmd ? *(int*)(cmd + 0x1a8) : -1, id,
+            base && rec >= base ? (long)((rec - base) / 0x28) : -1L, *(u16*)(pl + 0x304), *(s16*)(pl + 0x310));
+    }
     if (!c_fx_hit_focus && mp_fx(id)) { if (g_debug) LOG("focus exchange: hit of command %x - no Focus (%d)", id, n); return; }
     FN(void, FN_FOCUS_ADD, u8*, int)(g, n);
 }
