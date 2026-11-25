@@ -794,6 +794,15 @@ static void t_cmdcombo(void) {
     CHECK(!test_cb_pending(), "a combo let go of (13 frames standing), then a command: no carry");
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); *cnt = 2; test_cb_apply(pl);
     CHECK(*cnt == 2 && !test_cb_pending(), "the game's own combo still running: left alone");
+    {   extern void test_mv_frame(u8 *pl, int on);
+        COMBO(2, 0x22); *st = 0x15; *part = 3; test_mv_frame(pl, 1);
+        CHECK(*cnt == 0, "a dodge roll at step 2 ends the combo (counter %d)", *cnt);
+        COMBO(3, 0x23); *st = 0x16; *part = 0; test_mv_frame(pl, 1);
+        CHECK(*cnt == 0, "a guard at step 3 ends the combo");
+        COMBO(2, 0x22); *st = 0x15; test_mv_frame(pl, 0);
+        CHECK(*cnt == 2, "MovementEndsCombo=0: the counter is left as the game has it");
+        COMBO(2, 0x22); *st = 0x11; *part = 4; test_mv_frame(pl, 1);
+        CHECK(*cnt == 2, "a spell does not touch the counter"); }
     #undef COMBO
     #undef CMD
     #undef IDLE

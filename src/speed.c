@@ -1036,6 +1036,19 @@ static int cb_len(u8 *pl, int air) {
     return FN(int, 0x1ce2f0, u64*)(&k) + cp_count(pl, air ? 0x1d4 : 0x1d3);
 }
 static int cb_ends(u16 id) { for (int i = 0; i < g_cb_endn; i++) if (g_cb_end[i] == id) return 1; return 0; }
+/* [Speed] MovementEndsCombo: a movement command (dodge roll, cartwheel, slide, Air Slide: state 0x15) or a guard
+   (0x16) ends the combo, as in KH2 - the game kept the counter when the attack came soon after a quick dodge
+   (step 2, dodge roll, step 3 about 1 s later), base combo and styles alike (one counter, pl+0x5a2). */
+static int c_mv_end = 1;
+static void mv_frame(u8 *pl) {
+    if (!c_mv_end || !pl || pl != local_player()) return;
+    u16 st = *(u16*)(pl + 0x304);
+    if ((st == 0x15 || st == 0x16) && *(u16*)(pl + 0x5a2)) {
+        if (g_debug) LOG("combo: %s ends the combo (step %d)", st == 0x15 ? "movement" : "guard", *(u16*)(pl + 0x5a2));
+        *(u16*)(pl + 0x5a2) = 0;
+    }
+}
+void test_mv_frame(u8 *pl, int on) { c_mv_end = on; mv_frame(pl); c_mv_end = 1; }
 static void cb_frame(u8 *pl) {
     if (!c_cb_on || !pl || pl != local_player()) return;
     u16 st = *(u16*)(pl + 0x304); s16 part = *(s16*)(pl + 0x310);
@@ -1125,6 +1138,7 @@ static void MSABI tick_hook(u8 *pl) {
     if (c_on) { hop_frame(pl); air_log(pl); }
     style_track(pl);
     cb_frame(pl);
+    mv_frame(pl);
     combo_log(pl);
     g_fall = NULL;
     if (g_debug && pl == local_player()) {
@@ -1233,7 +1247,9 @@ void speed_apply(void) {
         u8 *p = g_base + CB_SITE; s32 d; memcpy(&d, p + 1, 4);
         if (c_cb_on && p[0] == 0xE8 && (u32)(CB_SITE + 5 + d) == FN_COMBO_PICK) hook_call(CB_SITE, FN_COMBO_PICK, cb_pick, "command in a combo");
         else if (c_cb_on) { LOG("speed: combo pick site 22a133 does not match"); c_cb_on = 0; }
-        LOG("speed: a command in a combo takes one step: %d (window %.2f s, %d commands end the combo)", c_cb_on, c_cb_win, g_cb_endn); }
+        LOG("speed: a command in a combo takes one step: %d (window %.2f s, %d commands end the combo)", c_cb_on, c_cb_win, g_cb_endn);
+        GetPrivateProfileStringA("Speed", "MovementEndsCombo", "1", b, sizeof b, g_ini); c_mv_end = atoi(b) != 0;
+        LOG("speed: a dodge, slide or guard ends the combo: %d", c_mv_end); }
     hook_ctx(&S_fall_hover, h_hover, "fall hover");
     if (c_launch) hook_ctx(&S_launch, h_launch, "launch height");
     hook_call(0x220b1d, 0x23b3a0, tick_hook, "player tick");
