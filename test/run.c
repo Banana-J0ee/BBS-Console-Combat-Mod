@@ -744,6 +744,63 @@ static void t_comboplus(void) {
     }
     printf("t_comboplus done\n");
 }
+/* a deck command in a combo takes one step; the next attack carries on ([Speed] CommandCombo) */
+static void t_cmdcombo(void) {
+    extern void test_cb_frame(u8 *pl), test_cb_apply(u8 *pl), test_cb_set(int len, int air, float win, const char *ends);
+    extern int test_cb_pending(void);
+    static const u16 ids[] = { 0x5b, 0x83 };
+    world(2, ids);
+    u8 *s0 = RVA(0x22a133); s32 rel; memcpy(&rel, s0 + 1, 4);
+    CHECK(s0[0] == 0xe8 && (u8*)(s0 + 5 + rel) != RVA(0x2239b0), "the combo pick (22a133) is hooked");
+    u16 *st = (u16*)(pl + 0x304), *cnt = (u16*)(pl + 0x5a2), *prev = (u16*)(pl + 0x5a6), *cmdid = (u16*)(pl + 0x312);
+    s16 *part = (s16*)(pl + 0x310); float *dt = (float*)(pl + 0x20);
+    u16 k_st = *st, k_cnt = *cnt, k_prev = *prev, k_cmd = *cmdid; s16 k_part = *part; float k_dt = *dt;
+    *dt = 1.0f;
+    #define COMBO(n, p) (*st = 0x10, *part = 5, *cnt = (n), *prev = (p), test_cb_frame(pl))
+    #define CMD(s, id)  (*st = (s), *part = (s) == 0x10 ? 3 : 4, *cmdid = (id), test_cb_frame(pl))
+    #define IDLE()      (*st = 1, *part = 0, test_cb_frame(pl))
+    test_cb_set(7, 0, 1.0f, "92, 93, 94, 95, d3, d4, d5, e8, e9, a6");
+    COMBO(1, 0x21); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE();
+    CHECK(test_cb_pending() == 3, "step 2 + Fire: Fire takes step 3 (%d)", test_cb_pending());
+    *cnt = 0; *prev = 0; test_cb_apply(pl);
+    CHECK(*cnt == 3 && *prev == 0x22 && !test_cb_pending(), "the next hit goes on from step 3, attack 22 before (%d, %x)", *cnt, *prev);
+    COMBO(4, 0x23); CMD(0x10, 0x6a); CMD(0x11, 0x87); IDLE();
+    CHECK(test_cb_pending() == 6, "step 4, Fire Surge, a spell: 6 (%d)", test_cb_pending());
+    test_cb_set(7, 0, 1.0f, NULL);
+    COMBO(5, 0x24); CMD(0x11, 0x83); IDLE();
+    CHECK(test_cb_pending() == 6, "step 5 + a spell: 6 of 7 (%d)", test_cb_pending());
+    test_cb_set(7, 0, 1.0f, NULL);
+    COMBO(6, 0x25); CMD(0x11, 0x83); IDLE();
+    CHECK(!test_cb_pending(), "step 6 + a spell: it took the closing step, the combo ends");
+    COMBO(0, 0x26); CMD(0x11, 0x83); IDLE();
+    CHECK(!test_cb_pending(), "the closing hit played (counter 0): a command after it carries nothing");
+    static const u16 cures[] = { 0x92, 0x93, 0x94, 0x95, 0xd3, 0xd4, 0xd5, 0xe8, 0xe9, 0xa6 };
+    int kept = 0;
+    for (unsigned i = 0; i < sizeof cures / sizeof *cures; i++) { test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, cures[i]); IDLE(); kept += test_cb_pending() != 0; }
+    CHECK(!kept, "Cure, Cura, Curaga, Esuna, the Group cures, the D-Link heals and Faith end the combo (%d kept)", kept);
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); *st = 0x12; *part = 0; *cmdid = 0x30; test_cb_frame(pl); IDLE();
+    CHECK(!test_cb_pending(), "an item (state 12): the combo ends");
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); *st = 0x15; test_cb_frame(pl);
+    CHECK(!test_cb_pending(), "a dodge after the command: dropped");
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83);
+    for (int i = 0; i < 59; i++) IDLE();
+    CHECK(test_cb_pending() == 3, "59 frames standing after it: still noted");
+    IDLE(); IDLE();
+    CHECK(!test_cb_pending(), "past 1 s without an attack: dropped");
+    {   test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE();
+        extern void test_cb_air(int air); test_cb_air(1); IDLE();
+        CHECK(!test_cb_pending(), "a ground combo, then in the air: dropped"); test_cb_air(0); }
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); for (int i = 0; i < 13; i++) IDLE(); CMD(0x11, 0x83); IDLE();
+    CHECK(!test_cb_pending(), "a combo let go of (13 frames standing), then a command: no carry");
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); *cnt = 2; test_cb_apply(pl);
+    CHECK(*cnt == 2 && !test_cb_pending(), "the game's own combo still running: left alone");
+    #undef COMBO
+    #undef CMD
+    #undef IDLE
+    test_cb_set(0, -1, 1.0f, "92, 93, 94, 95, d3, d4, d5, e8, e9, a6");
+    *st = k_st; *part = k_part; *cnt = k_cnt; *prev = k_prev; *cmdid = k_cmd; *dt = k_dt;
+    printf("t_cmdcombo done\n");
+}
 static void t_haste(void) {
     static const u16 ids[] = { 0x5b, 0x83, 0x92 };
     world(3, ids);
@@ -3836,6 +3893,7 @@ int main(int argc, char **argv) {
     bad |= run("t_orbtex", t_orbtex);
     bad |= run("t_ether", t_ether);
     bad |= run("t_comboplus", t_comboplus);
+    bad |= run("t_cmdcombo", t_cmdcombo);
     bad |= run("t_haste", t_haste);
     bad |= run("t_rage", t_rage);
     bad |= run("t_link_end", t_link_end);

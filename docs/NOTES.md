@@ -1609,3 +1609,21 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   descent; his break-out (the dodge) exists only in steps 3-7.  New cfg.scriptArmor(self): where it is true the
   window rule leaves the script's own armour alone.  Braig: InvertedShoot and step >= 8.  The rounds stay open
   past their 46 frames.  Test: extra.lua (open in its rounds, kept on the way down).
+
+## A command in a combo takes one step (2026-11-25; speed.c cb_*, `[Speed] CommandCombo`)
+* Asked for (KH2's rule): a deck command used mid-combo takes the place of one combo step; the next attack carries on
+  from the step after it.  A command on the closing step ends the combo.  Items end the combo; so do Cure, Cura,
+  Curaga, Esuna, Group Cure / Cura / Curaga, the D-Link heals e8 / e9 and Faith (CommandComboEnd).
+* KH2 (exe): the command handler 1403d70ca sends a spell (type 2) through 1403d6ca0(pl, 1), the same "advance the
+  combo" as a swing (counter pl+0xd74 + 1 in a combo, else 1); 1403d7780 = counter >= the ground / air length
+  (status+0x200 / +0x201) picks the spell's finisher motion (magc +0x2c; Cure and Magnet have none, -1).
+* BBS: the next combo hit is picked by 2239b0 (only caller 22a133): counter pl+0x5a2 + 1, length = 1ce2f0 (keyblade)
+  + 221900 (Combo Plus 0x1d3 / Air 0x1d4, through cp_count), at the length the closing hit and counter 0; the combo
+  table's rules (pl+0x5c0, 20 x 0x14) look at the counter, the attack before (pl+0x5a6, set at 22a143) and the
+  target.  An attack after a command enters state 0x10 fresh (229e80 with pl+0x5a0 = 0: counter, +0x5a8, +0x624
+  cleared).
+* Mod: the tick notes the running combo (state 0x10 part 5, counter > 0); a command starting from it (0x10 other
+  part, 0x11) notes step + 1 unless that is the length or the command is listed; state >= 0x12, ground <-> air,
+  CommandComboWindow (1 s) after the command, or 12 frames out of the combo before the command drop it.  The hook at
+  22a133 puts the counter and the attack before back when the counter is 0 (a fresh combo).  Test: `t_cmdcombo`.
+  Not seen in the game by me.

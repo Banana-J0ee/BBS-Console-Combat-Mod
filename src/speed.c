@@ -1004,6 +1004,117 @@ static u64 MSABI h_hover_slide(Ctx *c) {         /* 218d9f: test eax, 0x108 (gua
     return 0;
 }
 
+/* ---- A command in a combo takes one of its steps ([Speed] CommandCombo) ----
+   KH2 (1403d70ca / 1403d6ca0): a spell cast mid-combo advances the combo counter like a swing, and the next attack
+   carries on from there.  BBS: the next combo hit is picked by 2239b0 (called only from 22a133): it adds 1 to the
+   counter pl+0x5a2, plays the closing hit at the combo's length (keyblade base [1ce2f0] + Combo Plus / Air Combo Plus
+   [221900, through cp_count]) and sets the counter back to 0; pl+0x5a6 is the attack before (the combo table's rules
+   look at it).  An attack started after a command enters state 0x10 fresh (229e80 with pl+0x5a0 = 0) and clears the
+   counter.  Here: a deck command (state 0x10 other than the combo, or magic 0x11) started while a combo was running
+   (counter > 0: the closing hit not played yet) notes the combo + 1 step; if that step is the combo's length the
+   command took the closing hit's place and the combo ends.  The next combo hit puts the counter and attack back
+   (22a133), so the combo goes on.  Dropped: an item, D-Link, finisher, movement, guard, counter, shotlock, style
+   change or anything above (state >= 0x12), ground <-> air, or CommandComboWindow seconds after the command without
+   an attack.  The cure-type commands ([Speed] CommandComboEnd) end the combo as before. */
+#define CB_SITE 0x22a133u
+#define FN_COMBO_PICK 0x2239b0u
+static int   c_cb_on = 1;
+static float c_cb_win = 1.0f;
+static u16   g_cb_end[32]; static int g_cb_endn;
+static int   g_cb_have, g_cb_step, g_cb_prev, g_cb_air;      /* the combo running now (or just before) */
+static float g_cb_idle;                                      /* frames out of any action since that combo */
+static int   g_cb_pend, g_cb_pstep, g_cb_pprev, g_cb_pair;   /* noted by a command: put back on the next hit */
+static float g_cb_t;                                         /* frames since the command ended */
+static int   g_cb_incmd; static u16 g_cb_cmd;
+static int   g_cb_test_len, g_cb_test_air = -1;              /* tests: the combo's length, in the air */
+static int cb_in_air(u8 *pl) { return g_cb_test_air >= 0 ? g_cb_test_air : FN(int, 0x264a10, u8*, int)(pl, 0) != 0; }
+static int cb_len(u8 *pl, int air) {
+    if (g_cb_test_len) return g_cb_test_len;
+    u8 *w = *(u8**)(pl + 0x390);
+    if (!w) return 0;
+    u64 k = *(u64*)(w + 0x188);
+    return FN(int, 0x1ce2f0, u64*)(&k) + cp_count(pl, air ? 0x1d4 : 0x1d3);
+}
+static int cb_ends(u16 id) { for (int i = 0; i < g_cb_endn; i++) if (g_cb_end[i] == id) return 1; return 0; }
+static void cb_frame(u8 *pl) {
+    if (!c_cb_on || !pl || pl != local_player()) return;
+    u16 st = *(u16*)(pl + 0x304); s16 part = *(s16*)(pl + 0x310);
+    float dt = *(float*)(pl + 0x20); if (!(dt >= 0.0f) || dt > 6.0f) dt = 1.0f;
+    if (st == 0x10 && part == 5) {                               /* a combo hit (a fresh one, or the carried one) */
+        int cnt = *(u16*)(pl + 0x5a2);
+        g_cb_pend = 0; g_cb_incmd = 0; g_cb_idle = 0.0f;
+        g_cb_have = cnt > 0;
+        if (g_cb_have) { g_cb_step = cnt; g_cb_prev = *(u16*)(pl + 0x5a6); g_cb_air = cb_in_air(pl); }
+        return;
+    }
+    if ((st == 0x10 && part != 5) || st == 0x11) {               /* a deck command */
+        u16 id = *(u16*)(pl + 0x312);
+        if (!g_cb_incmd || id != g_cb_cmd) {
+            int from = 0, prev = 0, air = 0;
+            if (g_cb_have) { from = g_cb_step; prev = g_cb_prev; air = g_cb_air; }
+            else if (g_cb_pend) { from = g_cb_pstep; prev = g_cb_pprev; air = g_cb_pair; }
+            g_cb_have = 0; g_cb_pend = 0; g_cb_incmd = 1; g_cb_cmd = id;
+            if (from > 0) {
+                if (cb_ends(id)) { if (g_debug) LOG("command combo: %x ends the combo (step %d)", id, from); }
+                else {
+                    int len = cb_len(pl, air);
+                    if (from + 1 >= len) { if (g_debug) LOG("command combo: %x took the closing step (%d of %d) - the combo ends", id, from + 1, len); }
+                    else {
+                        g_cb_pend = 1; g_cb_pstep = from + 1; g_cb_pprev = prev; g_cb_pair = air;
+                        if (g_debug) LOG("command combo: %x takes step %d of %d (%s)", id, from + 1, len, air ? "air" : "ground");
+                    }
+                }
+            }
+        }
+        g_cb_t = 0.0f;
+        return;
+    }
+    g_cb_incmd = 0;
+    if (st >= 0x12) {                                            /* item, D-Link, finisher, movement, guard, ... */
+        if (g_cb_pend && g_debug) LOG("command combo: dropped (state %x)", st);
+        g_cb_have = 0; g_cb_pend = 0; return;
+    }
+    /* idle, moving, falling, landing */
+    if (g_cb_have && (g_cb_idle += dt) > 12.0f) g_cb_have = 0;   /* a combo let go of: a command after it starts none */
+    if (g_cb_pend) {
+        g_cb_t += dt;
+        if (g_cb_t > c_cb_win * 60.0f) { if (g_debug) LOG("command combo: dropped (no attack in %.2f s)", c_cb_win); g_cb_pend = 0; }
+        else if (cb_in_air(pl) != g_cb_pair) { if (g_debug) LOG("command combo: dropped (%s)", g_cb_pair ? "landed" : "left the ground"); g_cb_pend = 0; }
+    }
+}
+/* the next combo hit is about to be picked: a fresh combo after a noted command goes on from its step */
+static void cb_apply(u8 *pl) {
+    if (!c_cb_on || !g_cb_pend || pl != local_player()) return;
+    if (*(u16*)(pl + 0x5a2) != 0 || cb_in_air(pl) != g_cb_pair) { g_cb_pend = 0; return; }
+    *(u16*)(pl + 0x5a2) = (u16)g_cb_pstep; *(u16*)(pl + 0x5a6) = (u16)g_cb_pprev;
+    if (g_debug) LOG("command combo: the combo goes on after step %d", g_cb_pstep);
+    g_cb_pend = 0;
+}
+static int MSABI cb_pick(u8 *pl, int mode) {
+    cb_apply(pl);
+    return FN(int, FN_COMBO_PICK, u8*, int)(pl, mode);
+}
+static void cb_list(const char *s) {
+    g_cb_endn = 0;
+    for (const char *q = s; *q && g_cb_endn < 32; ) {
+        while (*q && !((*q >= '0' && *q <= '9') || (*q >= 'a' && *q <= 'f') || (*q >= 'A' && *q <= 'F'))) q++;
+        if (!*q) break;
+        char *e; long v = strtol(q, &e, 16);
+        if (e == q) break;
+        if (v > 0 && v < 0x240) g_cb_end[g_cb_endn++] = (u16)v;
+        q = e;
+    }
+}
+void test_cb_air(int air) { g_cb_test_air = air; }
+void test_cb_frame(u8 *pl) { cb_frame(pl); }
+void test_cb_apply(u8 *pl) { cb_apply(pl); }
+void test_cb_set(int len, int air, float win, const char *ends) {
+    g_cb_test_len = len; g_cb_test_air = air; c_cb_win = win; c_cb_on = 1;
+    if (ends) cb_list(ends);
+    g_cb_have = g_cb_pend = g_cb_incmd = 0;
+}
+int test_cb_pending(void) { return g_cb_pend ? g_cb_pstep : 0; }
+
 static void MSABI tick_hook(u8 *pl) {
     DWORD t0 = g_debug ? GetTickCount() : 0;
     frame_gap_log(pl, t0);
@@ -1013,6 +1124,7 @@ static void MSABI tick_hook(u8 *pl) {
     if (c_on) speed_frame(pl);
     if (c_on) { hop_frame(pl); air_log(pl); }
     style_track(pl);
+    cb_frame(pl);
     combo_log(pl);
     g_fall = NULL;
     if (g_debug && pl == local_player()) {
@@ -1113,6 +1225,15 @@ void speed_apply(void) {
         if (g_cp_n && p[0] == 0xE8 && (u32)(CP_SITE + 5 + d) == FN_ABILITY_COUNT) hook_call(CP_SITE, FN_ABILITY_COUNT, cp_count, "Combo Plus off for some styles");
         else if (g_cp_n) LOG("speed: Combo Plus site 223a63 does not match");
         LOG("speed: Combo Plus / Air Combo Plus not counted for %d style attack(s)", g_cp_n); }
+    {   char b[256];
+        GetPrivateProfileStringA("Speed", "CommandCombo", "1", b, sizeof b, g_ini); c_cb_on = atoi(b) != 0;
+        c_cb_win = ini_f("CommandComboWindow", 1.0f); if (c_cb_win < 0.0f) c_cb_win = 0.0f;
+        GetPrivateProfileStringA("Speed", "CommandComboEnd", "92, 93, 94, 95, d3, d4, d5, e8, e9, a6", b, sizeof b, g_ini);
+        cb_list(b);
+        u8 *p = g_base + CB_SITE; s32 d; memcpy(&d, p + 1, 4);
+        if (c_cb_on && p[0] == 0xE8 && (u32)(CB_SITE + 5 + d) == FN_COMBO_PICK) hook_call(CB_SITE, FN_COMBO_PICK, cb_pick, "command in a combo");
+        else if (c_cb_on) { LOG("speed: combo pick site 22a133 does not match"); c_cb_on = 0; }
+        LOG("speed: a command in a combo takes one step: %d (window %.2f s, %d commands end the combo)", c_cb_on, c_cb_win, g_cb_endn); }
     hook_ctx(&S_fall_hover, h_hover, "fall hover");
     if (c_launch) hook_ctx(&S_launch, h_launch, "launch height");
     hook_call(0x220b1d, 0x23b3a0, tick_hook, "player tick");
