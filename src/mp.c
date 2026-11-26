@@ -472,12 +472,19 @@ static u64 MSABI hit_log(u8 *cmd, float power, u64 target, u32 kind) {
 }
 /* from dbg_start (debug.c), which runs after the install - g_debug is not set yet while mp installs its hooks */
 static int call_ok(u32 rva, u32 target);
+static u32 MSABI damage_hook(u8 *atk, u8 *hit);
+#define DMG_CALL 0x1f985au
+#define DMG_FN   0x1f9180u
 void mp_debug_hooks(void) {
     int n = 0;
     for (unsigned i = 0; i < sizeof k_hit_sites / sizeof *k_hit_sites; i++)
         if (call_ok(k_hit_sites[i], FN_PLAYER_HIT) && hook_call(k_hit_sites[i], FN_PLAYER_HIT, hit_log, "debug: hit log")) n++;
         else LOG("debug: hit log site %x does not match", k_hit_sites[i]);
     LOG("debug: hit log, %d call sites", n);
+    if (!(c_berserk_pct > 0)) {                     /* the damage hook is Berserker's: put it in for the log alone */
+        if (call_ok(DMG_CALL, DMG_FN) && hook_call(DMG_CALL, DMG_FN, damage_hook, "debug: damage log")) LOG("debug: damage log on");
+        else LOG("debug: damage site does not match");
+    } else LOG("debug: damage log on (through the Berserker hook)");
 }
 int *test_fx_hit_focus(void) { return &c_fx_hit_focus; }
 static int plate_id(u8 *P) { u16 *k = P ? *(u16**)(P + 0x58) : NULL; return k ? k[0] : 0; }
@@ -1183,8 +1190,6 @@ static int at_save_point(u8 *cmd) {
 #define AB_ATTACK_HASTE 0x1cf
 #define AB_MAGIC_HASTE  0x1d0
 #define AB_RELOAD_BOOST 0x1d9
-#define DMG_CALL 0x1f985au
-#define DMG_FN   0x1f9180u
 #define ENTITY_BY_ID 0x1d45c0u
 /* percent this attack's damage is raised by; 0 = not at all */
 static double berserk_pct(u8 *atk) {
@@ -1200,9 +1205,25 @@ static double berserk_pct(u8 *atk) {
 }
 /* The game works the damage out once (the critical hit is a dice roll in there) and drops the fraction.  The bonus
    is taken of that whole number and rounded UP, so it is never lost: 2 -> 3, 19 -> 20, 20 -> 21, 21 -> 23 at 5 %. */
+/* debug: the damage of each of the player's hits, with what it was worked out from (1401f9180) */
+static void dmg_log(u8 *atk, u8 *hit, u32 r) {
+    u8 *pl = player(); if (!pl || !atk || !hit) return;
+    u8 *e = FN(u8*, ENTITY_BY_ID, u32)(*(u32*)(atk + 0x94)); if (!e) return;
+    u8 *par = *(u8**)(e + 0x10);
+    if (!(e == pl || *(int*)(e + 0x28) == 1 || (par && (par == pl || *(int*)(par + 0x28) == 1)))) return;
+    u8 *m = MGR, *base = m ? *(u8**)(m + 0x128) : NULL, *rec = *(u8**)(pl + 0x5b8);
+    u8 *cmd = G(u8*, 0x10f9ed40);
+    LOG("damage: %u | power %d stat %d defence %d element %d x%.2f kind %x | attack command %x, player command %x "
+        "record %ld state %x/%d level %d step %d%s",
+        r, *(s16*)(atk + 0x84), *(s16*)(atk + 0x82), *(s16*)(hit + 0xac), *(s16*)(atk + 0x80), *(float*)(atk + 0x88),
+        *(u16*)(atk + 0x7e) & 0x7f, *(u16*)(atk + 0x8c), *(u16*)(pl + 0x312),
+        base && rec >= base ? (long)((rec - base) / 0x28) : -1L, *(u16*)(pl + 0x304), *(s16*)(pl + 0x310),
+        cmd ? *(int*)(cmd + 0x1a8) : -1, *(u16*)(pl + 0x5a2), e == pl ? "" : " (a shot)");
+}
 static u32 MSABI damage_hook(u8 *atk, u8 *hit) {
     double pct = berserk_pct(atk);
     u32 r = FN(u32, DMG_FN, u8*, u8*)(atk, hit);
+    if (g_debug) dmg_log(atk, hit, r);
     if (!(pct > 0) || r == 0 || r >= 0x7fff) return r;
     double add = ceil((double)r * pct / 100.0 - 1e-6);
     if (add < 1) add = 1;
