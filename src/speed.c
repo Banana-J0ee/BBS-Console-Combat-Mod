@@ -587,6 +587,7 @@ static u64 MSABI h_hover(Ctx *c) {
 }
 
 /* ---- launcher ---- */
+static int g_cb_sim;                    /* a combo pick the command combo asks for, not played (cb_apply) */
 /* 223b0d in 2239b0, where the conditions of the combo tables are built (ecx = bits so far, rbx = player, r13 = 1 in the
    air, pl+0x608 = the target entity): bit 1 (2) = "target above" - the game sets it for a target joint above the
    player's feet + 0.2 / 0.3 / 0.4 (pl+0x618 > 0) within 3.5; on the ground it picks the rising attack.
@@ -611,7 +612,7 @@ static u64 MSABI h_launch(Ctx *c) {
         now = h >= c_launch_min && h <= c_launch_max && d <= c_launch_reach;
     }
     if (now) c->rcx |= 2; else c->rcx &= ~(u64)2;
-    if ((g_debug || c_airlog) && (was != now || now)) LOG("launch: target %.2f above, %.2f from its edge: %s%s", h, d, now ? "rising attack" : "ground combo",
+    if ((g_debug || c_airlog) && !g_cb_sim && (was != now || now)) LOG("launch: target %.2f above, %.2f from its edge: %s%s", h, d, now ? "rising attack" : "ground combo",
                                                           was == now ? "" : was ? " (the game would rise)" : " (the game would not)");
     return 0;
 }
@@ -1026,7 +1027,7 @@ static float g_cb_idle;                                      /* frames out of an
 static int   g_cb_pend, g_cb_pstep, g_cb_pprev, g_cb_pair;   /* noted by a command: put back on the next hit */
 static float g_cb_t;                                         /* frames since the command could be left */
 static int   g_cb_incmd; static u16 g_cb_cmd; static u32 g_cb_starts;
-static int   g_cb_test_len, g_cb_test_air = -1;              /* tests: the combo's length, in the air */
+static int   g_cb_test_len, g_cb_test_air = -1, g_cb_test_rep;              /* tests: the combo's length, in the air */
 static int cb_in_air(u8 *pl) { return g_cb_test_air >= 0 ? g_cb_test_air : FN(int, 0x264a10, u8*, int)(pl, 0) != 0; }
 static int cb_len(u8 *pl, int air) {
     if (g_cb_test_len) return g_cb_test_len;
@@ -1123,7 +1124,7 @@ static void cb_frame(u8 *pl) {
     }
 }
 /* the next combo hit is about to be picked: a fresh combo after a noted command goes on from its step */
-static void cb_apply(u8 *pl) {
+static void cb_apply(u8 *pl, int mode) {
     if (!c_cb_on || !g_cb_pend || pl != local_player()) return;
     if (*(u16*)(pl + 0x5a2) != 0 || cb_in_air(pl) != g_cb_pair) {
         if (g_debug) {
@@ -1132,12 +1133,34 @@ static void cb_apply(u8 *pl) {
         }
         g_cb_pend = 0; return;
     }
-    *(u16*)(pl + 0x5a2) = (u16)g_cb_pstep; *(u16*)(pl + 0x5a6) = (u16)g_cb_pprev;
-    if (g_debug) LOG("command combo: the combo goes on after step %d", g_cb_pstep);
+    /* the command takes the place of the attack of its step: ask the game's own pick which attack that is (the step
+       before, after the attack before the command), and put it in as the attack before.  A combo table's entries can
+       want both the step (counter) and the attack before (2239b0 condition types 9 and 2): with only the counter
+       moved on, Rhythm Mixer found no entry for "step 4 after 875" and started over at its first attack; a base combo
+       played the skipped animation.  (The pick's own changes are put back; the step is below the length, so no
+       closing hit, no flags.) */
+    u16 rep = 0;
+    u8 *tbl = *(u8**)(pl + (mode == 3 ? 0x5c8 : 0x5c0));
+    if (tbl && *(u8**)(pl + 0x390) && (!g_cb_test_len || g_cb_test_rep < 0)) {
+        u16 k2 = *(u16*)(pl + 0x5a2), k4 = *(u16*)(pl + 0x5a4), k6 = *(u16*)(pl + 0x5a6);
+        u32 k320 = *(u32*)(pl + 0x320); u64 k608 = *(u64*)(pl + 0x608);
+        *(u16*)(pl + 0x5a2) = (u16)(g_cb_pstep - 1); *(u16*)(pl + 0x5a6) = (u16)g_cb_pprev;
+        g_cb_sim = 1;
+        int got = FN(int, FN_COMBO_PICK, u8*, int)(pl, mode);
+        g_cb_sim = 0;
+        if (got && *(u16*)(pl + 0x5a2) == g_cb_pstep) rep = *(u16*)(pl + 0x5a4);
+        *(u16*)(pl + 0x5a2) = k2; *(u16*)(pl + 0x5a4) = k4; *(u16*)(pl + 0x5a6) = k6;
+        *(u32*)(pl + 0x320) = k320; *(u64*)(pl + 0x608) = k608;
+    } else if (g_cb_test_rep > 0) rep = (u16)g_cb_test_rep;
+    *(u16*)(pl + 0x5a2) = (u16)g_cb_pstep; *(u16*)(pl + 0x5a6) = rep ? rep : (u16)g_cb_pprev;
+    if (g_debug) {
+        if (rep) LOG("command combo: the combo goes on after step %d (the command took the place of attack %d)", g_cb_pstep, rep);
+        else LOG("command combo: the combo goes on after step %d (attack before kept: %d)", g_cb_pstep, g_cb_pprev);
+    }
     g_cb_pend = 0;
 }
 static int MSABI cb_pick(u8 *pl, int mode) {
-    cb_apply(pl);
+    cb_apply(pl, mode);
     return FN(int, FN_COMBO_PICK, u8*, int)(pl, mode);
 }
 static void cb_list(const char *s) {
@@ -1153,7 +1176,8 @@ static void cb_list(const char *s) {
 }
 void test_cb_air(int air) { g_cb_test_air = air; }
 void test_cb_frame(u8 *pl) { cb_frame(pl); }
-void test_cb_apply(u8 *pl) { cb_apply(pl); }
+void test_cb_apply(u8 *pl) { cb_apply(pl, 1); }
+void test_cb_rep(int rep) { g_cb_test_rep = rep; }
 void test_cb_set(int len, int air, float win, const char *ends) {
     g_cb_test_len = len; g_cb_test_air = air; c_cb_win = win; c_cb_on = 1;
     if (ends) cb_list(ends);

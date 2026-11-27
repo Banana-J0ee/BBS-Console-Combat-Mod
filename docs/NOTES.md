@@ -1654,3 +1654,13 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   when the actions chain into each other.  The noted step now does the same: a command that takes you up or down
   keeps it (the side is where the command leaves you), a jump, a fall or a landing after the command drops it.
   The pick takes the length of where the attack is (264a10 at the pick).
+* The command takes its step's attack's place (2026-11-27, the user's log: Rhythm Mixer started over after a
+  command, Dark Impulse did not).  2239b0's table entries (pl+0x5c0 / +0x5c8 for mode 3, 20 x 0x14: byte mode, byte
+  condition count, s16 attack, then up to 4 x {s16 type, s16 value}; types (jump table 223cc0): 0 / 7 always, 1 in the
+  air, 2 attack before (pl+0x5a6), 3 target (1d5a40), 4 condition bit (launch etc.), 8 pl+0x5aa, 9 counter after the
+  +1) can want both the step and the attack before; pl+0x5a6 is the attack just played (22a143 after the pick).  With
+  only the counter moved on, Rhythm Mixer's "step 4 after 875" had no entry and its fall-back entry gave 874; Dark
+  Impulse reached its length (closing hit, whatever the table).  A base combo played the skipped animation (Terra:
+  step 1 + Fire -> 579).  cb_apply now runs the game's pick once for the command's step (counter = step - 1, attack
+  before = the one before the command), takes the attack it gives as the attack before, and puts the pick's changes
+  back (counter, +0x5a4, +0x5a6, +0x320, +0x608; the launch log is kept quiet for it).

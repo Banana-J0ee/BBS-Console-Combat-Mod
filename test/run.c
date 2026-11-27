@@ -853,6 +853,32 @@ static void t_cmdcombo(void) {
     CHECK(*cnt == 3, "... and the pick goes on from step 3 (%d)", *cnt);
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); COMBO(1, 0);
     CHECK(!test_cb_pending(), "an attack that started at step 1 without the hook: dropped");
+    {   /* the command takes the place of its step's attack: the game's own pick (2239b0) on a combo table whose entries
+           want the step and the attack before (as Rhythm Mixer's) */
+        extern void test_cb_rep(int rep);
+        static u8 tb[0x14 * 8];
+        memset(tb, 0, sizeof tb);
+        #define ENT(i, res, n, t1, v1, t2, v2) (tb[(i)*0x14] = 1, tb[(i)*0x14+1] = (n), *(s16*)(tb+(i)*0x14+2) = (res), \
+            *(s16*)(tb+(i)*0x14+4) = (t1), *(s16*)(tb+(i)*0x14+6) = (v1), *(s16*)(tb+(i)*0x14+8) = (t2), *(s16*)(tb+(i)*0x14+10) = (v2))
+        ENT(0, 0x40, 1, 9, 1, 0, 0);
+        ENT(1, 0x41, 2, 9, 2, 2, 0x40);
+        ENT(2, 0x42, 2, 9, 3, 2, 0x41);
+        ENT(3, 0x43, 2, 9, 4, 2, 0x42);
+        ENT(4, 0x40, 1, 0, 0, 0, 0);
+        tb[5 * 0x14] = 0xff;
+        #undef ENT
+        u8 *k_tb = *(u8**)(pl + 0x5c0); *(u8**)(pl + 0x5c0) = tb;
+        u8 *kc = *(u8**)(pl + 0x390); u16 k188 = *(u16*)(kc + 0x188); *(u16*)(kc + 0x188) = 0;
+        u8 *blen = RVA(0x811083); u8 k_blen = *blen; *blen = 7;                          /* the keyblade's combo: 7 (1ce2f0) */
+        static u8 ph[0x200]; u8 *k_ph = *(u8**)(pl + 0x80); *(u8**)(pl + 0x80) = ph; *(u32*)(ph + 0x170) = 0x10000;   /* on the ground (264a10) */
+        u16 *nw = (u16*)(pl + 0x5a4);
+        test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x41); CMD(0x11, 0x83); IDLE();
+        test_cb_rep(-1); *cnt = 0; test_cb_apply(pl); test_cb_rep(0);
+        CHECK(*cnt == 3 && *prev == 0x42, "step 2 + Fire: Fire took the place of attack 42, the next one goes on from it (%d, %x)", *cnt, *prev);
+        int got = ((int (MSABI *)(u8 *, int))RVA(0x2239b0))(pl, 1);
+        CHECK(got == 0x43 && *nw == 0x43 && *cnt == 4, "... and the game's pick plays step 4, attack 43 (%x, counter %d)", got, *cnt);
+        *(u8**)(pl + 0x5c0) = k_tb; *(u8**)(pl + 0x80) = k_ph; *blen = k_blen; *(u16*)(kc + 0x188) = k188;
+    }
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); *cnt = 2; test_cb_apply(pl);
     CHECK(*cnt == 2 && !test_cb_pending(), "the game's own combo still running: left alone");
     {   extern void test_mv_frame(u8 *pl, int on);
