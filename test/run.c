@@ -755,6 +755,7 @@ static void t_cmdcombo(void) {
     u16 *st = (u16*)(pl + 0x304), *cnt = (u16*)(pl + 0x5a2), *prev = (u16*)(pl + 0x5a6), *cmdid = (u16*)(pl + 0x312);
     s16 *part = (s16*)(pl + 0x310); float *dt = (float*)(pl + 0x20);
     u16 k_st = *st, k_cnt = *cnt, k_prev = *prev, k_cmd = *cmdid; s16 k_part = *part; float k_dt = *dt;
+    u16 k_old = *(u16*)(pl + 0x316); u64 k_ent = *(u64*)(pl + 0x3b0);
     *dt = 1.0f;
     #define COMBO(n, p) (*st = 0x10, *part = 5, *cnt = (n), *prev = (p), test_cb_frame(pl))
     #define CMD(s, id)  (*st = (s), *part = (s) == 0x10 ? 3 : 4, *cmdid = (id), test_cb_frame(pl))
@@ -766,6 +767,26 @@ static void t_cmdcombo(void) {
     CHECK(*cnt == 3 && *prev == 0x22 && !test_cb_pending(), "the next hit goes on from step 3, attack 22 before (%d, %x)", *cnt, *prev);
     COMBO(4, 0x23); CMD(0x10, 0x6a); CMD(0x11, 0x87); IDLE();
     CHECK(test_cb_pending() == 6, "step 4, Fire Surge, a spell: 6 (%d)", test_cb_pending());
+    {   /* the same command chained into itself (command cancel): one state, one id - the game's command start (21f9b0) is
+           what shows it started again */
+        void (MSABI *start)(u8 *, u32) = (void (MSABI *)(u8 *, u32))RVA(0x21f9b0);
+        #define AGAIN(id) (start(pl, (id)), test_cb_frame(pl))
+        test_cb_set(4, 0, 1.0f, NULL);
+        COMBO(1, 0x21); start(pl, 0x83); CMD(0x11, 0x83); test_cb_frame(pl);
+        CHECK(test_cb_pending() == 2, "step 1 + Fire: step 2 of 4 (%d)", test_cb_pending());
+        AGAIN(0x83);
+        CHECK(test_cb_pending() == 3, "Fire again, chained into itself: step 3 (%d)", test_cb_pending());
+        test_cb_frame(pl); test_cb_frame(pl);
+        CHECK(test_cb_pending() == 3, "... still step 3 while that Fire runs (%d)", test_cb_pending());
+        AGAIN(0x83);
+        CHECK(!test_cb_pending(), "Fire a third time: it took the closing step (4 of 4), the combo ends");
+        test_cb_set(7, 0, 1.0f, NULL);
+        COMBO(2, 0x22); start(pl, 0x5b); CMD(0x10, 0x5b); AGAIN(0x5b); AGAIN(0x5b); IDLE();
+        CHECK(test_cb_pending() == 5, "step 2 + the same deck command three times: step 5 (%d)", test_cb_pending());
+        *cnt = 0; test_cb_apply(pl);
+        CHECK(*cnt == 5, "the next hit goes on from step 5 (%d)", *cnt);
+        #undef AGAIN
+    }
     test_cb_set(7, 0, 1.0f, NULL);
     COMBO(5, 0x24); CMD(0x11, 0x83); IDLE();
     CHECK(test_cb_pending() == 6, "step 5 + a spell: 6 of 7 (%d)", test_cb_pending());
@@ -808,6 +829,7 @@ static void t_cmdcombo(void) {
     #undef IDLE
     test_cb_set(0, -1, 1.0f, "92, 93, 94, 95, d3, d4, d5, e8, e9, a6");
     *st = k_st; *part = k_part; *cnt = k_cnt; *prev = k_prev; *cmdid = k_cmd; *dt = k_dt;
+    *(u16*)(pl + 0x316) = k_old; *(u64*)(pl + 0x3b0) = k_ent;
     printf("t_cmdcombo done\n");
 }
 static void t_haste(void) {

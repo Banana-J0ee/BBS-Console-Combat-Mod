@@ -1025,7 +1025,7 @@ static int   g_cb_have, g_cb_step, g_cb_prev, g_cb_air;      /* the combo runnin
 static float g_cb_idle;                                      /* frames out of any action since that combo */
 static int   g_cb_pend, g_cb_pstep, g_cb_pprev, g_cb_pair;   /* noted by a command: put back on the next hit */
 static float g_cb_t;                                         /* frames since the command ended */
-static int   g_cb_incmd; static u16 g_cb_cmd;
+static int   g_cb_incmd; static u16 g_cb_cmd; static u32 g_cb_starts;
 static int   g_cb_test_len, g_cb_test_air = -1;              /* tests: the combo's length, in the air */
 static int cb_in_air(u8 *pl) { return g_cb_test_air >= 0 ? g_cb_test_air : FN(int, 0x264a10, u8*, int)(pl, 0) != 0; }
 static int cb_len(u8 *pl, int air) {
@@ -1062,7 +1062,10 @@ static void cb_frame(u8 *pl) {
     }
     if ((st == 0x10 && part != 5) || st == 0x11) {               /* a deck command */
         u16 id = *(u16*)(pl + 0x312);
-        if (!g_cb_incmd || id != g_cb_cmd) {
+        u32 starts = mp_cmd_starts();
+        if (!g_cb_incmd || id != g_cb_cmd || starts != g_cb_starts) {   /* a new command, or the same one again */
+            if (g_cb_incmd && id == g_cb_cmd && g_debug) LOG("command combo: %x used again", id);
+            g_cb_starts = starts;
             int from = 0, prev = 0, air = 0;
             if (g_cb_have) { from = g_cb_step; prev = g_cb_prev; air = g_cb_air; }
             else if (g_cb_pend) { from = g_cb_pstep; prev = g_cb_pprev; air = g_cb_pair; }

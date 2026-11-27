@@ -1627,3 +1627,8 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   CommandComboWindow (1 s) after the command, or 12 frames out of the combo before the command drop it.  The hook at
   22a133 puts the counter and the attack before back when the counter is 0 (a fresh combo).  Test: `t_cmdcombo`.
   Not seen in the game by me.
+* Fix (2026-11-27, the user's log): the same command used again through the command cancel ("cut short for a held
+  press") stays in its state (0x11 Fire, 0x10 deck command) with the same id at pl+0x312, so the tick only counted the
+  first use - Fire x3 after step 1 went on after step 2.  Now the game's command start 21f9b0 (mp.c cmd_start_hook,
+  which charges SP there too) counts the player's starts (mp_cmd_starts); a new start with the same id is a new
+  command and takes the next step ("command combo: %x used again" in the debug log).

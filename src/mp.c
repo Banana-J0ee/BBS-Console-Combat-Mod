@@ -620,7 +620,12 @@ static void owe_frame(u8 *cmd) {
     owe_clear();
 }
 static void (MSABI *o_cmd_start)(u8 *pl, u32 id);
+/* every start of an action by the player, counted: the same command chained into itself through the command cancel
+   stays in its state with the same id, and this is the only sign it started again (speed.c cb_frame) */
+static u32 g_cmd_starts;
+u32 mp_cmd_starts(void) { return g_cmd_starts; }
 static void MSABI cmd_start_hook(u8 *pl, u32 id) {
+    if (pl && pl == player()) g_cmd_starts++;
     if (g_owe.id && pl && pl == player()) owe_pay((u16)id);
     o_cmd_start(pl, id);
 }

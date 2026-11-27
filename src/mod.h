@@ -9,6 +9,7 @@ float mp_cost(int id);
 int   mp_would_burn(int id);         /* using this command now would empty the MP bar */
 int   mp_fx(int id);                 /* Focus Exchange: this command costs Focus now (not SP) */
 int   mp_fx_any(u8 *cmd);            /* ... and the deck has such a command (usable in an MP charge) */
+u32   mp_cmd_starts(void);           /* how many actions the player has started (the game's 21f9b0) */
 void  hud_timer_bar(int *ph, float left, float top, float w, float hgt, float frac, u32 fill, int prio, int show);
 /* bundle.c */
 int  bundle_check(void);
