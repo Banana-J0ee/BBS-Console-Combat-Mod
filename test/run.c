@@ -877,6 +877,28 @@ static void t_cmdcombo(void) {
         CHECK(*cnt == 3 && *prev == 0x42, "step 2 + Fire: Fire took the place of attack 42, the next one goes on from it (%d, %x)", *cnt, *prev);
         int got = ((int (MSABI *)(u8 *, int))RVA(0x2239b0))(pl, 1);
         CHECK(got == 0x43 && *nw == 0x43 && *cnt == 4, "... and the game's pick plays step 4, attack 43 (%x, counter %d)", got, *cnt);
+        /* as Rhythm Mixer: the entries want the step and the record before (pl+0x5aa, type 8); the command's own record
+           is there by the time the next attack is picked */
+        u16 *rec = (u16*)(pl + 0x5aa); u16 k_rec = *rec;
+        #define ENT8(i, res, st, rc) (tb[(i)*0x14] = 1, tb[(i)*0x14+1] = 2, *(s16*)(tb+(i)*0x14+2) = (res), \
+            *(s16*)(tb+(i)*0x14+4) = 9, *(s16*)(tb+(i)*0x14+6) = (st), *(s16*)(tb+(i)*0x14+8) = 8, *(s16*)(tb+(i)*0x14+10) = (rc))
+        memset(tb, 0, sizeof tb);
+        ENT8(0, 0x41, 2, 0x40); ENT8(1, 0x42, 3, 0x41); ENT8(2, 0x43, 4, 0x42); ENT8(3, 0x44, 5, 0x43);
+        tb[4 * 0x14] = 1; tb[4 * 0x14 + 1] = 1; *(s16*)(tb + 4 * 0x14 + 2) = 0x40;   /* else: the first attack */
+        tb[5 * 0x14] = 0xff;
+        #undef ENT8
+        test_cb_set(7, 0, 1.0f, NULL); *rec = 0x41; COMBO(2, 0x41); *rec = 0x2a0; CMD(0x11, 0x83); IDLE();
+        test_cb_rep(-1); *cnt = 0; test_cb_apply(pl); test_cb_rep(0);
+        CHECK(*cnt == 3 && *prev == 0x42 && *rec == 0x42, "record chain: Fire took attack 42's place (%d, %x, record %x)", *cnt, *prev, *rec);
+        got = ((int (MSABI *)(u8 *, int))RVA(0x2239b0))(pl, 1);
+        CHECK(got == 0x43, "... and the pick plays 43, not the first attack (%x)", got);
+        /* two commands in a row: each takes a step - the attacks of both are worked out */
+        test_cb_set(7, 0, 1.0f, NULL); *rec = 0x41; COMBO(2, 0x41); *rec = 0x2a0; CMD(0x11, 0x83); IDLE(); CMD(0x10, 0x5b); IDLE();
+        test_cb_rep(-1); *cnt = 0; test_cb_apply(pl); test_cb_rep(0);
+        CHECK(*cnt == 4 && *prev == 0x43 && *rec == 0x43, "step 2, Fire, Quick Blitz: they took 42 and 43, on from 43 (%d, %x, %x)", *cnt, *prev, *rec);
+        got = ((int (MSABI *)(u8 *, int))RVA(0x2239b0))(pl, 1);
+        CHECK(got == 0x44, "... the pick plays 44 (%x)", got);
+        *rec = k_rec;
         *(u8**)(pl + 0x5c0) = k_tb; *(u8**)(pl + 0x80) = k_ph; *blen = k_blen; *(u16*)(kc + 0x188) = k188;
     }
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); *cnt = 2; test_cb_apply(pl);

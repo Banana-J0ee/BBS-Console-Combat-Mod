@@ -1022,9 +1022,10 @@ static u64 MSABI h_hover_slide(Ctx *c) {         /* 218d9f: test eax, 0x108 (gua
 static int   c_cb_on = 1;
 static float c_cb_win = 0.25f;
 static u16   g_cb_end[32]; static int g_cb_endn;
-static int   g_cb_have, g_cb_step, g_cb_prev, g_cb_air;      /* the combo running now (or just before) */
+static int   g_cb_have, g_cb_step, g_cb_prev, g_cb_prec, g_cb_air;   /* the combo running now (or just before) */
 static float g_cb_idle;                                      /* frames out of any action since that combo */
 static int   g_cb_pend, g_cb_pstep, g_cb_pprev, g_cb_pair;   /* noted by a command: put back on the next hit */
+static int   g_cb_pbase, g_cb_prec2;                          /* ... the step, the record of the last attack really played */
 static float g_cb_t;                                         /* frames since the command could be left */
 static int   g_cb_incmd; static u16 g_cb_cmd; static u32 g_cb_starts;
 static int   g_cb_test_len, g_cb_test_air = -1, g_cb_test_rep;              /* tests: the combo's length, in the air */
@@ -1060,7 +1061,7 @@ static void cb_frame(u8 *pl) {
         if (g_cb_pend && g_debug) LOG("command combo: dropped (the attack started without it, at step %d)", cnt);
         g_cb_pend = 0; g_cb_incmd = 0; g_cb_idle = 0.0f;
         g_cb_have = cnt > 0;
-        if (g_cb_have) { g_cb_step = cnt; g_cb_prev = *(u16*)(pl + 0x5a6); g_cb_air = cb_in_air(pl); }
+        if (g_cb_have) { g_cb_step = cnt; g_cb_prev = *(u16*)(pl + 0x5a6); g_cb_prec = *(u16*)(pl + 0x5aa); g_cb_air = cb_in_air(pl); }
         return;
     }
     if ((st == 0x10 && part != 5) || st == 0x11) {               /* a deck command */
@@ -1069,9 +1070,9 @@ static void cb_frame(u8 *pl) {
         if (!g_cb_incmd || id != g_cb_cmd || starts != g_cb_starts) {   /* a new command, or the same one again */
             if (g_cb_incmd && id == g_cb_cmd && g_debug) LOG("command combo: %x used again", id);
             g_cb_starts = starts;
-            int from = 0, prev = 0, air = 0;
-            if (g_cb_have) { from = g_cb_step; prev = g_cb_prev; air = g_cb_air; }
-            else if (g_cb_pend) { from = g_cb_pstep; prev = g_cb_pprev; air = g_cb_pair; }
+            int from = 0, prev = 0, air = 0, base = 0, prec = 0;
+            if (g_cb_have) { from = base = g_cb_step; prev = g_cb_prev; prec = g_cb_prec; air = g_cb_air; }
+            else if (g_cb_pend) { from = g_cb_pstep; base = g_cb_pbase; prev = g_cb_pprev; prec = g_cb_prec2; air = g_cb_pair; }
             g_cb_have = 0; g_cb_pend = 0; g_cb_incmd = 1; g_cb_cmd = id; g_cb_t = 0.0f;
             if (from > 0) {
                 /* the game keeps its own counter through a spell when the attack comes straight out of it (state 11 ->
@@ -1083,7 +1084,7 @@ static void cb_frame(u8 *pl) {
                     int len = cb_len(pl, air);
                     if (from + 1 >= len) { if (g_debug) LOG("command combo: %x took the closing step (%d of %d) - the combo ends", id, from + 1, len); }
                     else {
-                        g_cb_pend = 1; g_cb_pstep = from + 1; g_cb_pprev = prev; g_cb_pair = air;
+                        g_cb_pend = 1; g_cb_pstep = from + 1; g_cb_pprev = prev; g_cb_pair = air; g_cb_pbase = base; g_cb_prec2 = prec;
                         if (g_debug) LOG("command combo: %x takes step %d of %d (%s)", id, from + 1, len, air ? "air" : "ground");
                     }
                 }
@@ -1139,23 +1140,31 @@ static void cb_apply(u8 *pl, int mode) {
        moved on, Rhythm Mixer found no entry for "step 4 after 875" and started over at its first attack; a base combo
        played the skipped animation.  (The pick's own changes are put back; the step is below the length, so no
        closing hit, no flags.) */
-    u16 rep = 0;
+    u16 rep = 0, rrec = 0;
     u8 *tbl = *(u8**)(pl + (mode == 3 ? 0x5c8 : 0x5c0));
     if (tbl && *(u8**)(pl + 0x390) && (!g_cb_test_len || g_cb_test_rep < 0)) {
-        u16 k2 = *(u16*)(pl + 0x5a2), k4 = *(u16*)(pl + 0x5a4), k6 = *(u16*)(pl + 0x5a6);
+        u16 k2 = *(u16*)(pl + 0x5a2), k4 = *(u16*)(pl + 0x5a4), k6 = *(u16*)(pl + 0x5a6), ka = *(u16*)(pl + 0x5aa);
         u32 k320 = *(u32*)(pl + 0x320); u64 k608 = *(u64*)(pl + 0x608);
-        *(u16*)(pl + 0x5a2) = (u16)(g_cb_pstep - 1); *(u16*)(pl + 0x5a6) = (u16)g_cb_pprev;
+        u16 pv = (u16)g_cb_pprev, pr = (u16)g_cb_prec2;
         g_cb_sim = 1;
-        int got = FN(int, FN_COMBO_PICK, u8*, int)(pl, mode);
+        for (int k = g_cb_pbase; k < g_cb_pstep; k++) {             /* each step the commands took, from the last attack played */
+            *(u16*)(pl + 0x5a2) = (u16)k; *(u16*)(pl + 0x5a6) = pv; *(u16*)(pl + 0x5aa) = pr;
+            int got = FN(int, FN_COMBO_PICK, u8*, int)(pl, mode);
+            if (!got || *(u16*)(pl + 0x5a2) != k + 1) { rep = 0; break; }
+            rep = pv = *(u16*)(pl + 0x5a4);
+            rrec = pr = (u16)FN(int, 0x223cf0, u8*, int)(pl, pv);    /* attack -> record (the base combo's slots, pl+0x5b0) */
+        }
         g_cb_sim = 0;
-        if (got && *(u16*)(pl + 0x5a2) == g_cb_pstep) rep = *(u16*)(pl + 0x5a4);
-        *(u16*)(pl + 0x5a2) = k2; *(u16*)(pl + 0x5a4) = k4; *(u16*)(pl + 0x5a6) = k6;
+        *(u16*)(pl + 0x5a2) = k2; *(u16*)(pl + 0x5a4) = k4; *(u16*)(pl + 0x5a6) = k6; *(u16*)(pl + 0x5aa) = ka;
         *(u32*)(pl + 0x320) = k320; *(u64*)(pl + 0x608) = k608;
-    } else if (g_cb_test_rep > 0) rep = (u16)g_cb_test_rep;
-    *(u16*)(pl + 0x5a2) = (u16)g_cb_pstep; *(u16*)(pl + 0x5a6) = rep ? rep : (u16)g_cb_pprev;
+    } else if (g_cb_test_rep > 0) rep = rrec = (u16)g_cb_test_rep;
+    /* the attack before and the record before (pl+0x5aa, condition type 8 - Rhythm Mixer's chain) as the combo had them */
+    *(u16*)(pl + 0x5a2) = (u16)g_cb_pstep;
+    *(u16*)(pl + 0x5a6) = rep ? rep : (u16)g_cb_pprev;
+    *(u16*)(pl + 0x5aa) = rep ? rrec : (u16)g_cb_prec2;
     if (g_debug) {
-        if (rep) LOG("command combo: the combo goes on after step %d (the command took the place of attack %d)", g_cb_pstep, rep);
-        else LOG("command combo: the combo goes on after step %d (attack before kept: %d)", g_cb_pstep, g_cb_pprev);
+        if (rep) LOG("command combo: the combo goes on after step %d (the command took the place of attack %d, record %d)", g_cb_pstep, rep, rrec);
+        else LOG("command combo: the combo goes on after step %d (no attack found for it: the one before kept, %d / record %d)", g_cb_pstep, g_cb_pprev, g_cb_prec2);
     }
     g_cb_pend = 0;
 }

@@ -1664,3 +1664,9 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   step 1 + Fire -> 579).  cb_apply now runs the game's pick once for the command's step (counter = step - 1, attack
   before = the one before the command), takes the attack it gives as the attack before, and puts the pick's changes
   back (counter, +0x5a4, +0x5a6, +0x320, +0x608; the launch log is kept quiet for it).
+  Not enough for Rhythm Mixer (the user's log: "attack before kept: 874/875", then 874): its entries want the record
+  before - pl+0x5aa (type 8), the record of the attack just played (21e69e.. after 22a110: 5a8 = 5aa = 223cf0(pl,
+  5a4), attack -> record: ids <= 11 through the base combo's slots pl+0x5b0, others are the record) - and by the
+  pick after a command 5aa holds the command's own record.  The combo's record is now noted with its step, the
+  pick is run with it for each step the commands took (two commands in a row: both attacks), and 5aa is put in as
+  the record of the attack the command replaced (or the one before, when no attack is found).
