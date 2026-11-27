@@ -827,7 +827,7 @@ static void t_cmdcombo(void) {
     #undef COMBO
     #undef CMD
     #undef IDLE
-    test_cb_set(0, -1, 1.0f, "92, 93, 94, 95, d3, d4, d5, e8, e9, a6");
+    test_cb_set(0, -1, 0.5f, "92, 93, 94, 95, d3, d4, d5, e8, e9, a6");
     *st = k_st; *part = k_part; *cnt = k_cnt; *prev = k_prev; *cmdid = k_cmd; *dt = k_dt;
     *(u16*)(pl + 0x316) = k_old; *(u64*)(pl + 0x3b0) = k_ent;
     printf("t_cmdcombo done\n");

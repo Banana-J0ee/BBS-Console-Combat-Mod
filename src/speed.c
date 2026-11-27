@@ -1019,7 +1019,7 @@ static u64 MSABI h_hover_slide(Ctx *c) {         /* 218d9f: test eax, 0x108 (gua
 #define CB_SITE 0x22a133u
 #define FN_COMBO_PICK 0x2239b0u
 static int   c_cb_on = 1;
-static float c_cb_win = 1.0f;
+static float c_cb_win = 0.5f;
 static u16   g_cb_end[32]; static int g_cb_endn;
 static int   g_cb_have, g_cb_step, g_cb_prev, g_cb_air;      /* the combo running now (or just before) */
 static float g_cb_idle;                                      /* frames out of any action since that combo */
@@ -1244,7 +1244,7 @@ void speed_apply(void) {
         LOG("speed: Combo Plus / Air Combo Plus not counted for %d style attack(s)", g_cp_n); }
     {   char b[256];
         GetPrivateProfileStringA("Speed", "CommandCombo", "1", b, sizeof b, g_ini); c_cb_on = atoi(b) != 0;
-        c_cb_win = ini_f("CommandComboWindow", 1.0f); if (c_cb_win < 0.0f) c_cb_win = 0.0f;
+        c_cb_win = ini_f("CommandComboWindow", 0.5f); if (c_cb_win < 0.0f) c_cb_win = 0.0f;
         GetPrivateProfileStringA("Speed", "CommandComboEnd", "92, 93, 94, 95, d3, d4, d5, e8, e9, a6", b, sizeof b, g_ini);
         cb_list(b);
         u8 *p = g_base + CB_SITE; s32 d; memcpy(&d, p + 1, 4);
