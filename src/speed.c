@@ -1024,7 +1024,7 @@ static u16   g_cb_end[32]; static int g_cb_endn;
 static int   g_cb_have, g_cb_step, g_cb_prev, g_cb_air;      /* the combo running now (or just before) */
 static float g_cb_idle;                                      /* frames out of any action since that combo */
 static int   g_cb_pend, g_cb_pstep, g_cb_pprev, g_cb_pair;   /* noted by a command: put back on the next hit */
-static float g_cb_t;                                         /* frames since the command ended */
+static float g_cb_t;                                         /* frames since the command could be left */
 static int   g_cb_incmd; static u16 g_cb_cmd; static u32 g_cb_starts;
 static int   g_cb_test_len, g_cb_test_air = -1;              /* tests: the combo's length, in the air */
 static int cb_in_air(u8 *pl) { return g_cb_test_air >= 0 ? g_cb_test_air : FN(int, 0x264a10, u8*, int)(pl, 0) != 0; }
@@ -1055,6 +1055,8 @@ static void cb_frame(u8 *pl) {
     float dt = *(float*)(pl + 0x20); if (!(dt >= 0.0f) || dt > 6.0f) dt = 1.0f;
     if (st == 0x10 && part == 5) {                               /* a combo hit (a fresh one, or the carried one) */
         int cnt = *(u16*)(pl + 0x5a2);
+        if (g_cb_pend && cnt == 0) { g_cb_incmd = 0; return; }   /* the attack has not picked its step yet: cb_apply will */
+        if (g_cb_pend && g_debug) LOG("command combo: dropped (the attack started without it, at step %d)", cnt);
         g_cb_pend = 0; g_cb_incmd = 0; g_cb_idle = 0.0f;
         g_cb_have = cnt > 0;
         if (g_cb_have) { g_cb_step = cnt; g_cb_prev = *(u16*)(pl + 0x5a6); g_cb_air = cb_in_air(pl); }
@@ -1069,7 +1071,7 @@ static void cb_frame(u8 *pl) {
             int from = 0, prev = 0, air = 0;
             if (g_cb_have) { from = g_cb_step; prev = g_cb_prev; air = g_cb_air; }
             else if (g_cb_pend) { from = g_cb_pstep; prev = g_cb_pprev; air = g_cb_pair; }
-            g_cb_have = 0; g_cb_pend = 0; g_cb_incmd = 1; g_cb_cmd = id;
+            g_cb_have = 0; g_cb_pend = 0; g_cb_incmd = 1; g_cb_cmd = id; g_cb_t = 0.0f;
             if (from > 0) {
                 if (cb_ends(id)) { if (g_debug) LOG("command combo: %x ends the combo (step %d)", id, from); }
                 else {
@@ -1081,8 +1083,14 @@ static void cb_frame(u8 *pl) {
                     }
                 }
             }
+            return;
         }
-        g_cb_t = 0.0f;
+        /* the window runs from the moment the command can be left (the command cancel's "can be cancelled", or its
+           animation over), not from the end of its state: a spell stays in it for a while after that */
+        if (g_cb_pend && (g_cb_t > 0.0f || (g_cc.state == CCS_READY && g_cc.id == id) || finished(pl))) {
+            g_cb_t += dt;                                        /* (once started, it runs on) */
+            if (g_cb_t > c_cb_win * 60.0f) { if (g_debug) LOG("command combo: dropped (no attack in %.2f s)", c_cb_win); g_cb_pend = 0; }
+        }
         return;
     }
     g_cb_incmd = 0;
@@ -1101,7 +1109,13 @@ static void cb_frame(u8 *pl) {
 /* the next combo hit is about to be picked: a fresh combo after a noted command goes on from its step */
 static void cb_apply(u8 *pl) {
     if (!c_cb_on || !g_cb_pend || pl != local_player()) return;
-    if (*(u16*)(pl + 0x5a2) != 0 || cb_in_air(pl) != g_cb_pair) { g_cb_pend = 0; return; }
+    if (*(u16*)(pl + 0x5a2) != 0 || cb_in_air(pl) != g_cb_pair) {
+        if (g_debug) {
+            if (*(u16*)(pl + 0x5a2)) LOG("command combo: dropped (the game's own combo is at step %d)", *(u16*)(pl + 0x5a2));
+            else LOG("command combo: dropped (%s)", g_cb_pair ? "landed" : "left the ground");
+        }
+        g_cb_pend = 0; return;
+    }
     *(u16*)(pl + 0x5a2) = (u16)g_cb_pstep; *(u16*)(pl + 0x5a6) = (u16)g_cb_pprev;
     if (g_debug) LOG("command combo: the combo goes on after step %d", g_cb_pstep);
     g_cb_pend = 0;

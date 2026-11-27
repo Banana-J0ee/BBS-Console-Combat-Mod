@@ -813,6 +813,28 @@ static void t_cmdcombo(void) {
         CHECK(!test_cb_pending(), "a ground combo, then in the air: dropped"); test_cb_air(0); }
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); for (int i = 0; i < 13; i++) IDLE(); CMD(0x11, 0x83); IDLE();
     CHECK(!test_cb_pending(), "a combo let go of (13 frames standing), then a command: no carry");
+    {   /* the window runs from the moment the command can be left (here: its animation over), even while its state runs on */
+        u8 mot[16] = {0}; u8 *k_mot = *(u8**)(pl + 0x78); *(u8**)(pl + 0x78) = mot;
+        test_cb_set(7, 0, 0.25f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83);
+        for (int i = 0; i < 40; i++) test_cb_frame(pl);
+        CHECK(test_cb_pending() == 3, "40 frames into the spell (not over yet): still noted (%d)", test_cb_pending());
+        mot[8] = 1;
+        for (int i = 0; i < 14; i++) test_cb_frame(pl);
+        CHECK(test_cb_pending() == 3, "14 frames after it could be left, still in its state: noted (%d)", test_cb_pending());
+        test_cb_frame(pl); test_cb_frame(pl);
+        CHECK(!test_cb_pending(), "16 frames (past 0.25 s) after it could be left, still in its state: dropped");
+        mot[8] = 0; test_cb_set(7, 0, 0.25f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); test_cb_frame(pl); mot[8] = 1;
+        for (int i = 0; i < 10; i++) test_cb_frame(pl);
+        mot[8] = 0; for (int i = 0; i < 6; i++) IDLE();
+        CHECK(!test_cb_pending(), "10 frames free in the spell + 6 standing: the window ran on, dropped");
+        *(u8**)(pl + 0x78) = k_mot; }
+    /* the attack's state seen before the game picked its step (counter still 0): the step is kept for the pick */
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); COMBO(0, 0);
+    CHECK(test_cb_pending() == 3, "an attack seen before its step was picked: still noted (%d)", test_cb_pending());
+    test_cb_apply(pl);
+    CHECK(*cnt == 3, "... and the pick goes on from step 3 (%d)", *cnt);
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); COMBO(1, 0);
+    CHECK(!test_cb_pending(), "an attack that started at step 1 without the hook: dropped");
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); *cnt = 2; test_cb_apply(pl);
     CHECK(*cnt == 2 && !test_cb_pending(), "the game's own combo still running: left alone");
     {   extern void test_mv_frame(u8 *pl, int on);

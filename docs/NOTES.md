@@ -1632,3 +1632,11 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   first use - Fire x3 after step 1 went on after step 2.  Now the game's command start 21f9b0 (mp.c cmd_start_hook,
   which charges SP there too) counts the player's starts (mp_cmd_starts); a new start with the same id is a new
   command and takes the next step ("command combo: %x used again" in the debug log).
+* Fix (2026-11-27, the user's log: the hold felt uneven): the window ran from the end of the command's state, and a
+  spell stays in its state for a while after it can be cancelled - from the "can be cancelled" point the combo was
+  kept 0.25 s once and 0.36 s another time.  Now it runs from the moment the command can be left (the command
+  cancel's CCS_READY for that command, or its animation over) and runs on from there.  And a miss: an attack 0.06 s
+  after a Fire started at step 1 with no "dropped" line - the tick clears the noted step when it sees the attack
+  state, and there it saw it before the game picked the attack's step (counter still 0).  The step is now kept while
+  the counter is 0 (cb_apply takes it at the pick); the silent drops in cb_apply and an attack that started without
+  the hook are logged.
