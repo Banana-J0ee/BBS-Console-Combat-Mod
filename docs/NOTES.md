@@ -1645,3 +1645,6 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   (record 15): the game kept its own counter through the spell (229e80 clears it only with pl+0x5a0 = 0), so the
   combo went on as if the spell was not there.  A command noted in a combo now clears the game's counter at its
   start; cb_apply puts the step back at the next pick (or the next attack starts a new combo).
+* Fix (2026-11-27, the user: ice creams did not end the combo): an item only dropped our noted step; the game keeps
+  its own counter through the item state (0x12), so the attack after it went on.  Ice creams are items 0xc5..0xd2
+  (2624e0 -> 237c70 forces a style).  The item state now clears the counter ("combo: item X ends the combo").

@@ -806,6 +806,9 @@ static void t_cmdcombo(void) {
     CHECK(!kept, "Cure, Cura, Curaga, Esuna, the Group cures, the D-Link heals and Faith end the combo (%d kept)", kept);
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); *st = 0x12; *part = 0; *cmdid = 0x30; test_cb_frame(pl); IDLE();
     CHECK(!test_cb_pending(), "an item (state 12): the combo ends");
+    CHECK(*cnt == 0, "... and the game's own counter is cleared (%d)", *cnt);
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(3, 0x23); *st = 0x12; *part = 0; *cmdid = 0xc5; test_cb_frame(pl);
+    CHECK(*cnt == 0, "an ice cream (c5) at step 3: the game's counter is cleared (%d)", *cnt);
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); *st = 0x15; test_cb_frame(pl);
     CHECK(!test_cb_pending(), "a dodge after the command: dropped");
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83);

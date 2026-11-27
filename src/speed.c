@@ -1100,6 +1100,12 @@ static void cb_frame(u8 *pl) {
     g_cb_incmd = 0;
     if (st >= 0x12) {                                            /* item, D-Link, finisher, movement, guard, ... */
         if (g_cb_pend && g_debug) LOG("command combo: dropped (state %x)", st);
+        /* an item (a potion, an ether, an ice cream 0xc5..0xd2 - which then forces a style) ends the combo: the game
+           keeps its own counter through the item state, and the attack after it went on with the combo */
+        if (st == 0x12 && *(u16*)(pl + 0x5a2)) {
+            if (g_debug) LOG("combo: item %x ends the combo (step %d)", *(u16*)(pl + 0x312), *(u16*)(pl + 0x5a2));
+            *(u16*)(pl + 0x5a2) = 0;
+        }
         g_cb_have = 0; g_cb_pend = 0; return;
     }
     /* idle, moving, falling, landing */
