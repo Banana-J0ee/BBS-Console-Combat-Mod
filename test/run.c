@@ -819,6 +819,16 @@ static void t_cmdcombo(void) {
     {   test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE();
         extern void test_cb_air(int air); test_cb_air(1); IDLE();
         CHECK(!test_cb_pending(), "a ground combo, then in the air: dropped"); test_cb_air(0); }
+    {   extern void test_cb_air(int air);
+        test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); test_cb_air(1); test_cb_frame(pl); IDLE();
+        CHECK(test_cb_pending() == 3, "a ground command that takes you up: the step goes with it (%d)", test_cb_pending());
+        *cnt = 0; test_cb_apply(pl);
+        CHECK(*cnt == 3, "... and the attack in the air goes on from step 3 (%d)", *cnt);
+        test_cb_set(7, 1, 1.0f, NULL); COMBO(2, 0x22); CMD(0x10, 0x5b); test_cb_air(0); test_cb_frame(pl); *cnt = 0; test_cb_apply(pl);
+        CHECK(*cnt == 3, "an air command that lands you, the attack straight out of it on the ground: step 3 (%d)", *cnt);
+        test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83); IDLE(); test_cb_air(1); IDLE();
+        CHECK(!test_cb_pending(), "a ground command, then a jump after it: dropped");
+        test_cb_air(0); }
     test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); for (int i = 0; i < 13; i++) IDLE(); CMD(0x11, 0x83); IDLE();
     CHECK(!test_cb_pending(), "a combo let go of (13 frames standing), then a command: no carry");
     {   /* the window runs from the moment the command can be left (here: its animation over), even while its state runs on */

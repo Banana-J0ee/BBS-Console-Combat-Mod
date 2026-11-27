@@ -1648,3 +1648,9 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
 * Fix (2026-11-27, the user: ice creams did not end the combo): an item only dropped our noted step; the game keeps
   its own counter through the item state (0x12), so the attack after it went on.  Ice creams are items 0xc5..0xd2
   (2624e0 -> 237c70 forces a style).  The item state now clears the counter ("combo: item X ends the combo").
+* Ground / air (2026-11-27): the game writes the combo counter in three places only - the pick (+1, 223a17), the
+  closing hit (0 at counter >= length, 223a94: a count past the length plays the closing hit) and a fresh attack
+  (229e80 with chain index pl+0x5a0 = 0, 229eed); nothing on a jump or a landing, so a combo goes on across them
+  when the actions chain into each other.  The noted step now does the same: a command that takes you up or down
+  keeps it (the side is where the command leaves you), a jump, a fall or a landing after the command drops it.
+  The pick takes the length of where the attack is (264a10 at the pick).

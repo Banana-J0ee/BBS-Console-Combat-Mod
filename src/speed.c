@@ -1089,6 +1089,12 @@ static void cb_frame(u8 *pl) {
             }
             return;
         }
+        /* a command that takes you up or down keeps the step (as the game keeps its combo when an action moves you):
+           the side that counts is where the command leaves you; a jump or a landing after it still drops it */
+        if (g_cb_pend) {
+            int a = cb_in_air(pl);
+            if (a != g_cb_pair) { if (g_debug) LOG("command combo: %x took you %s, the step goes with you", id, a ? "up" : "down"); g_cb_pair = a; }
+        }
         /* the window runs from the moment the command can be left (the command cancel's "can be cancelled", or its
            animation over), not from the end of its state: a spell stays in it for a while after that */
         if (g_cb_pend && (g_cb_t > 0.0f || (g_cc.state == CCS_READY && g_cc.id == id) || finished(pl))) {
