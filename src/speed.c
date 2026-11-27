@@ -1073,6 +1073,10 @@ static void cb_frame(u8 *pl) {
             else if (g_cb_pend) { from = g_cb_pstep; prev = g_cb_pprev; air = g_cb_pair; }
             g_cb_have = 0; g_cb_pend = 0; g_cb_incmd = 1; g_cb_cmd = id; g_cb_t = 0.0f;
             if (from > 0) {
+                /* the game keeps its own counter through a spell when the attack comes straight out of it (state 11 ->
+                   10 with no idle between: 229e80 does not clear it) and would go on from the step before the command
+                   - the closing hit after a command on the closing step, or a step short.  The count is ours now. */
+                *(u16*)(pl + 0x5a2) = 0;
                 if (cb_ends(id)) { if (g_debug) LOG("command combo: %x ends the combo (step %d)", id, from); }
                 else {
                     int len = cb_len(pl, air);

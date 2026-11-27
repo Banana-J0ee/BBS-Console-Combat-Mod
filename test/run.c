@@ -793,6 +793,11 @@ static void t_cmdcombo(void) {
     test_cb_set(7, 0, 1.0f, NULL);
     COMBO(6, 0x25); CMD(0x11, 0x83); IDLE();
     CHECK(!test_cb_pending(), "step 6 + a spell: it took the closing step, the combo ends");
+    CHECK(*cnt == 0, "... and the game's own counter is cleared, so an attack straight out of the spell starts a new combo (%d)", *cnt);
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x83);
+    CHECK(*cnt == 0 && test_cb_pending() == 3, "a command taking step 3: the game's counter is ours until the pick (%d)", *cnt);
+    test_cb_set(7, 0, 1.0f, NULL); COMBO(2, 0x22); CMD(0x11, 0x92);
+    CHECK(*cnt == 0, "Cure in a combo: the game's counter is cleared (%d)", *cnt);
     COMBO(0, 0x26); CMD(0x11, 0x83); IDLE();
     CHECK(!test_cb_pending(), "the closing hit played (counter 0): a command after it carries nothing");
     static const u16 cures[] = { 0x92, 0x93, 0x94, 0x95, 0xd3, 0xd4, 0xd5, 0xe8, 0xe9, 0xa6 };

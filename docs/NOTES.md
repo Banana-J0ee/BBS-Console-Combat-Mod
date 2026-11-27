@@ -1640,3 +1640,8 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   state, and there it saw it before the game picked the attack's step (counter still 0).  The step is now kept while
   the counter is 0 (cb_apply takes it at the pick); the silent drops in cb_apply and an attack that started without
   the hook are logged.
+* Fix (2026-11-27, Ventus' log): Firaga on step 3 of 4 "took the closing step - the combo ends", and the attack
+  straight out of it (state 11 -> 10/5 with no idle between, not through our cut-short) played the closing hit
+  (record 15): the game kept its own counter through the spell (229e80 clears it only with pl+0x5a0 = 0), so the
+  combo went on as if the spell was not there.  A command noted in a combo now clears the game's counter at its
+  start; cb_apply puts the step back at the next pick (or the next attack starts a new combo).
