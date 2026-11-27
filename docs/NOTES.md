@@ -1624,7 +1624,7 @@ Asked: does any of the PSP's online / ad-hoc play (Mirage Arena co-op, versus mo
   cleared).
 * Mod: the tick notes the running combo (state 0x10 part 5, counter > 0); a command starting from it (0x10 other
   part, 0x11) notes step + 1 unless that is the length or the command is listed; state >= 0x12, ground <-> air,
-  CommandComboWindow (0.5 s; 1 s before 2026-11-27) after the command, or 12 frames out of the combo before the command drop it.  The hook at
+  CommandComboWindow (0.25 s; 1 s, then 0.5 s before 2026-11-27) after the command, or 12 frames out of the combo before the command drop it.  The hook at
   22a133 puts the counter and the attack before back when the counter is 0 (a fresh combo).  Test: `t_cmdcombo`.
   Not seen in the game by me.
 * Fix (2026-11-27, the user's log): the same command used again through the command cancel ("cut short for a held
